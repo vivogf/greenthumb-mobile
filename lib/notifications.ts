@@ -1,0 +1,102 @@
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { apiRequest, apiFetch } from './api';
+
+/** True when running inside Expo Go (not a development/standalone build). */
+export const isExpoGo = Constants.appOwnership === 'expo';
+
+let Notifications: typeof import('expo-notifications') | null = null;
+
+/** Lazy-load expo-notifications (crashes on import in Expo Go since SDK 53). */
+async function getNotifications() {
+  if (Notifications) return Notifications;
+  if (isExpoGo) return null;
+  try {
+    Notifications = await import('expo-notifications');
+    return Notifications;
+  } catch {
+    return null;
+  }
+}
+
+/** Set up foreground notification handler. Call once at app startup. */
+export async function initNotificationHandler(): Promise<void> {
+  const N = await getNotifications();
+  if (!N) return;
+  N.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
+
+/**
+ * Request notification permissions and return Expo Push Token.
+ * Returns null if permissions denied, running in Expo Go, or in simulator.
+ */
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  const N = await getNotifications();
+  if (!N) return null;
+
+  if (Platform.OS === 'android') {
+    await N.setNotificationChannelAsync('default', {
+      name: 'Plant Care Reminders',
+      importance: N.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4a9a5a',
+    });
+  }
+
+  const { status: existingStatus } = await N.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await N.requestPermissionsAsync();
+    finalStatus = status;
+  }
+
+  if (finalStatus !== 'granted') {
+    return null;
+  }
+
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const tokenData = await N.getExpoPushTokenAsync({
+    ...(projectId ? { projectId } : {}),
+  });
+
+  return tokenData.data;
+}
+
+/** Subscribe this device's Expo token to backend push notifications. */
+export async function subscribeToExpoNotifications(token: string): Promise<void> {
+  await apiRequest('POST', '/api/push/subscribe-expo', { expo_push_token: token });
+}
+
+/** Unsubscribe this device from backend push notifications. */
+export async function unsubscribeFromExpoNotifications(): Promise<void> {
+  await apiRequest('DELETE', '/api/push/subscribe-expo');
+}
+
+/** Check whether this user has an active Expo push subscription. */
+export async function checkExpoSubscription(): Promise<boolean> {
+  const data = await apiFetch<{ subscribed: boolean }>('/api/push/expo-subscription');
+  return data.subscribed;
+}
+
+/** Send a local test notification to verify permissions work. */
+export async function sendLocalTestNotification(): Promise<void> {
+  const N = await getNotifications();
+  if (!N) return;
+  await N.scheduleNotificationAsync({
+    content: {
+      title: 'GreenThumb 💚',
+      body: 'Уведомления работают! 🌿',
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
