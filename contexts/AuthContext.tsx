@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { API_BASE_URL } from '../lib/constants';
+import { baseFetch } from '../lib/api';
+import { queryClient, persister } from '../lib/queryClient';
 import {
   saveRecoveryKey,
   getStoredRecoveryKey,
@@ -42,15 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Session initialisation on app start:
    * 1. Try the in-memory cookie (valid if the app was not killed)
-   * 2. If no valid session → try auto-login with the stored recovery key
-   * 3. If auto-login fails → clear the key (it might have been regenerated)
+   * 2. Only if the backend explicitly says "not authenticated" (401),
+   *    try auto-login with the stored recovery key
+   * 3. Clear the stored key only if the backend explicitly rejects it (401)
    */
   async function initSession() {
     try {
       // Step 1 — cookie still alive?
-      const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        credentials: 'include',
-      });
+      const meRes = await baseFetch('/api/auth/me');
 
       if (meRes.ok) {
         const data = await meRes.json();
@@ -58,14 +58,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Only recover from the expected "no session" state.
+      // Temporary backend/proxy errors should not trigger recovery-key cleanup.
+      if (meRes.status !== 401) {
+        console.warn(`[Auth] Session check returned ${meRes.status}, skipping recovery auto-login`);
+        return;
+      }
+
       // Step 2 — auto-login with stored key
       const storedKey = await getStoredRecoveryKey();
       if (storedKey) {
-        const loginRes = await fetch(`${API_BASE_URL}/api/auth/login-recovery`, {
+        const loginRes = await baseFetch('/api/auth/login-recovery', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ recoveryKey: storedKey }),
-          credentials: 'include',
         });
 
         if (loginRes.ok) {
@@ -74,8 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Step 3 — stored key is invalid, clear it
-        await clearRecoveryKey();
+        // Only clear the key when the server explicitly says it is invalid.
+        // For 429/5xx and other transient failures we keep the stored key.
+        if (loginRes.status === 401) {
+          await clearRecoveryKey();
+          return;
+        }
+
+        console.warn(`[Auth] Recovery login returned ${loginRes.status}, keeping stored key`);
       }
     } catch (error) {
       // Network error during init — user stays null, login screen is shown
@@ -90,11 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ---------------------------------------------------------------------------
 
   const createAnonymousAccount = async (name?: string): Promise<User> => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/create-anonymous`, {
+    const res = await baseFetch('/api/auth/create-anonymous', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
-      credentials: 'include',
     });
 
     const data = await res.json();
@@ -110,11 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithRecoveryKey = async (recoveryKey: string): Promise<void> => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login-recovery`, {
+    const res = await baseFetch('/api/auth/login-recovery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recoveryKey }),
-      credentials: 'include',
     });
 
     const data = await res.json();
@@ -130,15 +140,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async (): Promise<void> => {
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await baseFetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include',
       });
     } catch (error) {
       console.error('[Auth] Logout request failed:', error);
     }
-    // Always clear local state even if the server request fails
+    // Always clear local state even if the server request fails.
+    // queryClient.clear() drops all cached queries so the next account
+    // can't see the previous user's plants/profile (security).
     await clearRecoveryKey();
+    queryClient.clear();
+    await persister.removeClient();
     setUser(null);
   };
 
@@ -147,9 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const regenerateRecoveryKey = async (): Promise<void> => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/regenerate-recovery-key`, {
+    const res = await baseFetch('/api/auth/regenerate-recovery-key', {
       method: 'POST',
-      credentials: 'include',
     });
 
     const data = await res.json();

@@ -48,7 +48,10 @@
     "tryDifferentSearch": "Try a different search term",
     "tryDifferentFilter": "Try a different filter",
     "waterAll": "Water All",
+    "wateringNow": "Watering...",
+    "wateringAllPending": "Watering {{count}} plants...",
     "postponeAll": "Postpone All",
+    "lastSynced": "Updated at {{time}}",
     "plantsWatered": "plants watered",
     "plantsPostponed": "plants postponed"
   },
@@ -107,6 +110,7 @@
   },
   "plantDetails": {
     "back": "Back",
+    "changePhoto": "Change Photo",
     "plantNotFound": "Plant not found",
     "goHome": "Go Home",
     "everyDay": "Every {{count}} day",
@@ -164,7 +168,8 @@
     "yesterday": "Yesterday",
     "daysAgo": "{{count}} days ago",
     "careNotSet": "Not configured",
-    "lastTime": "Last time"
+    "lastTime": "Last time",
+    "notSpecified": "Not specified"
   },
   "profile": {
     "title": "My Profile",
@@ -201,7 +206,13 @@
     "copied": "Copied!",
     "copiedHint": "Recovery key copied to clipboard.",
     "testSent": "Test sent",
-    "testSentHint": "Check for a notification!"
+    "testSentHint": "Check for a notification!",
+    "languageEnglish": "English",
+    "languageRussian": "Русский",
+    "chooseLanguage": "Choose Language",
+    "version": "Version",
+    "pushPermissionDenied": "Please enable notifications in your phone settings.",
+    "pushPermissionDeniedIOS": "Please enable notifications in Settings → GreenThumb → Notifications."
   },
   "nav": {
     "plants": "Plants",
@@ -211,6 +222,9 @@
   "common": {
     "error": "Error",
     "cancel": "Cancel",
+    "camera": "Camera",
+    "gallery": "Gallery",
+    "save": "Save",
     "loading": "Loading...",
     "welcomeBack": "Welcome back!",
     "signedIn": "Signed in successfully.",
@@ -218,5 +232,21 @@
     "permissionDeniedTitle": "No Access",
     "cameraPermissionDenied": "Please allow camera access in your phone settings.",
     "galleryPermissionDenied": "Please allow photo library access in your phone settings."
+  },
+  "a11y": {
+    "waterPlant": "Water plant {{name}}",
+    "openPlant": "Open plant card {{name}}",
+    "addPlant": "Add a new plant",
+    "clearSearch": "Clear search",
+    "viewModeList": "List view",
+    "viewModeCard": "Card view",
+    "viewModeGrid": "Grid view",
+    "back": "Back",
+    "changePhoto": "Change plant photo",
+    "deletePlant": "Delete plant",
+    "signOut": "Sign out",
+    "chooseLanguage": "Choose language",
+    "waterAll": "Water all plants that need watering",
+    "postponeAll": "Postpone all plants that need watering"
   }
 }

@@ -87,6 +87,25 @@ export async function checkExpoSubscription(): Promise<boolean> {
   return data.subscribed;
 }
 
+/**
+ * Subscribe to "user tapped a notification" events.
+ * Returns an unsubscribe function. No-op in Expo Go.
+ *
+ * The callback receives the notification data payload, which by convention
+ * may contain a `plant_id` so the app can deep-link into the plant screen.
+ */
+export async function addNotificationResponseListener(
+  callback: (data: Record<string, unknown>) => void,
+): Promise<() => void> {
+  const N = await getNotifications();
+  if (!N) return () => {};
+  const sub = N.addNotificationResponseReceivedListener((response) => {
+    const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+    callback(data);
+  });
+  return () => sub.remove();
+}
+
 /** Send a local test notification to verify permissions work. */
 export async function sendLocalTestNotification(): Promise<void> {
   const N = await getNotifications();

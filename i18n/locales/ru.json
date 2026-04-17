@@ -48,7 +48,10 @@
     "tryDifferentSearch": "Попробуйте другой запрос",
     "tryDifferentFilter": "Попробуйте другой фильтр",
     "waterAll": "Полить все",
+    "wateringNow": "Поливаем...",
+    "wateringAllPending": "Поливаем {{count}} растений...",
     "postponeAll": "Отложить все",
+    "lastSynced": "Обновлено в {{time}}",
     "plantsWatered": "растений полито",
     "plantsPostponed": "растений отложено"
   },
@@ -107,6 +110,7 @@
   },
   "plantDetails": {
     "back": "Назад",
+    "changePhoto": "Изменить фото",
     "plantNotFound": "Растение не найдено",
     "goHome": "На главную",
     "everyDay": "Каждый {{count}} день",
@@ -164,7 +168,8 @@
     "yesterday": "Вчера",
     "daysAgo": "{{count}} дн. назад",
     "careNotSet": "Не настроено",
-    "lastTime": "Последний раз"
+    "lastTime": "Последний раз",
+    "notSpecified": "Не указано"
   },
   "profile": {
     "title": "Мой профиль",
@@ -201,7 +206,13 @@
     "copied": "Скопировано!",
     "copiedHint": "Ключ скопирован в буфер обмена.",
     "testSent": "Тест отправлен",
-    "testSentHint": "Проверьте уведомления!"
+    "testSentHint": "Проверьте уведомления!",
+    "languageEnglish": "English",
+    "languageRussian": "Русский",
+    "chooseLanguage": "Выберите язык",
+    "version": "Версия",
+    "pushPermissionDenied": "Включите уведомления в настройках телефона.",
+    "pushPermissionDeniedIOS": "Включите уведомления: Настройки → GreenThumb → Уведомления."
   },
   "nav": {
     "plants": "Растения",
@@ -211,6 +222,9 @@
   "common": {
     "error": "Ошибка",
     "cancel": "Отмена",
+    "camera": "Камера",
+    "gallery": "Галерея",
+    "save": "Сохранить",
     "loading": "Загрузка...",
     "welcomeBack": "С возвращением!",
     "signedIn": "Вход выполнен успешно.",
@@ -218,5 +232,21 @@
     "permissionDeniedTitle": "Нет доступа",
     "cameraPermissionDenied": "Разрешите доступ к камере в настройках телефона.",
     "galleryPermissionDenied": "Разрешите доступ к галерее в настройках телефона."
+  },
+  "a11y": {
+    "waterPlant": "Полить растение {{name}}",
+    "openPlant": "Открыть карточку растения {{name}}",
+    "addPlant": "Добавить новое растение",
+    "clearSearch": "Очистить поиск",
+    "viewModeList": "Отображение списком",
+    "viewModeCard": "Отображение карточками",
+    "viewModeGrid": "Отображение сеткой",
+    "back": "Назад",
+    "changePhoto": "Изменить фото растения",
+    "deletePlant": "Удалить растение",
+    "signOut": "Выйти из аккаунта",
+    "chooseLanguage": "Выбрать язык",
+    "waterAll": "Полить все растения, нуждающиеся в поливе",
+    "postponeAll": "Отложить все растения, нуждающиеся в поливе"
   }
 }

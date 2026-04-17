@@ -18,5 +18,12 @@ node_modules/
 # Leftovers / junk
 CLAUDE.md
 o4oQ4Yk7SpH1dw
+
+# Firebase (contains API key - do not commit to public repos)
+google-services.json
 Screenshot_*.jpg
 Screenshot_*.png
+
+# AI tool state (Claude Code / Codex)
+.claude/
+.codex
