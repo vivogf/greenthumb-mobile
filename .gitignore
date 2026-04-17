@@ -26,3 +26,6 @@ Screenshot_*.png
 # AI tool state (Claude Code / Codex)
 .claude/
 .codex
+
+# Smoke-test artifacts (screenshots + logcat)
+smoke-output/

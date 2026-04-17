@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -62,7 +61,8 @@
           "color": "#4a9a5a"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-localization"
     ],
     "scheme": "greenthumb",
     "experiments": {
