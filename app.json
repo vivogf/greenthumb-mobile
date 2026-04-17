@@ -33,6 +33,7 @@
         "backgroundColor": "#1a5c2e"
       },
       "package": "com.greenthumb.plantcare",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
