@@ -716,7 +716,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_watered_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_watered_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('addPlant.notSet')}
                 />
               </View>
             </View>
@@ -739,7 +739,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_fertilized_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_fertilized_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('addPlant.notSet')}
                 />
               </View>
             </View>
@@ -762,7 +762,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_repotted_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_repotted_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('addPlant.notSet')}
                 />
               </View>
             </View>
@@ -785,7 +785,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_pruned_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_pruned_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('addPlant.notSet')}
                 />
               </View>
             </View>

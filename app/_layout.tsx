@@ -10,6 +10,7 @@ import { queryClient } from '../lib/queryClient';
 import { loadSavedLanguage } from '../i18n/index';
 import { AuthProvider } from '../contexts/AuthContext';
 import { useColors } from '../hooks/useColors';
+import { initNotificationHandler } from '../lib/notifications';
 import * as SystemUI from 'expo-system-ui';
 import i18n from '../i18n/index';
 
@@ -22,6 +23,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadSavedLanguage();
+    // Configure how incoming notifications are shown while the app is in the foreground.
+    // Safe to call unconditionally: returns a no-op inside Expo Go.
+    initNotificationHandler();
   }, []);
 
   useEffect(() => {

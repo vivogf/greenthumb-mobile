@@ -21,7 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useColors } from '../../hooks/useColors';
-import { apiRequest } from '../../lib/api';
+import { apiRequest, TimeoutError, NetworkError } from '../../lib/api';
+import { changeLanguage } from '../../i18n/index';
 import {
   registerForPushNotificationsAsync,
   subscribeToExpoNotifications,
@@ -32,9 +33,23 @@ import {
 } from '../../lib/notifications';
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut, regenerateRecoveryKey, updateUser } = useAuth();
   const colors = useColors();
+
+  const currentLanguage = i18n.language?.startsWith('ru') ? 'ru' : 'en';
+
+  const handleChangeLanguage = useCallback(() => {
+    Alert.alert(
+      t('profile.language'),
+      undefined,
+      [
+        { text: 'English', onPress: () => void changeLanguage('en') },
+        { text: 'Русский', onPress: () => void changeLanguage('ru') },
+        { text: t('common.cancel'), style: 'cancel' },
+      ],
+    );
+  }, [t]);
 
   const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -77,8 +92,8 @@ export default function ProfileScreen() {
           Alert.alert(
             t('common.error'),
             Platform.OS === 'ios'
-              ? 'Please enable notifications in Settings → GreenThumb → Notifications.'
-              : 'Notification permission denied. Please enable in system settings.',
+              ? t('common.notificationPermissionDeniedIOS')
+              : t('common.notificationPermissionDeniedAndroid'),
           );
           setPushToggling(false);
           return;
@@ -96,7 +111,13 @@ export default function ProfileScreen() {
       }
     } catch (error: any) {
       console.error('[Push] Toggle error:', error);
-      Alert.alert(t('common.error'), error.message);
+      const msg =
+        error instanceof TimeoutError
+          ? t('errors.timeout')
+          : error instanceof NetworkError
+            ? t('errors.network')
+            : error?.message || t('errors.unknown');
+      Alert.alert(t('common.error'), msg);
     } finally {
       setPushToggling(false);
     }
@@ -186,7 +207,7 @@ export default function ProfileScreen() {
   const handleRegenerateKey = () => {
     Alert.alert(
       t('profile.generateNewKey'),
-      'This will replace your current recovery key. Make sure to save the new one.',
+      t('errors.confirmRegenerate'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -199,7 +220,11 @@ export default function ProfileScreen() {
               setKeyVisible(true);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error: any) {
-              Alert.alert(t('common.error'), error.message);
+              // AuthContext throws i18n keys (e.g., "errors.regenerateFailed") as Error.message
+              const msg = error?.message?.startsWith('errors.')
+                ? t(error.message)
+                : (error?.message || t('errors.unknown'));
+              Alert.alert(t('common.error'), msg);
             } finally {
               setRegenerating(false);
             }
@@ -368,6 +393,16 @@ export default function ProfileScreen() {
               />
             </>
           )}
+        </SectionCard>
+
+        {/* Language */}
+        <SectionCard>
+          <Row
+            icon="language-outline"
+            label={t('profile.language')}
+            value={currentLanguage === 'ru' ? 'Русский' : 'English'}
+            onPress={handleChangeLanguage}
+          />
         </SectionCard>
 
         {/* Recovery key */}

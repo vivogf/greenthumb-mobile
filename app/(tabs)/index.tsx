@@ -15,6 +15,7 @@ import {
   TextInput,
   Alert,
   RefreshControl,
+  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,7 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '../../hooks/useColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDaysUntilWatering, getWateringStatus, todayString } from '../../lib/utils';
-import { apiRequest } from '../../lib/api';
+import { apiRequest, TimeoutError, NetworkError } from '../../lib/api';
 import { LAYOUT_MODE_STORE_KEY } from '../../lib/constants';
 import { SkeletonLoader } from '../../components/SkeletonPlaceholder';
 import { WaterButtonWithParticles } from '../../components/WaterButtonWithParticles';
@@ -80,6 +81,16 @@ export default function DashboardScreen() {
     queryKey: ['/api/plants'],
   });
 
+  const handleMutationError = useCallback((err: unknown) => {
+    const msg =
+      err instanceof TimeoutError
+        ? t('errors.timeout')
+        : err instanceof NetworkError
+          ? t('errors.network')
+          : (err as Error)?.message || t('errors.unknown');
+    Alert.alert(t('errors.actionFailed'), msg);
+  }, [t]);
+
   const waterMutation = useMutation({
     mutationFn: async (plantId: string) => {
       await apiRequest('PATCH', `/api/plants/${plantId}`, {
@@ -89,6 +100,7 @@ export default function DashboardScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
     },
+    onError: handleMutationError,
   });
 
   const waterAllMutation = useMutation({
@@ -98,8 +110,9 @@ export default function DashboardScreen() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
-      Alert.alert(t('plant.watered'), `${data.count} ${t('dashboard.plantsWatered')}`);
+      Alert.alert(t('plant.watered'), t('dashboard.plantsWatered', { count: data.count }));
     },
+    onError: handleMutationError,
   });
 
   const postponeAllMutation = useMutation({
@@ -109,8 +122,9 @@ export default function DashboardScreen() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
-      Alert.alert('✓', `${data.count} ${t('dashboard.plantsPostponed')}`);
+      Alert.alert(t('common.done'), t('dashboard.plantsPostponed', { count: data.count }));
     },
+    onError: handleMutationError,
   });
 
   // ---------------------------------------------------------------------------
@@ -418,14 +432,19 @@ export default function DashboardScreen() {
     ({ item, index }: { item: Plant; index: number }) => {
       const { daysUntil, status, accentColor } = getStatusInfo(item);
 
-      const displayNumber = String(daysUntil);
-
-      const numberColor =
-        status === 'overdue'
-          ? '#ff6b6b'
-          : status === 'today'
-            ? '#fbbf24'
-            : '#ffffff';
+      // Grid badge: overdue → "!5" (days late), today → "💧", healthy → remaining days.
+      let badgeText: string;
+      let badgeColor: string;
+      if (status === 'overdue') {
+        badgeText = `!${Math.abs(daysUntil)}`;
+        badgeColor = '#ff6b6b';
+      } else if (status === 'today') {
+        badgeText = '💧';
+        badgeColor = '#fbbf24';
+      } else {
+        badgeText = String(daysUntil);
+        badgeColor = '#ffffff';
+      }
 
       return (
         <Animated.View entering={FadeInDown.delay(index * 40).duration(300).springify()}>
@@ -478,10 +497,10 @@ export default function DashboardScreen() {
                 style={{
                   fontSize: 12,
                   fontWeight: '800',
-                  color: numberColor,
+                  color: badgeColor,
                 }}
               >
-                {displayNumber}
+                {badgeText}
               </Text>
             </View>
           </Pressable>
@@ -509,12 +528,44 @@ export default function DashboardScreen() {
   }
 
   if (error) {
+    const isTimeout = error instanceof TimeoutError;
+    const isNetwork = error instanceof NetworkError;
+    const iconName = isTimeout ? 'time-outline' : isNetwork ? 'cloud-offline-outline' : 'alert-circle-outline';
+    const messageKey = isTimeout ? 'errors.timeout' : isNetwork ? 'errors.network' : 'errors.loadFailed';
+
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ color: colors.destructive, textAlign: 'center' }}>
-            {(error as Error).message}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 16 }}>
+          <Ionicons name={iconName} size={56} color={colors.mutedForeground} />
+          <Text
+            style={{ fontSize: 16, color: colors.foreground, textAlign: 'center', lineHeight: 22 }}
+          >
+            {t(messageKey)}
           </Text>
+          <Pressable
+            onPress={() => refetch()}
+            disabled={isRefetching}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: colors.primary,
+              borderRadius: 10,
+              paddingHorizontal: 22,
+              paddingVertical: 12,
+              opacity: pressed || isRefetching ? 0.75 : 1,
+              marginTop: 4,
+            })}
+          >
+            {isRefetching ? (
+              <ActivityIndicator color={colors.primaryForeground} size="small" />
+            ) : (
+              <Ionicons name="refresh" size={18} color={colors.primaryForeground} />
+            )}
+            <Text style={{ color: colors.primaryForeground, fontSize: 15, fontWeight: '600' }}>
+              {t('common.retry')}
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );

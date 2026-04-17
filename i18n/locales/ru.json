@@ -49,8 +49,12 @@
     "tryDifferentFilter": "Попробуйте другой фильтр",
     "waterAll": "Полить все",
     "postponeAll": "Отложить все",
-    "plantsWatered": "растений полито",
-    "plantsPostponed": "растений отложено"
+    "plantsWatered_0": "{{count}} растение полито",
+    "plantsWatered_1": "{{count}} растения политы",
+    "plantsWatered_2": "{{count}} растений полито",
+    "plantsPostponed_0": "{{count}} растение отложено",
+    "plantsPostponed_1": "{{count}} растения отложены",
+    "plantsPostponed_2": "{{count}} растений отложено"
   },
   "plant": {
     "water": "Полить",
@@ -103,7 +107,19 @@
     "addedToGarden": "добавлено в ваш сад",
     "fileTooLarge": "Файл слишком большой",
     "fileTooLargeHint": "Фото должно быть меньше 5 МБ",
-    "uploadFailed": "Ошибка загрузки"
+    "uploadFailed": "Ошибка загрузки",
+    "validation": {
+      "nameRequired": "Введите название",
+      "minOneDay": "Минимум 1 день",
+      "pickDate": "Выберите дату"
+    },
+    "sections": {
+      "watering": "💧 Полив",
+      "fertilize": "🌱 Удобрение",
+      "repot": "🪴 Пересадка",
+      "prune": "✂️ Обрезка"
+    },
+    "notSet": "Не указано"
   },
   "plantDetails": {
     "back": "Назад",
@@ -215,8 +231,25 @@
     "welcomeBack": "С возвращением!",
     "signedIn": "Вход выполнен успешно.",
     "done": "Готово",
+    "retry": "Повторить",
+    "ok": "OK",
     "permissionDeniedTitle": "Нет доступа",
     "cameraPermissionDenied": "Разрешите доступ к камере в настройках телефона.",
-    "galleryPermissionDenied": "Разрешите доступ к галерее в настройках телефона."
+    "galleryPermissionDenied": "Разрешите доступ к галерее в настройках телефона.",
+    "notificationPermissionDeniedIOS": "Включите уведомления в Настройках → GreenThumb → Уведомления.",
+    "notificationPermissionDeniedAndroid": "Доступ к уведомлениям запрещён. Включите его в настройках телефона."
+  },
+  "errors": {
+    "timeout": "Сервер не отвечает. Проверьте соединение и попробуйте снова.",
+    "network": "Нет связи с сервером. Проверьте интернет.",
+    "unauthorized": "Сеанс истёк. Пожалуйста, войдите снова.",
+    "unknown": "Что-то пошло не так. Попробуйте ещё раз.",
+    "invalidRecoveryKey": "Неверный ключ восстановления",
+    "signInFailed": "Не удалось войти",
+    "createAccountFailed": "Не удалось создать аккаунт",
+    "regenerateFailed": "Не удалось обновить ключ восстановления",
+    "loadFailed": "Не удалось загрузить данные",
+    "actionFailed": "Действие не выполнено",
+    "confirmRegenerate": "Это заменит ваш текущий ключ восстановления. Обязательно сохраните новый."
   }
 }
