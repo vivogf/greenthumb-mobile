@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "check": "node scripts/check.mjs",
+    "prepare": "husky",
     "build:preview": "eas build -p android --profile preview",
     "build:dev": "eas build -p android --profile development",
     "build:prod": "eas build -p android --profile production",
@@ -60,6 +62,7 @@
     "@types/react": "~19.2.10",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~55.0.0",
+    "husky": "^9.1.7",
     "typescript": "~5.9.2"
   }
 }
