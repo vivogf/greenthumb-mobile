@@ -9,12 +9,12 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   Image,
   TextInput,
-  Alert,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,15 +23,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  LinearTransition,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '../../hooks/useColors';
+import { useUserScopedQueryKey } from '../../hooks/useUserScopedQueryKey';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDaysUntilWatering, getWateringStatus, todayString } from '../../lib/utils';
 import { apiRequest } from '../../lib/api';
 import { LAYOUT_MODE_STORE_KEY } from '../../lib/constants';
 import { SkeletonLoader } from '../../components/SkeletonPlaceholder';
 import { WaterButtonWithParticles } from '../../components/WaterButtonWithParticles';
+import { ThanosSnap } from '../../components/ThanosSnap';
 import type { Plant } from '../../shared/schema';
 
 type Filter = 'all' | 'needsWater' | 'healthy';
@@ -40,18 +46,26 @@ type ViewMode = 'list' | 'card' | 'grid';
 const GRID_PADDING = 16;
 const GRID_GAP = 10;
 const GRID_COLS = 3;
+const BULK_WATER_SNAP_MS = 1150;
+const BULK_WATER_SUCCESS_BANNER_MS = 2400;
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const colors = useColors();
   const router = useRouter();
   const { user } = useAuth();
+  const getUserScopedQueryKey = useUserScopedQueryKey();
   const queryClient = useQueryClient();
   const { width: screenWidth } = useWindowDimensions();
+  const plantsQueryKey = getUserScopedQueryKey('/api/plants');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [pendingBulkWaterIds, setPendingBulkWaterIds] = useState<Set<string>>(new Set());
+  const [snappingIds, setSnappingIds] = useState<Set<string>>(new Set());
+  const [waterAllSuccessCount, setWaterAllSuccessCount] = useState<number | null>(null);
 
   const gridCellSize = Math.floor(
     (screenWidth - GRID_PADDING * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS,
@@ -72,13 +86,29 @@ export default function DashboardScreen() {
     AsyncStorage.setItem(LAYOUT_MODE_STORE_KEY, mode);
   }, []);
 
+  useEffect(() => {
+    if (waterAllSuccessCount === null) return;
+
+    const timeout = setTimeout(() => {
+      setWaterAllSuccessCount(null);
+    }, BULK_WATER_SUCCESS_BANNER_MS);
+
+    return () => clearTimeout(timeout);
+  }, [waterAllSuccessCount]);
+
   // ---------------------------------------------------------------------------
   // Queries & mutations
   // ---------------------------------------------------------------------------
 
-  const { data: plants, isLoading, error, refetch, isRefetching } = useQuery<Plant[]>({
-    queryKey: ['/api/plants'],
+  const { data: plants, isLoading, error, refetch, dataUpdatedAt } = useQuery<Plant[]>({
+    queryKey: plantsQueryKey,
   });
+
+  const handleRefresh = useCallback(async () => {
+    setIsManualRefreshing(true);
+    await refetch();
+    setIsManualRefreshing(false);
+  }, [refetch]);
 
   const waterMutation = useMutation({
     mutationFn: async (plantId: string) => {
@@ -86,8 +116,23 @@ export default function DashboardScreen() {
         last_watered_date: todayString(),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
+    onMutate: async (plantId) => {
+      await queryClient.cancelQueries({ queryKey: plantsQueryKey });
+      const previous = queryClient.getQueryData<Plant[]>(plantsQueryKey);
+      queryClient.setQueryData<Plant[]>(plantsQueryKey, (old) =>
+        old?.map((p) =>
+          p.id === plantId ? { ...p, last_watered_date: todayString() } : p
+        )
+      );
+      return { previous };
+    },
+    onError: (_err, _plantId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(plantsQueryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
     },
   });
 
@@ -96,9 +141,50 @@ export default function DashboardScreen() {
       const res = await apiRequest('POST', '/api/plants/water-all');
       return res.json() as Promise<{ count: number }>;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
-      Alert.alert(t('plant.watered'), `${data.count} ${t('dashboard.plantsWatered')}`);
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: plantsQueryKey });
+      const previous = queryClient.getQueryData<Plant[]>(plantsQueryKey);
+      const ids = (previous || [])
+        .filter((p) => getWateringStatus(p.last_watered_date, p.water_frequency_days) !== 'healthy')
+        .map((p) => p.id);
+
+      setWaterAllSuccessCount(null);
+      setSnappingIds(new Set());
+      setPendingBulkWaterIds(new Set(ids));
+
+      return { previous, ids };
+    },
+    onSuccess: async (data, _vars, context) => {
+      const ids = context?.ids ?? [];
+
+      setPendingBulkWaterIds(new Set());
+      if (ids.length === 0) {
+        queryClient.invalidateQueries({ queryKey: plantsQueryKey });
+        return;
+      }
+
+      setWaterAllSuccessCount(data.count || ids.length);
+      setSnappingIds(new Set(ids));
+
+      await new Promise((resolve) => setTimeout(resolve, BULK_WATER_SNAP_MS));
+
+      queryClient.setQueryData<Plant[]>(plantsQueryKey, (old) =>
+        old?.map((p) =>
+          ids.includes(p.id) ? { ...p, last_watered_date: todayString() } : p
+        )
+      );
+      setSnappingIds(new Set());
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(plantsQueryKey, context.previous);
+      }
+      setPendingBulkWaterIds(new Set());
+      setSnappingIds(new Set());
+      setWaterAllSuccessCount(null);
+      const message = err instanceof Error ? err.message : 'Ошибка массового полива';
+      Alert.alert(t('common.error'), message);
     },
   });
 
@@ -107,9 +193,8 @@ export default function DashboardScreen() {
       const res = await apiRequest('POST', '/api/plants/postpone-all');
       return res.json() as Promise<{ count: number }>;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
-      Alert.alert('✓', `${data.count} ${t('dashboard.plantsPostponed')}`);
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
     },
   });
 
@@ -154,6 +239,10 @@ export default function DashboardScreen() {
     [plants],
   );
 
+  const bulkWaterPendingCount = pendingBulkWaterIds.size;
+  const isBulkWaterBusy =
+    waterAllMutation.isPending || bulkWaterPendingCount > 0 || snappingIds.size > 0;
+
   // ---------------------------------------------------------------------------
   // Status helpers
   // ---------------------------------------------------------------------------
@@ -197,11 +286,17 @@ export default function DashboardScreen() {
     ({ item, index }: { item: Plant; index: number }) => {
       const { status, statusColor, statusBg, statusText, accentColor } = getStatusInfo(item);
       const isWatering = waterMutation.isPending && waterMutation.variables === item.id;
+      const isBulkProcessing = pendingBulkWaterIds.has(item.id) || snappingIds.has(item.id);
+      const effectiveStatusColor = isBulkProcessing ? colors.primary : statusColor;
+      const effectiveStatusBg = isBulkProcessing ? colors.primary + '18' : statusBg;
+      const effectiveStatusText = isBulkProcessing ? t('dashboard.wateringNow') : statusText;
 
       return (
-        <Animated.View entering={FadeInDown.delay(index * 60).duration(350).springify()}>
+        <Animated.View entering={FadeInDown.delay(index * 60).duration(350).springify()} layout={LinearTransition.springify()}>
           <Pressable
             onPress={() => router.push(`/plant/${item.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.openPlant', { name: item.name })}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
@@ -256,25 +351,30 @@ export default function DashboardScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 4,
-                  backgroundColor: statusBg,
+                  backgroundColor: effectiveStatusBg,
                   paddingHorizontal: 8,
                   paddingVertical: 3,
                   borderRadius: 6,
                   alignSelf: 'flex-start',
                 }}
               >
-                <Ionicons name="water-outline" size={11} color={statusColor} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: statusColor }}>
-                  {statusText}
+                <Ionicons name="water-outline" size={11} color={effectiveStatusColor} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: effectiveStatusColor }}>
+                  {effectiveStatusText}
                 </Text>
               </View>
             </View>
 
-            {status !== 'healthy' ? (
+            {isBulkProcessing ? (
+              <View style={{ width: 32, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : status !== 'healthy' ? (
               <WaterButtonWithParticles
                 compact
                 onWater={() => waterMutation.mutate(item.id)}
                 isWatering={isWatering}
+                accessibilityLabel={t('a11y.waterPlant', { name: item.name })}
                 colors={colors}
               />
             ) : (
@@ -284,7 +384,7 @@ export default function DashboardScreen() {
         </Animated.View>
       );
     },
-    [colors, t, router, waterMutation, getStatusInfo],
+    [colors, t, router, waterMutation, getStatusInfo, pendingBulkWaterIds, snappingIds],
   );
 
   // ---------------------------------------------------------------------------
@@ -295,11 +395,17 @@ export default function DashboardScreen() {
     ({ item, index }: { item: Plant; index: number }) => {
       const { status, statusColor, statusBg, statusText } = getStatusInfo(item);
       const isWatering = waterMutation.isPending && waterMutation.variables === item.id;
+      const isBulkProcessing = pendingBulkWaterIds.has(item.id) || snappingIds.has(item.id);
+      const effectiveStatusColor = isBulkProcessing ? colors.primary : statusColor;
+      const effectiveStatusBg = isBulkProcessing ? colors.primary + '18' : statusBg;
+      const effectiveStatusText = isBulkProcessing ? t('dashboard.wateringNow') : statusText;
 
       return (
-        <Animated.View entering={FadeInDown.delay(index * 80).duration(400).springify()}>
+        <Animated.View entering={FadeInDown.delay(index * 80).duration(400).springify()} layout={LinearTransition.springify()}>
           <Pressable
             onPress={() => router.push(`/plant/${item.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.openPlant', { name: item.name })}
             style={({ pressed }) => ({
               backgroundColor: colors.card,
               borderColor: colors.cardBorder,
@@ -380,25 +486,43 @@ export default function DashboardScreen() {
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 4,
-                    backgroundColor: statusBg,
+                    backgroundColor: effectiveStatusBg,
                     paddingHorizontal: 10,
                     paddingVertical: 4,
                     borderRadius: 8,
                   }}
                 >
-                  <Ionicons name="water-outline" size={12} color={statusColor} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor }}>
-                    {statusText}
+                  <Ionicons name="water-outline" size={12} color={effectiveStatusColor} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: effectiveStatusColor }}>
+                    {effectiveStatusText}
                   </Text>
                 </View>
               </View>
 
               {/* Full-width water button with particles */}
-              {status !== 'healthy' && (
+              {isBulkProcessing ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: colors.primary + '12',
+                    borderRadius: 12,
+                    paddingVertical: 12,
+                  }}
+                >
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>
+                    {t('dashboard.wateringNow')}
+                  </Text>
+                </View>
+              ) : status !== 'healthy' && (
                 <WaterButtonWithParticles
                   onWater={() => waterMutation.mutate(item.id)}
                   isWatering={isWatering}
                   label={t('plant.water')}
+                  accessibilityLabel={t('a11y.waterPlant', { name: item.name })}
                   colors={colors}
                 />
               )}
@@ -407,7 +531,7 @@ export default function DashboardScreen() {
         </Animated.View>
       );
     },
-    [colors, t, router, waterMutation, getStatusInfo],
+    [colors, t, router, waterMutation, getStatusInfo, pendingBulkWaterIds, snappingIds],
   );
 
   // ---------------------------------------------------------------------------
@@ -417,6 +541,9 @@ export default function DashboardScreen() {
   const renderGridItem = useCallback(
     ({ item, index }: { item: Plant; index: number }) => {
       const { daysUntil, status, accentColor } = getStatusInfo(item);
+      const isWatering = waterMutation.isPending && waterMutation.variables === item.id;
+      const isBulkProcessing = pendingBulkWaterIds.has(item.id) || snappingIds.has(item.id);
+      const needsWater = status !== 'healthy';
 
       const displayNumber = String(daysUntil);
 
@@ -428,67 +555,151 @@ export default function DashboardScreen() {
             : '#ffffff';
 
       return (
-        <Animated.View entering={FadeInDown.delay(index * 40).duration(300).springify()}>
-          <Pressable
-            onPress={() => router.push(`/plant/${item.id}`)}
-            style={({ pressed }) => ({
-              width: gridCellSize,
-              height: gridCellSize,
-              borderRadius: 8,
-              overflow: 'hidden',
-              borderLeftWidth: 3,
-              borderLeftColor: accentColor,
-              opacity: pressed ? 0.75 : 1,
-              marginBottom: GRID_GAP,
-            })}
-          >
-            {item.photo_url ? (
-              <Image
-                source={{ uri: item.photo_url }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
-            ) : (
+        <Animated.View entering={FadeInDown.delay(index * 40).duration(300).springify()} layout={LinearTransition.springify().damping(11).stiffness(90)}>
+          <View style={{ width: gridCellSize, height: gridCellSize, marginBottom: GRID_GAP }}>
+            <Pressable
+              onPress={() => router.push(`/plant/${item.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={t('a11y.openPlant', { name: item.name })}
+              style={({ pressed }) => ({
+                width: '100%',
+                height: '100%',
+                borderRadius: 8,
+                overflow: 'hidden',
+                borderLeftWidth: 3,
+                borderLeftColor: accentColor,
+                opacity: pressed ? 0.75 : 1,
+                backgroundColor: '#000',
+              })}
+            >
+              {item.photo_url ? (
+                <Image
+                  source={{ uri: item.photo_url }}
+                  style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: colors.muted,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="leaf" size={28} color={colors.mutedForeground} />
+                </View>
+              )}
+
+              {/* Gradient with name at bottom — full height to avoid edge artifacts */}
+              <LinearGradient
+                colors={['transparent', 'transparent', 'rgba(0,0,0,0.85)']}
+                locations={[0, 0.45, 1]}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  justifyContent: 'flex-end',
+                  paddingLeft: 6,
+                  paddingRight: 6,
+                  paddingBottom: 4,
+                }}
+              >
+                <Text
+                  numberOfLines={2}
+                  style={{ fontSize: 10, fontWeight: '700', color: '#fff', lineHeight: 13 }}
+                >
+                  {item.name}
+                </Text>
+              </LinearGradient>
+
+              {/* Days counter — bottom-right corner */}
               <View
                 style={{
-                  flex: 1,
-                  backgroundColor: colors.muted,
+                  position: 'absolute',
+                  bottom: 5,
+                  right: 6,
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  paddingHorizontal: 5,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  minWidth: 20,
+                  alignItems: 'center',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '800',
+                    color: numberColor,
+                  }}
+                >
+                  {displayNumber}
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* Water button — top right (only for overdue/today) */}
+            {isBulkProcessing ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  zIndex: 10,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: 'rgba(15, 23, 42, 0.72)',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="leaf" size={28} color={colors.mutedForeground} />
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : needsWater && (
+              <View style={{ position: 'absolute', top: 4, right: 4, zIndex: 10 }}>
+                <WaterButtonWithParticles
+                  compact
+                  onWater={() => waterMutation.mutate(item.id)}
+                  isWatering={isWatering}
+                  accessibilityLabel={t('a11y.waterPlant', { name: item.name })}
+                  colors={colors}
+                />
               </View>
             )}
-
-            <View
-              style={{
-                position: 'absolute',
-                bottom: 5,
-                right: 5,
-                backgroundColor: 'rgba(0,0,0,0.65)',
-                paddingHorizontal: 6,
-                paddingVertical: 3,
-                borderRadius: 5,
-                minWidth: 22,
-                alignItems: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: '800',
-                  color: numberColor,
-                }}
-              >
-                {displayNumber}
-              </Text>
-            </View>
-          </Pressable>
+          </View>
         </Animated.View>
       );
     },
-    [colors, router, gridCellSize, getStatusInfo],
+    [colors, router, gridCellSize, getStatusInfo, waterMutation, pendingBulkWaterIds, snappingIds],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Select render function (must be before any early returns — Rules of Hooks)
+  // ---------------------------------------------------------------------------
+
+  const renderItemFinal = useCallback(
+    (props: { item: Plant; index: number }) => {
+      const base =
+        viewMode === 'card'
+          ? renderCardItem(props)
+          : viewMode === 'grid'
+            ? renderGridItem(props)
+            : renderListItem(props);
+
+      if (snappingIds.has(props.item.id)) {
+        return (
+          <ThanosSnap snap delay={props.index * 70}>
+            {base}
+          </ThanosSnap>
+        );
+      }
+      return base;
+    },
+    [viewMode, renderCardItem, renderGridItem, renderListItem, snappingIds],
   );
 
   // ---------------------------------------------------------------------------
@@ -520,18 +731,18 @@ export default function DashboardScreen() {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Select render function
-  // ---------------------------------------------------------------------------
-
-  const renderItem =
-    viewMode === 'card'
-      ? renderCardItem
-      : viewMode === 'grid'
-        ? renderGridItem
-        : renderListItem;
-
-  const hasPlants = plants && plants.length > 0;
+  const hasPlants = (plants?.length ?? 0) > 0;
+  const lastSyncedAgeMs = dataUpdatedAt > 0 ? Date.now() - dataUpdatedAt : 0;
+  const showLastSyncedBanner = hasPlants && lastSyncedAgeMs >= 60_000;
+  const showLastSyncedIcon = lastSyncedAgeMs >= 300_000;
+  const lastSyncedLabel = showLastSyncedBanner
+    ? t('dashboard.lastSynced', {
+      time: new Date(dataUpdatedAt).toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    })
+    : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -555,6 +766,16 @@ export default function DashboardScreen() {
               {user.name}
             </Text>
           ) : null}
+          {showLastSyncedBanner && lastSyncedLabel ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              {showLastSyncedIcon ? (
+                <Ionicons name="cloud-offline-outline" size={12} color={colors.mutedForeground} />
+              ) : null}
+              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                {lastSyncedLabel}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {hasPlants && (
@@ -564,18 +785,21 @@ export default function DashboardScreen() {
               active={viewMode === 'list'}
               onPress={() => changeViewMode('list')}
               colors={colors}
+              accessibilityLabel={t('a11y.viewModeList')}
             />
             <ViewModeButton
               icon="albums"
               active={viewMode === 'card'}
               onPress={() => changeViewMode('card')}
               colors={colors}
+              accessibilityLabel={t('a11y.viewModeCard')}
             />
             <ViewModeButton
               icon="grid"
               active={viewMode === 'grid'}
               onPress={() => changeViewMode('grid')}
               colors={colors}
+              accessibilityLabel={t('a11y.viewModeGrid')}
             />
           </View>
         )}
@@ -611,7 +835,11 @@ export default function DashboardScreen() {
                 }}
               />
               {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery('')}>
+                <Pressable
+                  onPress={() => setSearchQuery('')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11y.clearSearch')}
+                >
                   <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                 </Pressable>
               )}
@@ -660,7 +888,10 @@ export default function DashboardScreen() {
             >
               <Pressable
                 onPress={() => waterAllMutation.mutate()}
-                disabled={waterAllMutation.isPending}
+                disabled={isBulkWaterBusy}
+                accessibilityRole="button"
+                accessibilityLabel={t('a11y.waterAll')}
+                accessibilityState={{ disabled: isBulkWaterBusy, busy: isBulkWaterBusy }}
                 style={({ pressed }) => ({
                   flex: 1,
                   flexDirection: 'row',
@@ -670,7 +901,7 @@ export default function DashboardScreen() {
                   backgroundColor: colors.primary,
                   borderRadius: 10,
                   paddingVertical: 10,
-                  opacity: pressed || waterAllMutation.isPending ? 0.7 : 1,
+                  opacity: pressed || isBulkWaterBusy ? 0.7 : 1,
                 })}
               >
                 <Ionicons name="water" size={16} color={colors.primaryForeground} />
@@ -688,6 +919,12 @@ export default function DashboardScreen() {
               <Pressable
                 onPress={() => postponeAllMutation.mutate()}
                 disabled={postponeAllMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('a11y.postponeAll')}
+                accessibilityState={{
+                  disabled: postponeAllMutation.isPending,
+                  busy: postponeAllMutation.isPending,
+                }}
                 style={({ pressed }) => ({
                   flex: 1,
                   flexDirection: 'row',
@@ -714,6 +951,44 @@ export default function DashboardScreen() {
             </View>
           )}
 
+          {(bulkWaterPendingCount > 0 || waterAllSuccessCount !== null) && (
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+              <Animated.View
+                entering={FadeInDown.duration(250)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor:
+                    bulkWaterPendingCount > 0 ? colors.primary + '12' : colors.primary + '18',
+                  borderColor: colors.primary + '24',
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                }}
+              >
+                {bulkWaterPendingCount > 0 ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                )}
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    fontWeight: '600',
+                    color: colors.foreground,
+                  }}
+                >
+                  {bulkWaterPendingCount > 0
+                    ? t('dashboard.wateringAllPending', { count: bulkWaterPendingCount })
+                    : `${waterAllSuccessCount} ${t('dashboard.plantsWatered')}`}
+                </Text>
+              </Animated.View>
+            </View>
+          )}
+
           {/* Plant list / cards / grid — crossfade on mode switch */}
           {filteredPlants.length > 0 ? (
             <Animated.View
@@ -721,10 +996,11 @@ export default function DashboardScreen() {
               entering={FadeIn.duration(250)}
               style={{ flex: 1 }}
             >
-              <FlatList
+              <Animated.FlatList
                 data={filteredPlants}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
+                keyExtractor={(item: Plant) => item.id}
+                renderItem={renderItemFinal}
+                itemLayoutAnimation={viewMode === 'grid' ? LinearTransition.springify().damping(11).stiffness(90) : LinearTransition.springify()}
                 numColumns={viewMode === 'grid' ? GRID_COLS : 1}
                 {...(viewMode === 'grid' && {
                   columnWrapperStyle: {
@@ -738,12 +1014,15 @@ export default function DashboardScreen() {
                     : { paddingHorizontal: 20, paddingBottom: 100 }
                 }
                 showsVerticalScrollIndicator={false}
+                bounces={true}
+                overScrollMode="always"
                 refreshControl={
                   <RefreshControl
-                    refreshing={isRefetching}
-                    onRefresh={refetch}
+                    refreshing={isManualRefreshing}
+                    onRefresh={handleRefresh}
                     tintColor={colors.primary}
                     colors={[colors.primary]}
+                    progressBackgroundColor={colors.card}
                   />
                 }
               />
@@ -808,6 +1087,8 @@ export default function DashboardScreen() {
           </Text>
           <Pressable
             onPress={() => router.push('/add-plant')}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.addPlant')}
             style={({ pressed }) => ({
               backgroundColor: colors.primary,
               borderRadius: 10,
@@ -833,6 +1114,8 @@ export default function DashboardScreen() {
       {hasPlants && (
         <Pressable
           onPress={() => router.push('/add-plant')}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.addPlant')}
           style={({ pressed }) => ({
             position: 'absolute',
             bottom: 24,
@@ -867,15 +1150,20 @@ function ViewModeButton({
   active,
   onPress,
   colors,
+  accessibilityLabel,
 }: {
   icon: 'list' | 'albums' | 'grid';
   active: boolean;
   onPress: () => void;
   colors: ReturnType<typeof useColors>;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ selected: active }}
       style={{
         width: 34,
         height: 34,

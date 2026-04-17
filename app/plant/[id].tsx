@@ -12,6 +12,7 @@
 import { useState, useRef } from 'react';
 import { differenceInCalendarDays, addDays, addMonths, parseISO, startOfDay } from 'date-fns';
 import {
+  Animated,
   View,
   Text,
   Image,
@@ -23,6 +24,8 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '../../hooks/useColors';
+import { useUserScopedQueryKey } from '../../hooks/useUserScopedQueryKey';
 import {
   getDaysUntilWatering,
   getWateringStatus,
@@ -86,9 +90,11 @@ export default function PlantDetailScreen() {
   const { t, i18n } = useTranslation();
   const colors = useColors();
   const router = useRouter();
+  const getUserScopedQueryKey = useUserScopedQueryKey();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width: screenWidth } = useWindowDimensions();
+  const plantsQueryKey = getUserScopedQueryKey('/api/plants');
 
   // Inline name editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -101,6 +107,8 @@ export default function PlantDetailScreen() {
 
   // Care settings modal
   const [showSettings, setShowSettings] = useState(false);
+  const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
   const [settingsForm, setSettingsForm] = useState({
     water_frequency_days: '',
     last_watered_date: null as string | null,
@@ -117,7 +125,7 @@ export default function PlantDetailScreen() {
   // ---------------------------------------------------------------------------
 
   const { data: plants, isLoading } = useQuery<Plant[]>({
-    queryKey: ['/api/plants'],
+    queryKey: plantsQueryKey,
   });
   const plant = plants?.find((p) => p.id === id) ?? null;
   const error = !isLoading && !plant;
@@ -131,7 +139,7 @@ export default function PlantDetailScreen() {
       await apiRequest('PATCH', `/api/plants/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
     },
     onError: (err: Error) => {
       Alert.alert(t('common.error'), err.message);
@@ -143,7 +151,7 @@ export default function PlantDetailScreen() {
       await apiRequest('DELETE', `/api/plants/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
       router.replace('/');
     },
     onError: (err: Error) => {
@@ -168,6 +176,70 @@ export default function PlantDetailScreen() {
     }
     setIsEditingName(false);
   };
+
+  const processPhoto = async (pickerResult: ImagePicker.ImagePickerResult) => {
+    if (pickerResult.canceled || !pickerResult.assets?.[0]) return;
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        pickerResult.assets[0].uri,
+        [{ resize: { width: 800, height: 800 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      patchMutation.mutate({ photo_url: `data:image/jpeg;base64,${manipulated.base64 ?? ''}` });
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err.message);
+    }
+  };
+
+  const pickFromCamera = async () => {
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert(t('common.permissionDeniedTitle'), t('common.cameraPermissionDenied'));
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    await processPhoto(result);
+  };
+
+  const pickFromGallery = async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert(t('common.permissionDeniedTitle'), t('common.galleryPermissionDenied'));
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    await processPhoto(result);
+  };
+
+  const openPhotoSheet = () => {
+    setShowPhotoSheet(true);
+    Animated.timing(sheetAnim, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closePhotoSheet = (afterClose?: () => void) => {
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowPhotoSheet(false);
+      afterClose?.();
+    });
+  };
+
+  const handleChangePhoto = () => openPhotoSheet();
 
   // ---------------------------------------------------------------------------
   // Notes editing
@@ -332,6 +404,7 @@ export default function PlantDetailScreen() {
       : null;
 
   const photoHeight = Math.round(screenWidth * 0.75);
+  const isUploadingPhoto = patchMutation.isPending && !!patchMutation.variables?.photo_url;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -360,23 +433,55 @@ export default function PlantDetailScreen() {
             colors={['rgba(0,0,0,0.35)', 'transparent', 'rgba(0,0,0,0.7)']}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           >
-            {/* Back button */}
+            {/* Header buttons */}
             <SafeAreaView edges={['top']}>
-              <Pressable
-                onPress={() => router.back()}
-                style={({ pressed }) => ({
-                  margin: 16,
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
-                  backgroundColor: 'rgba(0,0,0,0.4)',
+              <View
+                style={{
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: pressed ? 0.7 : 1,
-                })}
+                  justifyContent: 'space-between',
+                  margin: 16,
+                }}
               >
-                <Ionicons name="arrow-back" size={20} color="#fff" />
-              </Pressable>
+                <Pressable
+                  onPress={() => router.back()}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11y.back')}
+                  style={({ pressed }) => ({
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Ionicons name="arrow-back" size={20} color="#fff" />
+                </Pressable>
+                <Pressable
+                  onPress={handleChangePhoto}
+                  disabled={isUploadingPhoto}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11y.changePhoto')}
+                  accessibilityState={{ disabled: isUploadingPhoto, busy: isUploadingPhoto }}
+                  style={({ pressed }) => ({
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: isUploadingPhoto ? 0.8 : pressed ? 0.7 : 1,
+                  })}
+                >
+                  {isUploadingPhoto ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="camera" size={20} color="#fff" />
+                  )}
+                </Pressable>
+              </View>
             </SafeAreaView>
 
             {/* Plant name — tap to edit */}
@@ -408,7 +513,12 @@ export default function PlantDetailScreen() {
                   }}
                 />
               ) : (
-                <Pressable onPress={startEditName} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable
+                  onPress={startEditName}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('plantDetails.edit')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
                   <Text style={{ fontSize: 26, fontWeight: '700', color: '#fff', flex: 1 }} numberOfLines={2}>
                     {plant.name}
                   </Text>
@@ -470,6 +580,7 @@ export default function PlantDetailScreen() {
               onWater={() => patchMutation.mutate({ last_watered_date: todayString() })}
               isWatering={patchMutation.isPending && 'last_watered_date' in (patchMutation.variables ?? {})}
               label={t('plantDetails.waterPlant')}
+              accessibilityLabel={t('a11y.waterPlant', { name: plant.name })}
               colors={colors}
             />
           </View>
@@ -489,6 +600,7 @@ export default function PlantDetailScreen() {
                     title={t('plantDetails.fertilizing')}
                     daysText={careDaysText(fertilizeDays, t)}
                     statusColor={careStatusColor(fertilizeDays, colors)}
+                    accessibilityLabel={t('plantDetails.fertilize')}
                     onPress={() => patchMutation.mutate({ last_fertilized_date: todayString() })}
                     isPending={patchMutation.isPending && 'last_fertilized_date' in (patchMutation.variables ?? {})}
                     colors={colors}
@@ -500,6 +612,7 @@ export default function PlantDetailScreen() {
                     title={t('plantDetails.repotting')}
                     daysText={careDaysText(repotDays, t)}
                     statusColor={careStatusColor(repotDays, colors)}
+                    accessibilityLabel={t('plantDetails.repot')}
                     onPress={() => patchMutation.mutate({ last_repotted_date: todayString() })}
                     isPending={patchMutation.isPending && 'last_repotted_date' in (patchMutation.variables ?? {})}
                     colors={colors}
@@ -511,6 +624,7 @@ export default function PlantDetailScreen() {
                     title={t('plantDetails.pruning')}
                     daysText={careDaysText(pruneDays, t)}
                     statusColor={careStatusColor(pruneDays, colors)}
+                    accessibilityLabel={t('plantDetails.prune')}
                     onPress={() => patchMutation.mutate({ last_pruned_date: todayString() })}
                     isPending={patchMutation.isPending && 'last_pruned_date' in (patchMutation.variables ?? {})}
                     colors={colors}
@@ -523,6 +637,8 @@ export default function PlantDetailScreen() {
           {/* ── Care settings button ── */}
           <Pressable
             onPress={openSettings}
+            accessibilityRole="button"
+            accessibilityLabel={t('plantDetails.careSettings')}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
@@ -634,6 +750,8 @@ export default function PlantDetailScreen() {
           <Pressable
             onPress={confirmDelete}
             disabled={deleteMutation.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.deletePlant')}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
@@ -716,7 +834,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_watered_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_watered_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('plantDetails.notSpecified')}
                 />
               </View>
             </View>
@@ -739,7 +857,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_fertilized_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_fertilized_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('plantDetails.notSpecified')}
                 />
               </View>
             </View>
@@ -762,7 +880,7 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_repotted_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_repotted_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('plantDetails.notSpecified')}
                 />
               </View>
             </View>
@@ -785,12 +903,145 @@ export default function PlantDetailScreen() {
                 <DatePickerInput
                   value={settingsForm.last_pruned_date}
                   onChange={(d) => setSettingsForm((f) => ({ ...f, last_pruned_date: d }))}
-                  placeholder="Не указано"
+                  placeholder={t('plantDetails.notSpecified')}
                 />
               </View>
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      <Modal
+        visible={showPhotoSheet}
+        statusBarTranslucent={true}
+        transparent
+        animationType="none"
+        onRequestClose={() => closePhotoSheet()}
+      >
+        <View style={{ flex: 1 }}>
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.55)',
+              opacity: sheetAnim,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closePhotoSheet()} />
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: colors.card,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingTop: 12,
+              paddingBottom: 34,
+              transform: [
+                {
+                  translateY: sheetAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [300, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: colors.border,
+                alignSelf: 'center',
+                marginBottom: 16,
+              }}
+            />
+
+            <Text
+              style={{
+                fontSize: 13,
+                color: colors.mutedForeground,
+                textAlign: 'center',
+                marginBottom: 8,
+              }}
+            >
+              {t('plantDetails.changePhoto')}
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                closePhotoSheet(() => setTimeout(pickFromCamera, 100));
+              }}
+              style={({ pressed }) => ({
+                height: 56,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingHorizontal: 24,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Ionicons name="camera-outline" size={22} color={colors.primary} />
+              <Text style={{ fontSize: 17, color: colors.foreground }}>
+                {t('common.camera')}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                closePhotoSheet(() => setTimeout(pickFromGallery, 100));
+              }}
+              style={({ pressed }) => ({
+                height: 56,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingHorizontal: 24,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Ionicons name="images-outline" size={22} color={colors.primary} />
+              <Text style={{ fontSize: 17, color: colors.foreground }}>
+                {t('common.gallery')}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => closePhotoSheet()}
+              style={({ pressed }) => ({
+                height: 56,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 8,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Text
+                style={{
+                  fontSize: 17,
+                  color: colors.destructive,
+                  textAlign: 'center',
+                }}
+              >
+                {t('common.cancel')}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -805,6 +1056,7 @@ function CareActionCard({
   title,
   daysText,
   statusColor,
+  accessibilityLabel,
   onPress,
   isPending,
   colors,
@@ -813,6 +1065,7 @@ function CareActionCard({
   title: string;
   daysText: string;
   statusColor: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   isPending: boolean;
   colors: ReturnType<typeof import('../../hooks/useColors').useColors>;
@@ -821,6 +1074,9 @@ function CareActionCard({
     <Pressable
       onPress={onPress}
       disabled={isPending}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: isPending, busy: isPending }}
       style={({ pressed }) => ({
         flex: 1,
         minWidth: '45%',

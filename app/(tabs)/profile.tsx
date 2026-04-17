@@ -13,13 +13,16 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import type { AccessibilityState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
+import { changeLanguage } from '../../i18n';
 import { useColors } from '../../hooks/useColors';
 import { apiRequest } from '../../lib/api';
 import {
@@ -32,7 +35,7 @@ import {
 } from '../../lib/notifications';
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut, regenerateRecoveryKey, updateUser } = useAuth();
   const colors = useColors();
 
@@ -77,8 +80,8 @@ export default function ProfileScreen() {
           Alert.alert(
             t('common.error'),
             Platform.OS === 'ios'
-              ? 'Please enable notifications in Settings → GreenThumb → Notifications.'
-              : 'Notification permission denied. Please enable in system settings.',
+              ? t('profile.pushPermissionDeniedIOS')
+              : t('profile.pushPermissionDenied'),
           );
           setPushToggling(false);
           return;
@@ -121,13 +124,7 @@ export default function ProfileScreen() {
   const timeDate = new Date();
   timeDate.setHours(hours, minutes, 0, 0);
 
-  const handleTimeChange = useCallback(async (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
-    if (event.type === 'dismissed') return;
-    if (!selectedDate) return;
-
+  const saveNotificationTime = useCallback(async (selectedDate: Date) => {
     const h = String(selectedDate.getHours()).padStart(2, '0');
     const m = String(selectedDate.getMinutes()).padStart(2, '0');
     const newTime = `${h}:${m}`;
@@ -150,30 +147,26 @@ export default function ProfileScreen() {
     }
   }, [currentTime, t, updateUser]);
 
-  const handleTimeIOSDone = useCallback((selectedDate: Date) => {
-    setShowTimePicker(false);
-    // Trigger the same save logic
-    const h = String(selectedDate.getHours()).padStart(2, '0');
-    const m = String(selectedDate.getMinutes()).padStart(2, '0');
-    const newTime = `${h}:${m}`;
+  const handleTimeChange = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (event.type === 'dismissed') return;
+    if (!selectedDate) return;
 
-    if (newTime === currentTime) return;
-
-    setSavingTime(true);
-    apiRequest('PATCH', '/api/auth/update-notification-time', {
-      notification_time: newTime,
-    })
-      .then(res => res.json())
-      .then(data => {
-        updateUser(data.user);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(t('profile.settingsSaved'), t('profile.notificationTimeUpdated'));
-      })
-      .catch((error: any) => Alert.alert(t('common.error'), error.message))
-      .finally(() => setSavingTime(false));
-  }, [currentTime, t, updateUser]);
+    void saveNotificationTime(selectedDate);
+  }, [saveNotificationTime]);
 
   const [iosTempTime, setIosTempTime] = useState(timeDate);
+
+  const handleTimeIOSCancel = useCallback(() => {
+    setShowTimePicker(false);
+  }, []);
+
+  const handleTimeIOSSave = useCallback(() => {
+    setShowTimePicker(false);
+    void saveNotificationTime(iosTempTime);
+  }, [iosTempTime, saveNotificationTime]);
 
   const handleCopyKey = async () => {
     if (!user?.recovery_key) return;
@@ -227,6 +220,15 @@ export default function ProfileScreen() {
     );
   };
 
+  const currentLanguageName = i18n.language === 'ru' ? t('profile.languageRussian') : t('profile.languageEnglish');
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
+  const handleSelectLanguage = (lng: string) => {
+    changeLanguage(lng);
+    setShowLanguageModal(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const SectionCard = ({ children }: { children: React.ReactNode }) => (
     <View style={{
       backgroundColor: colors.card,
@@ -247,6 +249,8 @@ export default function ProfileScreen() {
     onPress,
     danger,
     right,
+    accessibilityLabel,
+    accessibilityState,
   }: {
     icon: string;
     label: string;
@@ -254,10 +258,15 @@ export default function ProfileScreen() {
     onPress?: () => void;
     danger?: boolean;
     right?: React.ReactNode;
+    accessibilityLabel?: string;
+    accessibilityState?: AccessibilityState;
   }) => (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
+      accessibilityRole={onPress || accessibilityLabel || accessibilityState ? 'button' : undefined}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -349,6 +358,7 @@ export default function ProfileScreen() {
             icon="time-outline"
             label={t('profile.notificationTime')}
             value={savingTime ? t('profile.saving') : currentTime}
+            accessibilityLabel={t('profile.notificationTime')}
             onPress={pushEnabled ? () => {
               setIosTempTime(timeDate);
               setShowTimePicker(true);
@@ -364,10 +374,22 @@ export default function ProfileScreen() {
                 icon="paper-plane-outline"
                 label={t('profile.testNotification')}
                 value={testSending ? t('profile.saving') : undefined}
+                accessibilityLabel={t('profile.testNotification')}
                 onPress={testSending ? undefined : handleTestNotification}
               />
             </>
           )}
+        </SectionCard>
+
+        {/* Language */}
+        <SectionCard>
+          <Row
+            icon="language-outline"
+            label={t('profile.language')}
+            value={currentLanguageName}
+            accessibilityLabel={t('a11y.chooseLanguage')}
+            onPress={() => setShowLanguageModal(true)}
+          />
         </SectionCard>
 
         {/* Recovery key */}
@@ -380,6 +402,8 @@ export default function ProfileScreen() {
               </Text>
               <Pressable
                 onPress={() => setKeyVisible(!keyVisible)}
+                accessibilityRole="button"
+                accessibilityLabel={keyVisible ? t('profile.hide') : t('profile.show')}
                 style={{ padding: 4 }}
                 hitSlop={8}
               >
@@ -426,6 +450,9 @@ export default function ProfileScreen() {
             <Pressable
               onPress={handleRegenerateKey}
               disabled={regenerating}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.generateNewKey')}
+              accessibilityState={{ disabled: regenerating, busy: regenerating }}
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -446,6 +473,8 @@ export default function ProfileScreen() {
           <Pressable
             onPress={handleSignOut}
             disabled={signingOut}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11y.signOut')}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
@@ -462,6 +491,10 @@ export default function ProfileScreen() {
           </Pressable>
         </SectionCard>
 
+        <Text style={{ textAlign: 'center', fontSize: 12, color: colors.mutedForeground, marginTop: 8 }}>
+          GreenThumb v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
+
       </ScrollView>
 
       {/* Android time picker — shows as dialog */}
@@ -477,22 +510,33 @@ export default function ProfileScreen() {
 
       {/* iOS time picker — spinner in bottom modal */}
       {Platform.OS === 'ios' && (
-        <Modal visible={showTimePicker} transparent animationType="slide">
+        <Modal
+          visible={showTimePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={handleTimeIOSCancel}
+        >
           <Pressable
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-            onPress={() => handleTimeIOSDone(iosTempTime)}
+            onPress={handleTimeIOSCancel}
           />
           <View style={{ backgroundColor: colors.card, paddingBottom: 32 }}>
             <View style={{
               flexDirection: 'row',
-              justifyContent: 'flex-end',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               paddingHorizontal: 20,
               paddingTop: 14,
               paddingBottom: 4,
             }}>
-              <Pressable onPress={() => handleTimeIOSDone(iosTempTime)}>
+              <Pressable onPress={handleTimeIOSCancel}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 16, fontWeight: '600' }}>
+                  {t('common.cancel')}
+                </Text>
+              </Pressable>
+              <Pressable onPress={handleTimeIOSSave}>
                 <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>
-                  OK
+                  {t('common.save')}
                 </Text>
               </Pressable>
             </View>
@@ -507,6 +551,58 @@ export default function ProfileScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Language picker modal */}
+      <Modal
+        visible={showLanguageModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setShowLanguageModal(false)}
+        >
+          <Pressable style={{
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
+            borderWidth: 1,
+            borderRadius: 16,
+            width: '80%',
+            padding: 24,
+            gap: 12,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground, textAlign: 'center', marginBottom: 4 }}>
+              {t('profile.chooseLanguage')}
+            </Text>
+            {[
+              { code: 'en', label: 'English' },
+              { code: 'ru', label: 'Русский' },
+            ].map((lang) => (
+              <Pressable
+                key={lang.code}
+                onPress={() => handleSelectLanguage(lang.code)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: 14,
+                  borderRadius: 10,
+                  backgroundColor: i18n.language === lang.code ? colors.primary + '20' : colors.muted,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Text style={{ fontSize: 16, color: colors.foreground, fontWeight: i18n.language === lang.code ? '600' : '400' }}>
+                  {lang.label}
+                </Text>
+                {i18n.language === lang.code && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                )}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }

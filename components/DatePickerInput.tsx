@@ -77,7 +77,11 @@ export function DatePickerInput({
     if (selectedDate) setTempDate(selectedDate);
   };
 
-  const handleIOSDone = () => {
+  const handleIOSCancel = () => {
+    setShowPicker(false);
+  };
+
+  const handleIOSSave = () => {
     setShowPicker(false);
     onChange(toDateString(tempDate));
   };
@@ -125,24 +129,30 @@ export function DatePickerInput({
 
       {/* iOS: spinner inside a bottom modal */}
       {Platform.OS === 'ios' && (
-        <Modal visible={showPicker} transparent animationType="slide" onRequestClose={handleIOSDone}>
+        <Modal visible={showPicker} transparent animationType="slide" onRequestClose={handleIOSCancel}>
           <Pressable
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-            onPress={handleIOSDone}
+            onPress={handleIOSCancel}
           />
           <View style={{ backgroundColor: colors.card, paddingBottom: 32 }}>
             <View
               style={{
                 flexDirection: 'row',
-                justifyContent: 'flex-end',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 paddingHorizontal: 20,
                 paddingTop: 14,
                 paddingBottom: 4,
               }}
             >
-              <Pressable onPress={handleIOSDone}>
+              <Pressable onPress={handleIOSCancel}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 16, fontWeight: '600' }}>
+                  {t('common.cancel')}
+                </Text>
+              </Pressable>
+              <Pressable onPress={handleIOSSave}>
                 <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>
-                  {t('common.done')}
+                  {t('common.save')}
                 </Text>
               </Pressable>
             </View>

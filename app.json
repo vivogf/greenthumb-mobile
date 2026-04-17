@@ -2,7 +2,7 @@
   "expo": {
     "name": "GreenThumb",
     "slug": "greenthumb",
-    "version": "1.0.0",
+    "version": "0.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -23,7 +23,7 @@
       "backgroundColor": "#15130e",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#15130e"
+        "backgroundColor": "#1a5c2e"
       },
       "package": "com.greenthumb.plantcare",
       "permissions": [
@@ -31,8 +31,7 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
     },
     "web": {

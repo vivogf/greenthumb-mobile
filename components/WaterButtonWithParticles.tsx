@@ -10,6 +10,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Pressable, Text, ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { WaterParticles } from './WaterParticles';
 
 interface WaterButtonProps {
@@ -17,6 +18,7 @@ interface WaterButtonProps {
   isWatering: boolean;
   compact?: boolean;
   label?: string;
+  accessibilityLabel?: string;
   colors: {
     primary: string;
     primaryForeground: string;
@@ -29,6 +31,7 @@ export function WaterButtonWithParticles({
   isWatering,
   compact = false,
   label,
+  accessibilityLabel,
   colors,
 }: WaterButtonProps) {
   const [showParticles, setShowParticles] = useState(false);
@@ -37,6 +40,7 @@ export function WaterButtonWithParticles({
   const handlePress = useCallback(() => {
     if (isWatering || showParticles) return;
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowParticles(true);
 
     // Fire the actual mutation after a short delay so the animation plays first
@@ -54,6 +58,9 @@ export function WaterButtonWithParticles({
         <Pressable
           onPress={handlePress}
           disabled={isWatering}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityState={{ disabled: isWatering, busy: isWatering }}
           style={({ pressed }) => ({
             width: 40,
             height: 40,
@@ -81,6 +88,9 @@ export function WaterButtonWithParticles({
       <Pressable
         onPress={handlePress}
         disabled={isWatering}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityState={{ disabled: isWatering, busy: isWatering }}
         style={({ pressed }) => ({
           flexDirection: 'row',
           alignItems: 'center',

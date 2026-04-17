@@ -25,8 +25,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../hooks/useColors';
+import { useUserScopedQueryKey } from '../hooks/useUserScopedQueryKey';
+import { apiRequest } from '../lib/api';
 import { todayString } from '../lib/utils';
-import { API_BASE_URL } from '../lib/constants';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { ImagePickerField } from '../components/ImagePickerField';
 
@@ -67,7 +68,9 @@ export default function AddPlantScreen() {
   const { t } = useTranslation();
   const colors = useColors();
   const router = useRouter();
+  const getUserScopedQueryKey = useUserScopedQueryKey();
   const queryClient = useQueryClient();
+  const plantsQueryKey = getUserScopedQueryKey('/api/plants');
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
@@ -97,10 +100,11 @@ export default function AddPlantScreen() {
   const onSubmit = async (data: PlantFormData) => {
     setSubmitting(true);
     try {
-      // Use base64 from ImagePickerField (same format as PWA)
+      // Empty string when no photo — backend defaults to '' and views
+      // render a leaf-icon placeholder.
       const photo_url = photoBase64
         ? `data:image/jpeg;base64,${photoBase64}`
-        : 'https://images.unsplash.com/photo-1518531933037-91b2f8c3a149?w=400&h=400&fit=crop';
+        : '';
 
       const body: Record<string, any> = {
         name: data.name,
@@ -117,19 +121,9 @@ export default function AddPlantScreen() {
       if (data.prune_frequency_months) body.prune_frequency_months = data.prune_frequency_months;
       if (data.last_pruned_date) body.last_pruned_date = data.last_pruned_date;
 
-      const res = await fetch(`${API_BASE_URL}/api/plants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        credentials: 'include',
-      });
+      await apiRequest('POST', '/api/plants', body);
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Ошибка ${res.status}`);
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
+      await queryClient.invalidateQueries({ queryKey: plantsQueryKey });
       router.back();
     } catch (err: any) {
       Alert.alert(t('addPlant.uploadFailed'), err?.message || String(err));
