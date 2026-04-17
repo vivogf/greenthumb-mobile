@@ -49,8 +49,10 @@
     "tryDifferentFilter": "Try a different filter",
     "waterAll": "Water All",
     "postponeAll": "Postpone All",
-    "plantsWatered": "plants watered",
-    "plantsPostponed": "plants postponed"
+    "plantsWatered": "{{count}} plant watered",
+    "plantsWatered_plural": "{{count}} plants watered",
+    "plantsPostponed": "{{count}} plant postponed",
+    "plantsPostponed_plural": "{{count}} plants postponed"
   },
   "plant": {
     "water": "Water",
@@ -103,7 +105,19 @@
     "addedToGarden": "has been added to your garden",
     "fileTooLarge": "File too large",
     "fileTooLargeHint": "Photo must be less than 5MB",
-    "uploadFailed": "Upload failed"
+    "uploadFailed": "Upload failed",
+    "validation": {
+      "nameRequired": "Enter a name",
+      "minOneDay": "Minimum 1 day",
+      "pickDate": "Pick a date"
+    },
+    "sections": {
+      "watering": "💧 Watering",
+      "fertilize": "🌱 Fertilizing",
+      "repot": "🪴 Repotting",
+      "prune": "✂️ Pruning"
+    },
+    "notSet": "Not set"
   },
   "plantDetails": {
     "back": "Back",
@@ -215,8 +229,25 @@
     "welcomeBack": "Welcome back!",
     "signedIn": "Signed in successfully.",
     "done": "Done",
+    "retry": "Retry",
+    "ok": "OK",
     "permissionDeniedTitle": "No Access",
     "cameraPermissionDenied": "Please allow camera access in your phone settings.",
-    "galleryPermissionDenied": "Please allow photo library access in your phone settings."
+    "galleryPermissionDenied": "Please allow photo library access in your phone settings.",
+    "notificationPermissionDeniedIOS": "Please enable notifications in Settings → GreenThumb → Notifications.",
+    "notificationPermissionDeniedAndroid": "Notification permission denied. Please enable it in your system settings."
+  },
+  "errors": {
+    "timeout": "The server is not responding. Check your connection and try again.",
+    "network": "Can't reach the server. Check your internet connection.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "unknown": "Something went wrong. Please try again.",
+    "invalidRecoveryKey": "Invalid recovery key",
+    "signInFailed": "Could not sign in",
+    "createAccountFailed": "Could not create account",
+    "regenerateFailed": "Could not regenerate your recovery key",
+    "loadFailed": "Could not load data",
+    "actionFailed": "Action failed",
+    "confirmRegenerate": "This will replace your current recovery key. Make sure to save the new one."
   }
 }

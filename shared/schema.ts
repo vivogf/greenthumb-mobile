@@ -25,7 +25,7 @@ export interface User {
 
 export interface Plant {
   id: string;
-  user_id: string;
+  user_id: number;
   name: string;
   location: string;
   photo_url: string;

@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../hooks/useColors';
 import { todayString } from '../lib/utils';
-import { API_BASE_URL } from '../lib/constants';
+import { apiRequest, TimeoutError, NetworkError } from '../lib/api';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { ImagePickerField } from '../components/ImagePickerField';
 
@@ -40,14 +40,15 @@ const optNum = z.preprocess(
   z.number().int().min(1).optional(),
 );
 
+// Validation messages use i18n keys so they can be translated at display time.
 const formSchema = z.object({
-  name: z.string().min(1, 'Введите название'),
+  name: z.string().min(1, 'addPlant.validation.nameRequired'),
   location: z.string().optional().default(''),
   water_frequency_days: z.preprocess(
     (v) => (v === '' ? NaN : Number(v)),
-    z.number({ invalid_type_error: 'Введите число' }).int().min(1, 'Минимум 1 день'),
+    z.number({ invalid_type_error: 'addPlant.validation.minOneDay' }).int().min(1, 'addPlant.validation.minOneDay'),
   ),
-  last_watered_date: z.string().min(1, 'Выберите дату'),
+  last_watered_date: z.string().min(1, 'addPlant.validation.pickDate'),
   notes: z.string().optional(),
   fertilize_frequency_days: optNum,
   last_fertilized_date: z.string().optional(),
@@ -68,6 +69,10 @@ export default function AddPlantScreen() {
   const colors = useColors();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  /** zod error messages are i18n keys (e.g. "addPlant.validation.nameRequired") — resolve to the localized text. */
+  const tError = (msg: string | undefined): string | undefined =>
+    msg && msg.includes('.') ? t(msg) : msg;
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
@@ -91,13 +96,12 @@ export default function AddPlantScreen() {
   });
 
   // ---------------------------------------------------------------------------
-  // Submit — sends FormData so the photo file is included as multipart
+  // Submit — POSTs the plant as JSON with base64-encoded photo (same format as PWA)
   // ---------------------------------------------------------------------------
 
   const onSubmit = async (data: PlantFormData) => {
     setSubmitting(true);
     try {
-      // Use base64 from ImagePickerField (same format as PWA)
       const photo_url = photoBase64
         ? `data:image/jpeg;base64,${photoBase64}`
         : 'https://images.unsplash.com/photo-1518531933037-91b2f8c3a149?w=400&h=400&fit=crop';
@@ -117,22 +121,17 @@ export default function AddPlantScreen() {
       if (data.prune_frequency_months) body.prune_frequency_months = data.prune_frequency_months;
       if (data.last_pruned_date) body.last_pruned_date = data.last_pruned_date;
 
-      const res = await fetch(`${API_BASE_URL}/api/plants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Ошибка ${res.status}`);
-      }
-
+      await apiRequest('POST', '/api/plants', body);
       await queryClient.invalidateQueries({ queryKey: ['/api/plants'] });
       router.back();
     } catch (err: any) {
-      Alert.alert(t('addPlant.uploadFailed'), err?.message || String(err));
+      const msg =
+        err instanceof TimeoutError
+          ? t('errors.timeout')
+          : err instanceof NetworkError
+            ? t('errors.network')
+            : err?.message || t('errors.unknown');
+      Alert.alert(t('addPlant.uploadFailed'), msg);
     } finally {
       setSubmitting(false);
     }
@@ -229,7 +228,7 @@ export default function AddPlantScreen() {
                 />
               )}
             />
-            {errors.name && <Text style={errorStyle}>{errors.name.message}</Text>}
+            {errors.name && <Text style={errorStyle}>{tError(errors.name.message)}</Text>}
           </View>
 
           {/* ── Location ── */}
@@ -253,7 +252,7 @@ export default function AddPlantScreen() {
           </View>
 
           {/* ── Watering ── */}
-          <SectionDivider label="💧 Полив" colors={colors} />
+          <SectionDivider label={t('addPlant.sections.watering')} colors={colors} />
           <View style={{ gap: 14 }}>
             <View>
               <Text style={labelStyle}>{t('addPlant.wateringLabel')}</Text>
@@ -277,7 +276,7 @@ export default function AddPlantScreen() {
                 )}
               />
               {errors.water_frequency_days && (
-                <Text style={errorStyle}>{errors.water_frequency_days.message}</Text>
+                <Text style={errorStyle}>{tError(errors.water_frequency_days.message)}</Text>
               )}
             </View>
 
@@ -295,7 +294,7 @@ export default function AddPlantScreen() {
                 )}
               />
               {errors.last_watered_date && (
-                <Text style={errorStyle}>{errors.last_watered_date.message}</Text>
+                <Text style={errorStyle}>{tError(errors.last_watered_date.message)}</Text>
               )}
             </View>
           </View>
@@ -329,7 +328,7 @@ export default function AddPlantScreen() {
           {advancedOpen && (
             <View style={{ gap: 20 }}>
               {/* Fertilize */}
-              <CareSubSection label="🌱 Удобрение" colors={colors}>
+              <CareSubSection label={t('addPlant.sections.fertilize')} colors={colors}>
                 <View>
                   <Text style={labelStyle}>{t('addPlant.fertilizing')}</Text>
                   <Controller
@@ -366,7 +365,7 @@ export default function AddPlantScreen() {
               </CareSubSection>
 
               {/* Repot */}
-              <CareSubSection label="🪴 Пересадка" colors={colors}>
+              <CareSubSection label={t('addPlant.sections.repot')} colors={colors}>
                 <View>
                   <Text style={labelStyle}>{t('addPlant.repotting')}</Text>
                   <Controller
@@ -403,7 +402,7 @@ export default function AddPlantScreen() {
               </CareSubSection>
 
               {/* Prune */}
-              <CareSubSection label="✂️ Обрезка" colors={colors}>
+              <CareSubSection label={t('addPlant.sections.prune')} colors={colors}>
                 <View>
                   <Text style={labelStyle}>{t('addPlant.pruning')}</Text>
                   <Controller

@@ -45,6 +45,13 @@ export default function LoginScreen() {
   // Actions
   // ---------------------------------------------------------------------------
 
+  /** Resolve an auth-layer error message through i18n if it looks like a translation key. */
+  const resolveAuthError = (err: any): string => {
+    const msg = err?.message ?? '';
+    if (typeof msg === 'string' && msg.startsWith('errors.')) return t(msg);
+    return msg || t('errors.unknown');
+  };
+
   const handleCreateAccount = async () => {
     setLoading(true);
     try {
@@ -53,7 +60,7 @@ export default function LoginScreen() {
       setMode('show-key');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      Alert.alert(t('common.error'), resolveAuthError(error));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -68,8 +75,11 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // useEffect above will navigate to /(tabs) when user is set
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      Alert.alert(t('common.error'), resolveAuthError(error));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      // Always reset — on success, navigation happens via useEffect, but the
+      // spinner should stop either way in case navigation is delayed.
       setLoading(false);
     }
   };
