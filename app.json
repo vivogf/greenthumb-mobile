@@ -13,11 +13,6 @@
       "url": "https://u.expo.dev/10f48b02-7340-4ba9-850e-1d2a77dd4de2",
       "fallbackToCacheTimeout": 0
     },
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#15130e"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -27,7 +22,7 @@
     },
     "android": {
       "backgroundColor": "#15130e",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a5c2e"
@@ -49,6 +44,21 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1a5c2e",
+          "image": "./assets/icon.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#15130e",
+            "image": "./assets/icon.png",
+            "imageWidth": 240,
+            "resizeMode": "contain"
+          }
+        }
+      ],
       [
         "expo-image-picker",
         {
