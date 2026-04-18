@@ -7,7 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const PACKAGE = 'com.greenthumb.plantcare';
+const PACKAGE = 'com.greenthumbplantcare';
 const OUT_DIR = resolve('smoke-output');
 const BOOT_TIMEOUT_MS = 180_000;
 
