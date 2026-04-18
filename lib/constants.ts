@@ -10,6 +10,9 @@ export const LANGUAGE_STORE_KEY = 'greenthumb_language';
 // AsyncStorage key for dashboard layout mode (list / card / grid)
 export const LAYOUT_MODE_STORE_KEY = 'greenthumb_layout_mode';
 
+// AsyncStorage key for theme preference (light / dark / auto)
+export const THEME_STORE_KEY = 'greenthumb_theme';
+
 // Semantic colors for light and dark mode
 // Derived from PWA CSS variables in client/src/index.css
 export const Colors = {
