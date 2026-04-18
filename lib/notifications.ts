@@ -25,7 +25,6 @@ export async function initNotificationHandler(): Promise<void> {
   if (!N) return;
   N.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
@@ -116,6 +115,10 @@ export async function sendLocalTestNotification(): Promise<void> {
       body: 'Уведомления работают! 🌿',
       sound: 'default',
     },
-    trigger: null,
+    // Android: route through the HIGH-importance `default` channel we set up
+    // in registerForPushNotificationsAsync, so the banner/sound actually fire.
+    // iOS ignores channelId.
+    trigger:
+      Platform.OS === 'android' ? { channelId: 'default' } : null,
   });
 }

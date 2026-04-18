@@ -13,7 +13,6 @@ import {
   Image,
   TextInput,
   RefreshControl,
-  Alert,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
@@ -30,6 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '../../hooks/useColors';
+import { useAlertDialog } from '../../components/AlertDialog';
 import { useUserScopedQueryKey } from '../../hooks/useUserScopedQueryKey';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDaysUntilWatering, getWateringStatus, todayString } from '../../lib/utils';
@@ -52,6 +52,7 @@ const BULK_WATER_SUCCESS_BANNER_MS = 2400;
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const colors = useColors();
+  const { showAlert } = useAlertDialog();
   const router = useRouter();
   const { user } = useAuth();
   const getUserScopedQueryKey = useUserScopedQueryKey();
@@ -184,7 +185,7 @@ export default function DashboardScreen() {
       setSnappingIds(new Set());
       setWaterAllSuccessCount(null);
       const message = err instanceof Error ? err.message : 'Ошибка массового полива';
-      Alert.alert(t('common.error'), message);
+      showAlert(t('common.error'), message);
     },
   });
 

@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useColors } from '../../hooks/useColors';
+import { useAlertDialog } from '../../components/AlertDialog';
 
 type LoginMode = 'choose' | 'create' | 'login' | 'show-key';
 
@@ -26,6 +26,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { user, createAnonymousAccount, signInWithRecoveryKey } = useAuth();
   const colors = useColors();
+  const { showAlert } = useAlertDialog();
 
   const [mode, setMode] = useState<LoginMode>('choose');
   const [name, setName] = useState('');
@@ -53,7 +54,7 @@ export default function LoginScreen() {
       setMode('show-key');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -68,7 +69,7 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // useEffect above will navigate to /(tabs) when user is set
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setLoading(false);
     }
