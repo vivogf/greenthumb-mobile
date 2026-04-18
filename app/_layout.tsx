@@ -5,11 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { I18nextProvider } from 'react-i18next';
-import { AppState, useColorScheme, type AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import { focusManager } from '@tanstack/react-query';
 import { queryClient, persister } from '../lib/queryClient';
 import { loadSavedLanguage } from '../i18n/index';
 import { AuthProvider } from '../contexts/AuthContext';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { AlertDialogProvider } from '../components/AlertDialog';
 import { useColors } from '../hooks/useColors';
 import * as SystemUI from 'expo-system-ui';
@@ -23,17 +24,9 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const colors = useColors();
-
   useEffect(() => {
     loadSavedLanguage();
   }, []);
-
-  useEffect(() => {
-    // Set native Android window background to prevent white flash during screen transitions
-    SystemUI.setBackgroundColorAsync(colors.background);
-  }, [colors.background]);
 
   useEffect(() => {
     // Bridge React Native AppState → React Query focusManager so that
@@ -78,34 +71,58 @@ export default function RootLayout() {
       }}
     >
       <AuthProvider>
-        <I18nextProvider i18n={i18n}>
-          <AlertDialogProvider>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-              {/*
-                The index route acts as the initial auth gate.
-                After that, (auth) and (tabs) groups handle their own redirects.
-              */}
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen
-                name="add-plant"
-                options={{
-                  headerShown: true,
-                  headerTitle: '',
-                  headerTransparent: true,
-                  presentation: 'card',
-                }}
-              />
-              <Stack.Screen
-                name="plant/[id]"
-                options={{ headerShown: false }}
-              />
-            </Stack>
-          </AlertDialogProvider>
-        </I18nextProvider>
+        <ThemeProvider>
+          <I18nextProvider i18n={i18n}>
+            <AlertDialogProvider>
+              <ThemedStack />
+            </AlertDialogProvider>
+          </I18nextProvider>
+        </ThemeProvider>
       </AuthProvider>
     </PersistQueryClientProvider>
+  );
+}
+
+/**
+ * Stack + status bar + system UI — split out so they can consume the theme
+ * context (must live below <ThemeProvider>).
+ */
+function ThemedStack() {
+  const colors = useColors();
+  const { effective } = useTheme();
+
+  useEffect(() => {
+    // Set native Android window background to prevent white flash during screen transitions
+    SystemUI.setBackgroundColorAsync(colors.background);
+  }, [colors.background]);
+
+  return (
+    <>
+      <StatusBar style={effective === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        {/*
+          The index route acts as the initial auth gate.
+          After that, (auth) and (tabs) groups handle their own redirects.
+        */}
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="add-plant"
+          options={{
+            headerShown: true,
+            headerTitle: '',
+            headerTransparent: true,
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen name="plant/[id]" options={{ headerShown: false }} />
+      </Stack>
+    </>
   );
 }

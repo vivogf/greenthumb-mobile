@@ -32,3 +32,6 @@ smoke-output/
 
 # Downloaded EAS build artifacts
 APKs/
+
+# EAS Update export output
+dist/

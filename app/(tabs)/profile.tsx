@@ -23,6 +23,7 @@ import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { changeLanguage } from '../../i18n';
 import { useColors } from '../../hooks/useColors';
+import { useTheme, type ThemePreference } from '../../contexts/ThemeContext';
 import { useAlertDialog } from '../../components/AlertDialog';
 import { apiRequest } from '../../lib/api';
 import {
@@ -39,6 +40,7 @@ export default function ProfileScreen() {
   const { user, signOut, regenerateRecoveryKey, updateUser } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlertDialog();
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme();
 
   const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -230,6 +232,20 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const themeLabel =
+    themePreference === 'light'
+      ? t('profile.themeLight')
+      : themePreference === 'dark'
+        ? t('profile.themeDark')
+        : t('profile.themeAuto');
+
+  const handleSelectTheme = (pref: ThemePreference) => {
+    setThemePreference(pref);
+    setShowThemeModal(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const SectionCard = ({ children }: { children: React.ReactNode }) => (
     <View style={{
       backgroundColor: colors.card,
@@ -390,6 +406,17 @@ export default function ProfileScreen() {
             value={currentLanguageName}
             accessibilityLabel={t('a11y.chooseLanguage')}
             onPress={() => setShowLanguageModal(true)}
+          />
+        </SectionCard>
+
+        {/* Theme */}
+        <SectionCard>
+          <Row
+            icon="color-palette-outline"
+            label={t('profile.theme')}
+            value={themeLabel}
+            accessibilityLabel={t('a11y.chooseTheme')}
+            onPress={() => setShowThemeModal(true)}
           />
         </SectionCard>
 
@@ -597,6 +624,65 @@ export default function ProfileScreen() {
                   {lang.label}
                 </Text>
                 {i18n.language === lang.code && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                )}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Theme picker modal */}
+      <Modal
+        visible={showThemeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowThemeModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setShowThemeModal(false)}
+        >
+          <Pressable style={{
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
+            borderWidth: 1,
+            borderRadius: 16,
+            width: '80%',
+            padding: 24,
+            gap: 12,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground, textAlign: 'center', marginBottom: 4 }}>
+              {t('profile.chooseTheme')}
+            </Text>
+            {([
+              { code: 'auto' as ThemePreference, label: t('profile.themeAuto'), icon: 'contrast-outline' as const },
+              { code: 'light' as ThemePreference, label: t('profile.themeLight'), icon: 'sunny-outline' as const },
+              { code: 'dark' as ThemePreference, label: t('profile.themeDark'), icon: 'moon-outline' as const },
+            ]).map((opt) => (
+              <Pressable
+                key={opt.code}
+                onPress={() => handleSelectTheme(opt.code)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 14,
+                  borderRadius: 10,
+                  backgroundColor: themePreference === opt.code ? colors.primary + '20' : colors.muted,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Ionicons name={opt.icon} size={20} color={colors.foreground} />
+                <Text style={{
+                  flex: 1,
+                  fontSize: 16,
+                  color: colors.foreground,
+                  fontWeight: themePreference === opt.code ? '600' : '400',
+                }}>
+                  {opt.label}
+                </Text>
+                {themePreference === opt.code && (
                   <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
                 )}
               </Pressable>

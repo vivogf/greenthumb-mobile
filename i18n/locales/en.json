@@ -60,8 +60,10 @@
     "watered": "Watered!",
     "needsWater": "Needs water",
     "waterToday": "Water today",
-    "daysLeft": "{{count}} days left",
-    "overdue": "{{count}} days overdue",
+    "daysLeft": "{{count}} day left",
+    "daysLeft_plural": "{{count}} days left",
+    "overdue": "{{count}} day overdue",
+    "overdue_plural": "{{count}} days overdue",
     "delete": "Delete",
     "deleteConfirm": "Delete plant?",
     "deleteWarning": "This will permanently delete {{name}} and all its care history. This action cannot be undone.",
@@ -210,6 +212,11 @@
     "languageEnglish": "English",
     "languageRussian": "Русский",
     "chooseLanguage": "Choose Language",
+    "theme": "Theme",
+    "themeAuto": "Automatic",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "chooseTheme": "Choose Theme",
     "version": "Version",
     "pushPermissionDenied": "Please enable notifications in your phone settings.",
     "pushPermissionDeniedIOS": "Please enable notifications in Settings → GreenThumb → Notifications."
@@ -246,6 +253,7 @@
     "deletePlant": "Delete plant",
     "signOut": "Sign out",
     "chooseLanguage": "Choose language",
+    "chooseTheme": "Choose theme",
     "waterAll": "Water all plants that need watering",
     "postponeAll": "Postpone all plants that need watering"
   }
