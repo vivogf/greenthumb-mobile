@@ -7,7 +7,6 @@ import {
   Text,
   Pressable,
   ScrollView,
-  Alert,
   Switch,
   Platform,
   Modal,
@@ -24,6 +23,7 @@ import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { changeLanguage } from '../../i18n';
 import { useColors } from '../../hooks/useColors';
+import { useAlertDialog } from '../../components/AlertDialog';
 import { apiRequest } from '../../lib/api';
 import {
   registerForPushNotificationsAsync,
@@ -38,6 +38,7 @@ export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { user, signOut, regenerateRecoveryKey, updateUser } = useAuth();
   const colors = useColors();
+  const { showAlert } = useAlertDialog();
 
   const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -77,7 +78,7 @@ export default function ProfileScreen() {
         // Enable: request permissions → get token → subscribe
         const token = await registerForPushNotificationsAsync();
         if (!token) {
-          Alert.alert(
+          showAlert(
             t('common.error'),
             Platform.OS === 'ios'
               ? t('profile.pushPermissionDeniedIOS')
@@ -89,17 +90,17 @@ export default function ProfileScreen() {
         await subscribeToExpoNotifications(token);
         setPushEnabled(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(t('profile.notificationsEnabled'), t('profile.notificationsEnabledHint'));
+        showAlert(t('profile.notificationsEnabled'), t('profile.notificationsEnabledHint'));
       } else {
         // Disable: unsubscribe from backend
         await unsubscribeFromExpoNotifications();
         setPushEnabled(false);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        Alert.alert(t('profile.notificationsDisabled'), t('profile.notificationsDisabledHint'));
+        showAlert(t('profile.notificationsDisabled'), t('profile.notificationsDisabledHint'));
       }
     } catch (error: any) {
       console.error('[Push] Toggle error:', error);
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message);
     } finally {
       setPushToggling(false);
     }
@@ -110,9 +111,9 @@ export default function ProfileScreen() {
     try {
       await sendLocalTestNotification();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t('profile.testSent'), t('profile.testSentHint'));
+      showAlert(t('profile.testSent'), t('profile.testSentHint'));
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message);
     } finally {
       setTestSending(false);
     }
@@ -139,9 +140,9 @@ export default function ProfileScreen() {
       const data = await res.json();
       updateUser(data.user);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t('profile.settingsSaved'), t('profile.notificationTimeUpdated'));
+      showAlert(t('profile.settingsSaved'), t('profile.notificationTimeUpdated'));
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message);
     } finally {
       setSavingTime(false);
     }
@@ -177,7 +178,7 @@ export default function ProfileScreen() {
   };
 
   const handleRegenerateKey = () => {
-    Alert.alert(
+    showAlert(
       t('profile.generateNewKey'),
       'This will replace your current recovery key. Make sure to save the new one.',
       [
@@ -192,7 +193,7 @@ export default function ProfileScreen() {
               setKeyVisible(true);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error: any) {
-              Alert.alert(t('common.error'), error.message);
+              showAlert(t('common.error'), error.message);
             } finally {
               setRegenerating(false);
             }
@@ -203,7 +204,7 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
+    showAlert(
       t('profile.signOutConfirm'),
       t('profile.signOutWarning'),
       [

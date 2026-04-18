@@ -4,7 +4,7 @@
 // Usage: node scripts/smoke.mjs <path-to.apk> [avd-name]
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const PACKAGE = 'com.greenthumb.plantcare';
@@ -51,7 +51,12 @@ async function main() {
 
   const shot = join(OUT_DIR, `screen-${Date.now()}.png`);
   console.log(`> screenshot → ${shot}`);
-  spawnSync(adb, ['exec-out', 'screencap', '-p'], { stdio: ['inherit', openSync(shot), 'inherit'] });
+  const cap = spawnSync(adb, ['exec-out', 'screencap', '-p'], {
+    encoding: 'buffer',
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (cap.status !== 0) die(`screencap failed: ${cap.stderr?.toString()}`);
+  writeFileSync(shot, cap.stdout);
 
   const logPath = join(OUT_DIR, `logcat-${Date.now()}.txt`);
   console.log(`> logcat tail → ${logPath}`);

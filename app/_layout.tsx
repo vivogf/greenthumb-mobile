@@ -10,6 +10,7 @@ import { focusManager } from '@tanstack/react-query';
 import { queryClient, persister } from '../lib/queryClient';
 import { loadSavedLanguage } from '../i18n/index';
 import { AuthProvider } from '../contexts/AuthContext';
+import { AlertDialogProvider } from '../components/AlertDialog';
 import { useColors } from '../hooks/useColors';
 import * as SystemUI from 'expo-system-ui';
 import i18n from '../i18n/index';
@@ -78,29 +79,31 @@ export default function RootLayout() {
     >
       <AuthProvider>
         <I18nextProvider i18n={i18n}>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-            {/*
-              The index route acts as the initial auth gate.
-              After that, (auth) and (tabs) groups handle their own redirects.
-            */}
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="add-plant"
-              options={{
-                headerShown: true,
-                headerTitle: '',
-                headerTransparent: true,
-                presentation: 'card',
-              }}
-            />
-            <Stack.Screen
-              name="plant/[id]"
-              options={{ headerShown: false }}
-            />
-          </Stack>
+          <AlertDialogProvider>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+              {/*
+                The index route acts as the initial auth gate.
+                After that, (auth) and (tabs) groups handle their own redirects.
+              */}
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="add-plant"
+                options={{
+                  headerShown: true,
+                  headerTitle: '',
+                  headerTransparent: true,
+                  presentation: 'card',
+                }}
+              />
+              <Stack.Screen
+                name="plant/[id]"
+                options={{ headerShown: false }}
+              />
+            </Stack>
+          </AlertDialogProvider>
         </I18nextProvider>
       </AuthProvider>
     </PersistQueryClientProvider>

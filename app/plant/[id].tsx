@@ -19,7 +19,6 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  Alert,
   Modal,
   ActivityIndicator,
   useWindowDimensions,
@@ -33,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '../../hooks/useColors';
+import { useAlertDialog } from '../../components/AlertDialog';
 import { useUserScopedQueryKey } from '../../hooks/useUserScopedQueryKey';
 import {
   getDaysUntilWatering,
@@ -89,6 +89,7 @@ function careDaysText(days: number | null, t: (key: string, opts?: any) => strin
 export default function PlantDetailScreen() {
   const { t, i18n } = useTranslation();
   const colors = useColors();
+  const { showAlert } = useAlertDialog();
   const router = useRouter();
   const getUserScopedQueryKey = useUserScopedQueryKey();
   const queryClient = useQueryClient();
@@ -142,7 +143,7 @@ export default function PlantDetailScreen() {
       queryClient.invalidateQueries({ queryKey: plantsQueryKey });
     },
     onError: (err: Error) => {
-      Alert.alert(t('common.error'), err.message);
+      showAlert(t('common.error'), err.message);
     },
   });
 
@@ -155,7 +156,7 @@ export default function PlantDetailScreen() {
       router.replace('/');
     },
     onError: (err: Error) => {
-      Alert.alert(t('common.error'), err.message);
+      showAlert(t('common.error'), err.message);
     },
   });
 
@@ -187,14 +188,14 @@ export default function PlantDetailScreen() {
       );
       patchMutation.mutate({ photo_url: `data:image/jpeg;base64,${manipulated.base64 ?? ''}` });
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.message);
+      showAlert(t('common.error'), err.message);
     }
   };
 
   const pickFromCamera = async () => {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
-      Alert.alert(t('common.permissionDeniedTitle'), t('common.cameraPermissionDenied'));
+      showAlert(t('common.permissionDeniedTitle'), t('common.cameraPermissionDenied'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -208,7 +209,7 @@ export default function PlantDetailScreen() {
   const pickFromGallery = async () => {
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!granted) {
-      Alert.alert(t('common.permissionDeniedTitle'), t('common.galleryPermissionDenied'));
+      showAlert(t('common.permissionDeniedTitle'), t('common.galleryPermissionDenied'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -326,7 +327,7 @@ export default function PlantDetailScreen() {
   // ---------------------------------------------------------------------------
 
   const confirmDelete = () => {
-    Alert.alert(
+    showAlert(
       t('plantDetails.deleteTitle'),
       t('plantDetails.deleteDescription', { name: plant?.name ?? '' }),
       [

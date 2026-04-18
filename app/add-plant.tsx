@@ -11,7 +11,6 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -25,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../hooks/useColors';
+import { useAlertDialog } from '../components/AlertDialog';
 import { useUserScopedQueryKey } from '../hooks/useUserScopedQueryKey';
 import { apiRequest } from '../lib/api';
 import { todayString } from '../lib/utils';
@@ -68,6 +68,7 @@ export default function AddPlantScreen() {
   const { t } = useTranslation();
   const colors = useColors();
   const router = useRouter();
+  const { showAlert } = useAlertDialog();
   const getUserScopedQueryKey = useUserScopedQueryKey();
   const queryClient = useQueryClient();
   const plantsQueryKey = getUserScopedQueryKey('/api/plants');
@@ -126,7 +127,7 @@ export default function AddPlantScreen() {
       await queryClient.invalidateQueries({ queryKey: plantsQueryKey });
       router.back();
     } catch (err: any) {
-      Alert.alert(t('addPlant.uploadFailed'), err?.message || String(err));
+      showAlert(t('addPlant.uploadFailed'), err?.message || String(err));
     } finally {
       setSubmitting(false);
     }

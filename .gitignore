@@ -29,3 +29,6 @@ Screenshot_*.png
 
 # Smoke-test artifacts (screenshots + logcat)
 smoke-output/
+
+# Downloaded EAS build artifacts
+APKs/
