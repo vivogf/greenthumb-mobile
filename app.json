@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.greenthumb.plantcare"
+      "bundleIdentifier": "com.greenthumbplantcare"
     },
     "android": {
       "backgroundColor": "#15130e",
@@ -27,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a5c2e"
       },
-      "package": "com.greenthumb.plantcare",
+      "package": "com.greenthumbplantcare",
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
