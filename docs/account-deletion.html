@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Deletion — GreenThumb — Plant Care</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { color: #f3f2ef; background: #15130e; }
+      a { color: #7ec889; }
+      a:visited { color: #7ec889; }
+    }
+    h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.25rem; margin-top: 2rem; }
+    p, li { font-size: 1rem; }
+    .meta { color: #8a8a85; margin-bottom: 2rem; }
+    a { color: #2e7740; }
+    ol, ul { padding-left: 1.25rem; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: rgba(127,127,127,0.15);
+      padding: 0.1em 0.3em;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Account & Data Deletion</h1>
+<p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov</p>
+
+<p>
+  This page explains how to request deletion of your account and associated data
+  from the <strong>GreenThumb — Plant Care</strong> mobile application (the
+  "Application").
+</p>
+
+<h2>How to request deletion — step by step</h2>
+
+<ol>
+  <li>
+    <strong>Open the Application</strong> on your device and go to the
+    <em>Profile</em> tab (bottom-right tab in the navigation bar).
+  </li>
+  <li>
+    Tap <em>Recovery key</em> (or the equivalent option labelled with a key icon)
+    to reveal your recovery key — a long random string that uniquely identifies
+    your account. Copy it to your clipboard.
+  </li>
+  <li>
+    <strong>Send an email</strong> to
+    <a href="mailto:greenthumb.taunt861@passmail.net?subject=Account%20deletion%20request">greenthumb.taunt861@passmail.net</a>
+    with:
+    <ul>
+      <li>Subject: <code>Account deletion request</code></li>
+      <li>Body: paste your recovery key</li>
+    </ul>
+  </li>
+  <li>
+    You will receive a confirmation reply within a reasonable timeframe (typically
+    a few business days). Your account and all associated data will be permanently
+    deleted from the backend within <strong>14 days</strong> of the confirmation.
+  </li>
+</ol>
+
+<p>
+  If you have uninstalled the Application and cannot access your recovery key,
+  email the same address and describe what you remember (approximate date of
+  first use, any device details). The developer will try to locate and delete
+  your data on a best-effort basis.
+</p>
+
+<h2>What data will be deleted</h2>
+
+<ul>
+  <li>All <strong>plant records</strong> you created (names, care schedules, notes, watering history)</li>
+  <li>All <strong>plant photos</strong> stored on the backend</li>
+  <li>Your <strong>user record</strong> (the recovery key entry in the users table)</li>
+  <li>Your <strong>push notification subscription</strong> (FCM token), if any</li>
+</ul>
+
+<h2>What data may be retained (and for how long)</h2>
+
+<ul>
+  <li>
+    <strong>Anonymous server access logs</strong> — generic HTTP access logs
+    (timestamp, request path, IP address) are retained for up to
+    <strong>30 days</strong> by the hosting provider for security and
+    troubleshooting purposes. These logs are not linked to individual user
+    accounts and are automatically rotated.
+  </li>
+  <li>
+    <strong>Deletion request emails</strong> — the email you send may be retained
+    by the email provider for record-keeping purposes, subject to the email
+    provider's retention policy.
+  </li>
+</ul>
+
+<h2>Contact</h2>
+
+<p>
+  Questions about the deletion process:
+  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>.
+</p>
+
+<p>
+  See also: <a href="./privacy.html">Privacy Policy</a>.
+</p>
+
+</body>
+</html>
