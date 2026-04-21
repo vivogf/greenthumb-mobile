@@ -2,6 +2,31 @@
   "app": {
     "name": "GreenThumb"
   },
+  "intro": {
+    "slide1Title": "Your plants, organized",
+    "slide1Body": "Add photos, locations, and care schedules in one place.",
+    "slide2Title": "Never let them down again",
+    "slide2Body": "No more wilted leaves from forgotten watering days.",
+    "slide3Title": "On-time reminders",
+    "slide3Body": "Notifications arrive when it suits you.",
+    "next": "Next",
+    "getStarted": "Get started",
+    "skip": "Skip"
+  },
+  "enableNotifications": {
+    "title": "Enable reminders?",
+    "body": "We'll send a notification when your plants need water. You can choose the time later in settings.",
+    "enable": "Turn on notifications",
+    "later": "Maybe later"
+  },
+  "privacy": {
+    "loginHint": "We don't collect logs, personal data, or emails. If something breaks, tell us at:",
+    "aboutTitle": "Your data stays yours",
+    "aboutBody": "GreenThumb doesn't collect logs, analytics, or personal information. You have no email, no profile, no tracking — just a recovery key you control.",
+    "bugTitle": "Found a bug?",
+    "bugBody": "We'd love to hear about it:",
+    "sectionLabel": "About & Privacy"
+  },
   "login": {
     "title": "GreenThumb",
     "subtitle": "Track and care for your plants with ease",
@@ -82,6 +107,9 @@
     "photoLabel": "Plant Photo",
     "photoPlaceholder": "Tap to add photo",
     "changePhoto": "Tap to change photo",
+    "photoSourceTitle": "Plant photo",
+    "removePhoto": "Remove photo",
+    "addPhoto": "Add photo",
     "wateringLabel": "Watering Frequency (days)",
     "everyDays": "Every {{count}} days",
     "lastWateredLabel": "Last Watered Date",
