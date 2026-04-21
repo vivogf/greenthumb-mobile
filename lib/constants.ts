@@ -13,6 +13,12 @@ export const LAYOUT_MODE_STORE_KEY = 'greenthumb_layout_mode';
 // AsyncStorage key for theme preference (light / dark / auto)
 export const THEME_STORE_KEY = 'greenthumb_theme';
 
+// AsyncStorage key for "user has completed the welcome carousel" flag
+export const INTRO_SEEN_STORE_KEY = 'greenthumb_intro_seen';
+
+// Support email shown in privacy blocks and bug-report CTAs
+export const SUPPORT_EMAIL = 'greenthumb.taunt861@passmail.net';
+
 // Semantic colors for light and dark mode
 // Derived from PWA CSS variables in client/src/index.css
 export const Colors = {

@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import type { AccessibilityState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ import { useColors } from '../../hooks/useColors';
 import { useTheme, type ThemePreference } from '../../contexts/ThemeContext';
 import { useAlertDialog } from '../../components/AlertDialog';
 import { apiRequest } from '../../lib/api';
+import { SUPPORT_EMAIL } from '../../lib/constants';
 import {
   registerForPushNotificationsAsync,
   subscribeToExpoNotifications,
@@ -491,6 +493,45 @@ export default function ProfileScreen() {
               <Ionicons name="refresh" size={16} color={colors.mutedForeground} />
               <Text style={{ fontSize: 13, color: colors.mutedForeground }}>
                 {regenerating ? t('profile.generating') : t('profile.generateNewKey')}
+              </Text>
+            </Pressable>
+          </View>
+        </SectionCard>
+
+        {/* About & Privacy */}
+        <SectionCard>
+          <View style={{ padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="lock-closed" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.foreground, flex: 1 }}>
+                {t('privacy.aboutTitle')}
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 19 }}>
+              {t('privacy.aboutBody')}
+            </Text>
+
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+
+            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.foreground }}>
+              {t('privacy.bugTitle')}
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, lineHeight: 19 }}>
+              {t('privacy.bugBody')}
+            </Text>
+            <Pressable
+              onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+              accessibilityRole="link"
+              accessibilityLabel={SUPPORT_EMAIL}
+              hitSlop={8}
+            >
+              <Text style={{
+                fontSize: 13,
+                color: colors.primary,
+                textDecorationLine: 'underline',
+              }}>
+                {SUPPORT_EMAIL}
               </Text>
             </Pressable>
           </View>
