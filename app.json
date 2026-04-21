@@ -2,7 +2,7 @@
   "expo": {
     "name": "GreenThumb",
     "slug": "greenthumb",
-    "version": "0.5.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -22,7 +22,7 @@
     },
     "android": {
       "backgroundColor": "#15130e",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a5c2e"
