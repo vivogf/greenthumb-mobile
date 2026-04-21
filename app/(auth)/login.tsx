@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useColors } from '../../hooks/useColors';
 import { useAlertDialog } from '../../components/AlertDialog';
+import { SUPPORT_EMAIL } from '../../lib/constants';
 
 type LoginMode = 'choose' | 'create' | 'login' | 'show-key';
 
@@ -83,7 +85,7 @@ export default function LoginScreen() {
   };
 
   const handleContinue = () => {
-    router.replace('/(tabs)');
+    router.replace('/(auth)/enable-notifications');
   };
 
   // ---------------------------------------------------------------------------
@@ -197,6 +199,39 @@ export default function LoginScreen() {
                 {t('login.haveKey')}
               </Text>
             </Pressable>
+          </View>
+
+          {/* Privacy note + support email */}
+          <View style={{
+            flexDirection: 'row',
+            gap: 10,
+            paddingTop: 4,
+          }}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={16}
+              color={colors.mutedForeground}
+              style={{ marginTop: 2 }}
+            />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, lineHeight: 18 }}>
+                {t('privacy.loginHint')}
+              </Text>
+              <Pressable
+                onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+                accessibilityRole="link"
+                accessibilityLabel={SUPPORT_EMAIL}
+                hitSlop={8}
+              >
+                <Text style={{
+                  fontSize: 12,
+                  color: colors.primary,
+                  textDecorationLine: 'underline',
+                }}>
+                  {SUPPORT_EMAIL}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Container>
