@@ -151,12 +151,24 @@ export default function PlantDetailScreen() {
     mutationFn: async () => {
       await apiRequest('DELETE', `/api/plants/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: plantsQueryKey });
+      const previous = queryClient.getQueryData<Plant[]>(plantsQueryKey);
+      queryClient.setQueryData<Plant[]>(plantsQueryKey, (old) =>
+        old?.filter((p) => p.id !== id) ?? []
+      );
+      // Navigate back immediately so the user sees the deletion instantly.
       router.replace('/');
+      return { previous };
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(plantsQueryKey, context.previous);
+      }
       showAlert(t('common.error'), err.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: plantsQueryKey });
     },
   });
 
