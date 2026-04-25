@@ -31,6 +31,7 @@
     "expo-asset": "~55.0.8",
     "expo-clipboard": "~55.0.13",
     "expo-constants": "~55.0.7",
+    "expo-dev-client": "~55.0.28",
     "expo-font": "^55.0.4",
     "expo-haptics": "~55.0.14",
     "expo-image-manipulator": "~55.0.15",

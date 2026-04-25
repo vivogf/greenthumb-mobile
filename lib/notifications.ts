@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import i18n from '../i18n';
 import { apiRequest, apiFetch } from './api';
 
 /** True when running inside Expo Go (not a development/standalone build). */
@@ -72,7 +73,19 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
 /** Subscribe this device's Expo token to backend push notifications. */
 export async function subscribeToExpoNotifications(token: string): Promise<void> {
-  await apiRequest('POST', '/api/push/subscribe-expo', { expo_push_token: token });
+  // Send current UI language so the backend can localize push notification text.
+  // Defensive: if i18n module is unavailable in the current bundle (OTA edge case),
+  // fall back to 'ru' instead of crashing the whole subscribe flow.
+  let language: 'en' | 'ru' = 'ru';
+  try {
+    if (i18n?.language?.startsWith('en')) language = 'en';
+  } catch {
+    // i18n access failed — keep default 'ru'.
+  }
+  await apiRequest('POST', '/api/push/subscribe-expo', {
+    expo_push_token: token,
+    language,
+  });
 }
 
 /** Unsubscribe this device from backend push notifications. */
