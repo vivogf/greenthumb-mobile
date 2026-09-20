@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { baseFetch } from '../lib/api';
+import { ApiError, baseFetch } from '../lib/api';
 import { queryClient, persister } from '../lib/queryClient';
 import {
   saveRecoveryKey,
@@ -7,6 +7,47 @@ import {
   clearRecoveryKey,
 } from '../lib/storage';
 import type { User } from '../shared/schema';
+
+/**
+ * Best-effort sync of the device's IANA timezone with the backend.
+ * Fire-and-forget — a failure here must NEVER break login/auth flow.
+ * The backend stores `users.timezone` and the cron uses it to decide when
+ * to send the daily care reminder. NULL on the server falls back to
+ * Europe/Moscow, so this is purely an upgrade for non-Moscow users.
+ */
+async function syncTimezoneInBackground(): Promise<void> {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!tz) return;
+    await baseFetch('/api/auth/update-timezone', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone: tz }),
+    });
+  } catch (err) {
+    // Silent — timezone sync is non-critical.
+    console.warn('[Auth] Timezone sync failed (non-fatal):', err);
+  }
+}
+
+/**
+ * Wrap a non-OK Response into an ApiError so callers can branch on
+ * error.code instead of regexing error.message. Keeps consistency with the
+ * rest of lib/api.ts which already uses ApiError everywhere else.
+ */
+async function throwAsApiError(res: Response, fallbackMessage: string): Promise<never> {
+  let message = fallbackMessage;
+  try {
+    const data = await res.json();
+    if (typeof data?.error === 'string') message = data.error;
+  } catch {
+    // body wasn't json — keep fallback
+  }
+  const code: ApiError['code'] =
+    res.status === 401 ? 'unauthorized' :
+    res.status >= 500 ? 'server' : 'client';
+  throw new ApiError(res.status, code, message);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (meRes.ok) {
         const data = await meRes.json();
         setUser(data.user);
+        // Sync TZ on every cold-start so we catch users who travel between
+        // timezones (or who upgraded from a build that didn't send timezone).
+        syncTimezoneInBackground();
         return;
       }
 
@@ -77,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (loginRes.ok) {
           const data = await loginRes.json();
           setUser(data.user);
+          syncTimezoneInBackground();
           return;
         }
 
@@ -108,15 +153,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ name }),
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      throw new Error(data.error || 'Failed to create account');
+      await throwAsApiError(res, 'Failed to create account');
     }
+
+    const data = await res.json();
 
     // Persist the recovery key so future app launches auto-login
     await saveRecoveryKey(data.user.recovery_key);
     setUser(data.user);
+    // Best-effort: tell the backend our timezone so the daily push fires
+    // at the user's local notification_time, not Moscow time.
+    syncTimezoneInBackground();
     return data.user;
   };
 
@@ -127,15 +175,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ recoveryKey }),
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      throw new Error(data.error || 'Invalid recovery key');
+      await throwAsApiError(res, 'Invalid recovery key');
     }
+
+    const data = await res.json();
 
     // Persist for auto-login
     await saveRecoveryKey(recoveryKey);
     setUser(data.user);
+    syncTimezoneInBackground();
   };
 
   const signOut = async (): Promise<void> => {

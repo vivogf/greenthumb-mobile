@@ -57,7 +57,12 @@
     "recoveryKeyLabel": "Ключ восстановления",
     "recoveryKeyPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "signingIn": "Вход...",
-    "signIn": "Войти"
+    "signIn": "Войти",
+    "errors": {
+      "invalidRecoveryKey": "Неверный ключ восстановления",
+      "networkError": "Ошибка сети. Проверьте подключение и попробуйте снова.",
+      "serviceUnavailable": "Сервис временно недоступен. Попробуйте через минуту."
+    }
   },
   "dashboard": {
     "myPlants": "Мои растения",

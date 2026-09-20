@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import type { AccessibilityState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,18 +122,16 @@ export default function ProfileScreen() {
     }
   }, [t]);
 
-  // Time picker helpers
+  // Notification time helpers — reminders are whole-hour only (the backend
+  // cron runs hourly), so the picker offers hours 00:00–23:00, no minutes.
   const currentTime = user?.notification_time ?? '09:00';
-  const [hours, minutes] = currentTime.split(':').map(Number);
-  const timeDate = new Date();
-  timeDate.setHours(hours, minutes, 0, 0);
+  const currentHour = parseInt(currentTime.slice(0, 2), 10) || 0;
+  const currentTimeLabel = `${String(currentHour).padStart(2, '0')}:00`;
 
-  const saveNotificationTime = useCallback(async (selectedDate: Date) => {
-    const h = String(selectedDate.getHours()).padStart(2, '0');
-    const m = String(selectedDate.getMinutes()).padStart(2, '0');
-    const newTime = `${h}:${m}`;
-
-    if (newTime === currentTime) return;
+  const saveNotificationHour = useCallback(async (hour: number) => {
+    const newTime = `${String(hour).padStart(2, '0')}:00`;
+    setShowTimePicker(false);
+    if (newTime === currentTimeLabel) return;
 
     setSavingTime(true);
     try {
@@ -150,28 +147,7 @@ export default function ProfileScreen() {
     } finally {
       setSavingTime(false);
     }
-  }, [currentTime, t, updateUser]);
-
-  const handleTimeChange = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
-    if (event.type === 'dismissed') return;
-    if (!selectedDate) return;
-
-    void saveNotificationTime(selectedDate);
-  }, [saveNotificationTime]);
-
-  const [iosTempTime, setIosTempTime] = useState(timeDate);
-
-  const handleTimeIOSCancel = useCallback(() => {
-    setShowTimePicker(false);
-  }, []);
-
-  const handleTimeIOSSave = useCallback(() => {
-    setShowTimePicker(false);
-    void saveNotificationTime(iosTempTime);
-  }, [iosTempTime, saveNotificationTime]);
+  }, [currentTimeLabel, t, updateUser]);
 
   const handleCopyKey = async () => {
     if (!user?.recovery_key) return;
@@ -376,12 +352,9 @@ export default function ProfileScreen() {
           <Row
             icon="time-outline"
             label={t('profile.notificationTime')}
-            value={savingTime ? t('profile.saving') : currentTime}
+            value={savingTime ? t('profile.saving') : currentTimeLabel}
             accessibilityLabel={t('profile.notificationTime')}
-            onPress={pushEnabled ? () => {
-              setIosTempTime(timeDate);
-              setShowTimePicker(true);
-            } : undefined}
+            onPress={pushEnabled ? () => setShowTimePicker(true) : undefined}
             right={pushEnabled ? (
               <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
             ) : undefined}
@@ -566,60 +539,64 @@ export default function ProfileScreen() {
 
       </ScrollView>
 
-      {/* Android time picker — shows as dialog */}
-      {Platform.OS === 'android' && showTimePicker && (
-        <DateTimePicker
-          value={timeDate}
-          mode="time"
-          is24Hour={true}
-          display="default"
-          onChange={handleTimeChange}
-        />
-      )}
-
-      {/* iOS time picker — spinner in bottom modal */}
-      {Platform.OS === 'ios' && (
-        <Modal
-          visible={showTimePicker}
-          transparent
-          animationType="slide"
-          onRequestClose={handleTimeIOSCancel}
+      {/* Notification hour picker — whole-hour reminders only (00:00–23:00) */}
+      <Modal
+        visible={showTimePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setShowTimePicker(false)}
         >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-            onPress={handleTimeIOSCancel}
-          />
-          <View style={{ backgroundColor: colors.card, paddingBottom: 32 }}>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: 20,
-              paddingTop: 14,
-              paddingBottom: 4,
-            }}>
-              <Pressable onPress={handleTimeIOSCancel}>
-                <Text style={{ color: colors.mutedForeground, fontSize: 16, fontWeight: '600' }}>
-                  {t('common.cancel')}
-                </Text>
-              </Pressable>
-              <Pressable onPress={handleTimeIOSSave}>
-                <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>
-                  {t('common.save')}
-                </Text>
-              </Pressable>
-            </View>
-            <DateTimePicker
-              value={iosTempTime}
-              mode="time"
-              is24Hour={true}
-              display="spinner"
-              onChange={(_evt, date) => { if (date) setIosTempTime(date); }}
-              style={{ height: 200 }}
-            />
-          </View>
-        </Modal>
-      )}
+          <Pressable style={{
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
+            borderWidth: 1,
+            borderRadius: 16,
+            width: '80%',
+            maxHeight: '70%',
+            padding: 24,
+            gap: 12,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.foreground, textAlign: 'center', marginBottom: 4 }}>
+              {t('profile.notificationTime')}
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {Array.from({ length: 24 }, (_, h) => {
+                const label = `${String(h).padStart(2, '0')}:00`;
+                const selected = h === currentHour;
+                return (
+                  <Pressable
+                    key={h}
+                    onPress={() => saveNotificationHour(h)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityState={{ selected }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 14,
+                      borderRadius: 10,
+                      backgroundColor: selected ? colors.primary + '20' : colors.muted,
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: 16, color: colors.foreground, fontWeight: selected ? '600' : '400' }}>
+                      {label}
+                    </Text>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Language picker modal */}
       <Modal
