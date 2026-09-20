@@ -12,6 +12,7 @@ import { loadSavedLanguage } from '../i18n/index';
 import { AuthProvider } from '../contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { AlertDialogProvider } from '../components/AlertDialog';
+import HandoffKeyModal from '../components/HandoffKeyModal';
 import { useColors } from '../hooks/useColors';
 import * as SystemUI from 'expo-system-ui';
 import i18n from '../i18n/index';
@@ -75,6 +76,8 @@ export default function RootLayout() {
           <I18nextProvider i18n={i18n}>
             <AlertDialogProvider>
               <ThemedStack />
+              {/* Stage 0 (KMP handoff): one-time "save your key" reminder */}
+              <HandoffKeyModal />
             </AlertDialogProvider>
           </I18nextProvider>
         </ThemeProvider>

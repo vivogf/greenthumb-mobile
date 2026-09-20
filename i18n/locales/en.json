@@ -273,6 +273,15 @@
     "cameraPermissionDenied": "Please allow camera access in your phone settings.",
     "galleryPermissionDenied": "Please allow photo library access in your phone settings."
   },
+  "handoffModal": {
+    "title": "Save your recovery key",
+    "subtitle": "Keep it somewhere safe — a password manager or a note only you can find.",
+    "keyLabel": "Recovery key",
+    "copy": "Copy key",
+    "copied": "Copied",
+    "warning": "This key is the only way to access your account. If you lose it, your account cannot be restored.",
+    "understood": "I've saved it"
+  },
   "a11y": {
     "waterPlant": "Water plant {{name}}",
     "openPlant": "Open plant card {{name}}",

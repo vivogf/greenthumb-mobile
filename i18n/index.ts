@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LANGUAGE_STORE_KEY } from '../lib/constants';
+import { syncHandoffFile } from '../lib/storage';
 
 import en from './locales/en.json';
 import ru from './locales/ru.json';
@@ -48,6 +49,9 @@ export async function loadSavedLanguage(): Promise<void> {
 export async function changeLanguage(lng: string): Promise<void> {
   await i18n.changeLanguage(lng);
   await AsyncStorage.setItem(LANGUAGE_STORE_KEY, lng);
+  // Stage 0 (KMP handoff): the language lives in the handoff payload —
+  // re-sync the file after every change (never throws).
+  await syncHandoffFile();
 }
 
 export default i18n;

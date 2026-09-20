@@ -10,6 +10,7 @@ import {
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME_STORE_KEY } from '../lib/constants';
+import { syncHandoffFile } from '../lib/storage';
 
 export type ThemePreference = 'light' | 'dark' | 'auto';
 export type EffectiveScheme = 'light' | 'dark';
@@ -54,6 +55,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setPreference = useCallback((pref: ThemePreference) => {
     setPreferenceState(pref);
     AsyncStorage.setItem(THEME_STORE_KEY, pref).catch(() => {});
+    // Stage 0 (KMP handoff): the theme lives in the handoff payload —
+    // re-sync the file after every change (never throws).
+    syncHandoffFile();
   }, []);
 
   const effective: EffectiveScheme =
