@@ -16,6 +16,10 @@ export const THEME_STORE_KEY = 'greenthumb_theme';
 // AsyncStorage key for "user has completed the welcome carousel" flag
 export const INTRO_SEEN_STORE_KEY = 'greenthumb_intro_seen';
 
+// AsyncStorage key for the versionCode the one-time "save your recovery key"
+// modal was last shown for (Stage 0 KMP handoff)
+export const HANDOFF_MODAL_SEEN_KEY = 'greenthumb_handoff_modal_seen';
+
 // Support email shown in privacy blocks and bug-report CTAs
 export const SUPPORT_EMAIL = 'greenthumb.taunt861@passmail.net';
 

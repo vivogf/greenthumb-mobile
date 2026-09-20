@@ -138,6 +138,26 @@ check('R10', 'expo-notifications static import', ({ rel, line }) => {
   return /^\s*import\b[^;]*['"]expo-notifications['"]/.test(line);
 });
 
+// R11 — gt-handoff.json (KMP migration handoff, Stage 0) may only be written or
+// deleted from lib/storage.ts. Screens/contexts call syncHandoffFile/clearHandoffFile.
+check('R11', 'gt-handoff access outside lib/storage.ts', ({ rel, line }) => {
+  if (rel === 'lib/storage.ts') return false;
+  const m = line.match(/gt-handoff/);
+  if (!m) return false;
+  if (inLineComment(line, m.index)) return false;
+  return true;
+});
+
+// R12 — every clearRecoveryKey() in AuthContext must have clearHandoffFile() in the
+// same file (Stage 0: dropping the key without removing the handoff file would let
+// the future KMP build silently log the user back into the abandoned account).
+check('R12', 'clearRecoveryKey() without clearHandoffFile() companion', ({ rel, line, src }) => {
+  if (rel !== 'contexts/AuthContext.tsx') return false;
+  if (!/clearRecoveryKey\s*\(/.test(line)) return false;
+  if (/^\s*import\b/.test(line)) return false;
+  return !src.includes('clearHandoffFile');
+});
+
 // ── Summary ─────────────────────────────────────────────────
 console.log();
 if (failed) {

@@ -35,6 +35,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getDaysUntilWatering, getWateringStatus, todayString } from '../../lib/utils';
 import { apiRequest } from '../../lib/api';
 import { LAYOUT_MODE_STORE_KEY } from '../../lib/constants';
+import { syncHandoffFile } from '../../lib/storage';
 import { SkeletonLoader } from '../../components/SkeletonPlaceholder';
 import { WaterButtonWithParticles } from '../../components/WaterButtonWithParticles';
 import { ThanosSnap } from '../../components/ThanosSnap';
@@ -85,6 +86,9 @@ export default function DashboardScreen() {
   const changeViewMode = useCallback((mode: ViewMode) => {
     setViewMode(mode);
     AsyncStorage.setItem(LAYOUT_MODE_STORE_KEY, mode);
+    // Stage 0 (KMP handoff): the layout mode lives in the handoff payload —
+    // re-sync the file after every change (never throws).
+    syncHandoffFile();
   }, []);
 
   useEffect(() => {

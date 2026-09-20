@@ -5,6 +5,8 @@ import {
   saveRecoveryKey,
   getStoredRecoveryKey,
   clearRecoveryKey,
+  syncHandoffFile,
+  clearHandoffFile,
 } from '../lib/storage';
 import type { User } from '../shared/schema';
 
@@ -99,6 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Sync TZ on every cold-start so we catch users who travel between
         // timezones (or who upgraded from a build that didn't send timezone).
         syncTimezoneInBackground();
+        // Stage 0 (KMP handoff): refresh the handoff file once per session
+        // start while a recovery key is alive.
+        await syncHandoffFile();
         return;
       }
 
@@ -112,6 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Step 2 — auto-login with stored key
       const storedKey = await getStoredRecoveryKey();
       if (storedKey) {
+        // Stage 0 (KMP handoff): the key is alive — refresh the handoff file
+        // once per session start, before the recovery round-trip.
+        await syncHandoffFile();
+
         const loginRes = await baseFetch('/api/auth/login-recovery', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -129,6 +138,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // For 429/5xx and other transient failures we keep the stored key.
         if (loginRes.status === 401) {
           await clearRecoveryKey();
+          // Stage 0 (KMP handoff): the server rejected this key, so the
+          // handoff copy is equally dead — drop it together with the key.
+          await clearHandoffFile();
           return;
         }
 
@@ -161,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Persist the recovery key so future app launches auto-login
     await saveRecoveryKey(data.user.recovery_key);
+    // Stage 0 (KMP handoff): mirror the new key + current settings to the file
+    await syncHandoffFile();
     setUser(data.user);
     // Best-effort: tell the backend our timezone so the daily push fires
     // at the user's local notification_time, not Moscow time.
@@ -183,6 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Persist for auto-login
     await saveRecoveryKey(recoveryKey);
+    // Stage 0 (KMP handoff): mirror the key + current settings to the file
+    await syncHandoffFile();
     setUser(data.user);
     syncTimezoneInBackground();
   };
@@ -199,6 +215,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // queryClient.clear() drops all cached queries so the next account
     // can't see the previous user's plants/profile (security).
     await clearRecoveryKey();
+    // Stage 0 (KMP handoff): remove the handoff copy together with the key —
+    // leaving it behind would let the KMP build silently sign the user back
+    // into the abandoned account.
+    await clearHandoffFile();
     queryClient.clear();
     await persister.removeClient();
     setUser(null);
@@ -221,6 +241,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Update the stored key to the new one
     await saveRecoveryKey(data.user.recovery_key);
+    // Stage 0 (KMP handoff): mirror the new key + current settings to the file
+    await syncHandoffFile();
     setUser(data.user);
   };
 
