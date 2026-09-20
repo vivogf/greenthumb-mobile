@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useColors } from '../../hooks/useColors';
 import { useAlertDialog } from '../../components/AlertDialog';
 import { SUPPORT_EMAIL } from '../../lib/constants';
+import { ApiError } from '../../lib/api';
 
 type LoginMode = 'choose' | 'create' | 'login' | 'show-key';
 
@@ -48,6 +49,29 @@ export default function LoginScreen() {
   // Actions
   // ---------------------------------------------------------------------------
 
+  /**
+   * Map an auth error to a user-facing message. Specifically, an ApiError
+   * with status != 401 (typically a backend hiccup like a Neon quota error
+   * showing up as 400) used to surface as "Invalid recovery key", which
+   * misled users into thinking their key was wrong. Now we differentiate.
+   *
+   * `isLogin=true` means: only "real" 401s should say "Invalid key";
+   * everything else is service-side and user can just retry.
+   */
+  const explainAuthError = (error: any, isLogin: boolean): string => {
+    if (error instanceof ApiError) {
+      if (error.code === 'unauthorized' && isLogin) {
+        return t('login.errors.invalidRecoveryKey');
+      }
+      if (error.code === 'network' || error.code === 'timeout') {
+        return t('login.errors.networkError');
+      }
+      // 400 quota, 5xx, anything else server-side — not the user's key.
+      return t('login.errors.serviceUnavailable');
+    }
+    return error?.message || t('common.error');
+  };
+
   const handleCreateAccount = async () => {
     setLoading(true);
     try {
@@ -56,7 +80,7 @@ export default function LoginScreen() {
       setMode('show-key');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      showAlert(t('common.error'), error.message);
+      showAlert(t('common.error'), explainAuthError(error, false));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -71,7 +95,7 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // useEffect above will navigate to /(tabs) when user is set
     } catch (error: any) {
-      showAlert(t('common.error'), error.message);
+      showAlert(t('common.error'), explainAuthError(error, true));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setLoading(false);
     }

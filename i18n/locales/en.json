@@ -57,7 +57,12 @@
     "recoveryKeyLabel": "Recovery Key",
     "recoveryKeyPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "signingIn": "Signing in...",
-    "signIn": "Sign In"
+    "signIn": "Sign In",
+    "errors": {
+      "invalidRecoveryKey": "Invalid recovery key",
+      "networkError": "Network error. Check your connection and try again.",
+      "serviceUnavailable": "Service is temporarily unavailable. Please try again in a minute."
+    }
   },
   "dashboard": {
     "myPlants": "My Plants",
