@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.androidKmpLibrary)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -22,6 +23,23 @@ kotlin {
             api(libs.composeFoundation)
             api(libs.composeUi)
             api(libs.composeMaterial3)
+            api(libs.kotlinxSerializationJson)
+            implementation(libs.kotlinxCoroutinesCore)
+            implementation(libs.ktorClientCore)
+            implementation(libs.ktorClientContentNegotiation)
+            implementation(libs.ktorClientLogging)
+            implementation(libs.ktorSerializationKotlinxJson)
+        }
+        androidMain.dependencies {
+            implementation(libs.ktorClientOkhttp)
+        }
+        jvmMain.dependencies {
+            implementation(libs.ktorClientCio)
+        }
+        jvmTest.dependencies {
+            implementation(libs.ktorClientMock)
+            implementation(libs.kotlinxCoroutinesTest)
+            implementation(libs.kotlinTest)
         }
     }
 }
