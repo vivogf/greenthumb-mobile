@@ -86,6 +86,7 @@ private class TimeoutClient(
             throw mapTransportException(cause)
         }
 
+    /** raw-семантика не-OK не применима на уровне транспорта: тестовый шим, идентичный raw(). */
     suspend fun rawShortTimeout(method: HttpMethod, path: String) =
         try {
             requestVia(client, method, path)
