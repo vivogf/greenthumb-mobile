@@ -17,3 +17,19 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run check
+
+  kmp:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # setup-java экспортирует JAVA_HOME — его подхватит kmp/scripts/check.sh
+      # (скрипт задаёт JAVA_HOME сам только если окружение его не дало).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+          cache-dependency-path: 'kmp/gradle/wrapper/gradle-wrapper.properties'
+      # Шаги повторяют локальный гейт (та же команда в mission-check.sh / services.yaml).
+      # Android SDK предустановлен на macos-раннерах GitHub с принятыми лицензиями.
+      - run: bash kmp/scripts/check.sh
