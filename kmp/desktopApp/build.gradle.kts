@@ -7,6 +7,8 @@ plugins {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
+    // Ручной прогон live-API (VAL-NET-007): RealApiProbe.kt строит CIO-клиент напрямую.
+    implementation(libs.ktorClientCio)
 }
 
 compose.desktop {
