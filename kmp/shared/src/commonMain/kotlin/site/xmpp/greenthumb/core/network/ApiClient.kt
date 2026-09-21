@@ -25,6 +25,9 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /** Базовый URL API; значение из RN `lib/constants.ts:1`. */
@@ -56,45 +59,80 @@ const val REQUEST_TIMEOUT_MILLIS: Long = 10_000L
  *  - [request] бросает [ApiError] по правилам `lib/api.ts:19-29` — поведение
  *    `apiRequest`/`apiFetch` (`lib/api.ts:86-102`).
  *
+ * Восстановление сессии на 401 (Stage 2 п.7, осознанное улучшение относительно RN,
+ * где 401 в рантайме не обрабатывался): 401 на любой запрос → одна попытка re-login
+ * сохранённым recovery key ([SessionRecoveryProvider]) + повтор исходного запроса;
+ * второй 401 — сброс сессии, экран входа. Это не retry: повторов по сетевым ошибкам
+ * нет (`retry: false` в RN `lib/queryClient.ts:32,35` сохраняется), восстановление
+ * срабатывает только на 401.
+ *
  * Движки: okhttp в androidMain, cio в jvmMain (пин Ktor 3.5.2).
  */
 class ApiClient(
     debugLogging: Boolean,
     engineFactory: HttpClientEngineFactory<*>,
+    recoveryProvider: SessionRecoveryProvider,
 ) {
-    constructor(engineFactory: HttpClientEngineFactory<*>) : this(debugLogging = false, engineFactory = engineFactory)
+    constructor(
+        engineFactory: HttpClientEngineFactory<*>,
+        recoveryProvider: SessionRecoveryProvider,
+    ) : this(debugLogging = false, engineFactory = engineFactory, recoveryProvider = recoveryProvider)
+
+    constructor(engineFactory: HttpClientEngineFactory<*>) : this(engineFactory, NoSessionRecoveryProvider)
 
     /**
      * Тестовый конструктор: готовый движок (MockEngine в jvmTest) вместо фабрики.
      * Прода не пользуется; фабрика-обёртка отдаёт движок как есть.
      */
     internal constructor(engine: io.ktor.client.engine.HttpClientEngine) :
-        this(debugLogging = false, engineFactory = EngineInstanceFactory(engine))
+        this(debugLogging = false, engineFactory = EngineInstanceFactory(engine), recoveryProvider = NoSessionRecoveryProvider)
+
+    internal constructor(
+        engine: io.ktor.client.engine.HttpClientEngine,
+        recoveryProvider: SessionRecoveryProvider,
+    ) : this(debugLogging = false, engineFactory = EngineInstanceFactory(engine), recoveryProvider = recoveryProvider)
 
     val client: HttpClient = HttpClient(engineFactory) { configureCommon(debugLogging) }
 
+    /** Восстановление сессии на 401 (Stage 2 п.7): провайдер ключа + сериализация попыток. */
+    private val recoveryProvider: SessionRecoveryProvider = recoveryProvider
+    private val recoveryMutex = Mutex()
+
     /**
      * Базовый запрос; НЕ бросает на не-OK статус — поведение `baseFetch`.
-     * Транспортный сбой (сеть/таймаут) бросается как [ApiError.Network]/[ApiError.Timeout];
-     * чистая отмена корутины ([CancellationException] без причины) пробрасывается как есть.
+     * 401 запускает восстановление сессии: одна попытка re-login сохранённым
+     * ключом ([recoverAndRetry]) + повтор исходного запроса; второй 401 — сброс
+     * сессии ([SessionRecoveryProvider.onSessionReset]) и 401 наверх. Сам
+     * `/api/auth/login-recovery` от восстановления исключён: 401 на него —
+     * «явный 401» для initSession/экрана входа (M3), повтор чужим ключом был бы
+     * ошибкой. Транспортный сбой (сеть/таймаут) бросается как
+     * [ApiError.Network]/[ApiError.Timeout]; чистая отмена корутины
+     * ([CancellationException] без причины) пробрасывается как есть.
      */
     suspend fun raw(
         method: HttpMethod,
         path: String,
         body: String? = null,
-    ): HttpResponse =
-        try {
+    ): HttpResponse {
+        val first = try {
             requestVia(client, method, path, body)
         } catch (cancellation: CancellationException) {
             throw mapTransportException(cancellation)
         } catch (cause: Throwable) {
             throw mapTransportException(cause)
         }
+        if (first.status.value != 401 || path == LOGIN_RECOVERY_PATH) return first
+
+        // Восстановление сессии (только на 401): re-login сохранённым ключом,
+        // затем повтор исходного запроса. Не retry — сетевые ошибки сюда не входят.
+        return recoverAndRetry(method, path, body) ?: first
+    }
 
     /**
      * Бросающий уровень: не-OK статус → [ApiError.fromStatus] (тело ответа — в
      * [ApiError.Client.body]/[ApiError.Server.body], как `toApiError` в `lib/api.ts:16-29`);
-     * транспорт/таймаут уже промаплены в [raw]. Поведение `apiRequest`/`apiFetch`.
+     * транспорт/таймаут уже промаплены в [raw]. 401 наверх — значит восстановление
+     * не состоялось (ключа нет или сессия не ожила). Поведение `apiRequest`/`apiFetch`.
      */
     suspend fun request(
         method: HttpMethod,
@@ -117,7 +155,88 @@ class ApiClient(
         client.close()
     }
 
+    /**
+     * Одна попытка восстановления сессии (Stage 2 п.7) + повтор исходного запроса.
+     * POST /api/auth/login-recovery сохранённым ключом; 200 — cookie обновлена
+     * ([retryAfterRelogin]); явный 401 — «второй 401»: сброс сессии
+     * ([SessionRecoveryProvider.onSessionReset]) без повторного входа — экран входа;
+     * прочие сбои — ключ НЕ трогается (parity initSession: только явный 401 чистит
+     * ключ). Concurrent 401 сериализуются mutex-ом: каждый запрос делает ровно одну
+     * свою попытку re-login.
+     *
+     * @return результат повтора исходного запроса либо null, если повтора не было
+     *   (ключа нет или re-login дал 401) — тогда caller отдаёт исходный 401.
+     * @throws ApiError транспортный сбой или не-401 статус любого из шагов
+     *   (в т.ч. повтора) — parity `baseFetch`: сеть/таймаут/серверный сбой
+     *   бросаются, не «съедаются».
+     */
+    private suspend fun recoverAndRetry(
+        method: HttpMethod,
+        path: String,
+        body: String?,
+    ): HttpResponse? = recoveryMutex.withLock {
+        val key = recoveryProvider.getRecoveryKey() ?: return@withLock null
+        val login = try {
+            requestVia(client, HttpMethod.Post, LOGIN_RECOVERY_PATH, json.encodeToString(RecoveryKeyRequest(key)))
+        } catch (cancellation: CancellationException) {
+            throw mapTransportException(cancellation)
+        } catch (cause: Throwable) {
+            throw mapTransportException(cause)
+        }
+        when (login.status.value) {
+            in 200..299 -> {
+                val retry = retryAfterRelogin(method, path, body)
+                if (retry.status.value == 401) {
+                    // Второй 401 (вторая ветка): re-login удался, но повтор снова
+                    // 401 — сессия не ожила: сброс сессии, экран входа.
+                    recoveryProvider.onSessionReset()
+                }
+                retry
+            }
+            401 -> {
+                // Второй 401: сброс сессии, экран входа; сам re-login не рекурсивен.
+                recoveryProvider.onSessionReset()
+                null
+            }
+            else ->
+                // Не-401 сбой re-login (4xx/5xx): ключ НЕ трогается; наверх уходит
+                // ошибка re-login («сервис недоступен»), НЕ исходный 401 — иначе
+                // серверный сбой выглядел бы как «неверный ключ» (пarity-ловушка
+                // квот Neon; только явный 401 = неверный ключ).
+                throw ApiError.fromStatus(
+                    login.status.value,
+                    try {
+                        login.bodyAsText()
+                    } catch (_: Throwable) {
+                        ""
+                    },
+                )
+        }
+    }
+
+    /** Повтор исходного запроса после успешного re-login (уже внутри mutex). */
+    private suspend fun retryAfterRelogin(
+        method: HttpMethod,
+        path: String,
+        body: String?,
+    ): HttpResponse = try {
+        requestVia(client, method, path, body)
+    } catch (cancellation: CancellationException) {
+        throw mapTransportException(cancellation)
+    } catch (cause: Throwable) {
+        throw mapTransportException(cause)
+    }
+
     companion object {
+        /** Путь re-login для восстановления сессии (та же таблица контракта). */
+        internal const val LOGIN_RECOVERY_PATH: String = "/api/auth/login-recovery"
+
+        /** Тело re-login (GreenThumbApi использует свою приватную копию того же формата). */
+        @kotlinx.serialization.Serializable
+        internal data class RecoveryKeyRequest(
+            @kotlinx.serialization.SerialName("recoveryKey") val recoveryKey: String,
+        )
+
         /**
          * Единый Json-инстанс: тот же формат, что установлен в ContentNegotiation.
          * `encodeDefaults = false` — механизм «Absent не пишется» в [Patch] (VAL-NET-005):
