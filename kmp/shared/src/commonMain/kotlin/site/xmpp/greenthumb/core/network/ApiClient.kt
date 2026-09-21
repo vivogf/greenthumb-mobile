@@ -118,6 +118,20 @@ class ApiClient(
     }
 
     companion object {
+        /**
+         * Единый Json-инстанс: тот же формат, что установлен в ContentNegotiation.
+         * `encodeDefaults = false` — механизм «Absent не пишется» в [Patch] (VAL-NET-005):
+         * поле-дефолт `Patch.Absent` не попадает в провод, `Value`/`Null` — попадают.
+         * `ignoreUnknownKeys = true` — сервер добавляет новые поля без слома клиента.
+         * `explicitNulls = false` — nullability-дефолты (PlantDto-конверты) тоже
+         * не пишутся; явные `null` приходят через Patch.Null (пишется декодером).
+         */
+        val json: Json = Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = false
+            explicitNulls = false
+        }
+
         /** Фабрика-обёртка готового движка (тестовый путь MockEngine). */
         internal class EngineInstanceFactory(
             private val engine: io.ktor.client.engine.HttpClientEngine,
@@ -141,7 +155,7 @@ class ApiClient(
                 storage = AcceptAllCookiesStorage()
             }
             install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
+                json(ApiClient.json)
             }
             if (debugLogging) {
                 install(Logging) {
