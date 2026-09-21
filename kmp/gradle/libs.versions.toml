@@ -8,6 +8,11 @@ composeMultiplatform = "1.12.0"
 composeMaterial3 = "1.12.0-alpha03"
 ksp = "2.3.12"
 ktor = "3.5.2"
+# Kotlin 2.4.20: serialization-плагин больше не вшивает рантайм (версияless-зависимость
+# не резолвится), поэтому пин. 1.11.0 — последняя стабильная, в Котлине 2.4 работает
+# (probe-прогон 2026-09-21), её же тащит сам Ktor 3.5.2 (ktor-serialization-kotlinx-json-jvm).
+kotlinxSerialization = "1.11.0"
+kotlinxCoroutines = "1.11.0"
 kotlinxDatetime = "0.8.0"
 koin = "4.2.2"
 lifecycle = "2.11.0"
@@ -40,9 +45,14 @@ kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.r
 ktorClientCore = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktorClientOkhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktorClientCio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktorClientMock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 ktorClientContentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktorClientLogging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 ktorSerializationKotlinxJson = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+kotlinTest = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 koinCore = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koinCompose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koinComposeViewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
