@@ -25,10 +25,11 @@ import site.xmpp.greenthumb.core.storage.SessionState
 
 /**
  * Стартовая поверхность сессии (Stage 3 п.4): крутит [SessionManager.startup]
- * в remember-корутине и показывает итог (SignedIn/SignedOut/ошибка handoff)
- * с кнопкой выхода. Заменяется реальной оболочкой приложения в Stage 6;
- * поведенческая сессия — в [SessionManager] (jvmTest), здесь только маппинг
- * на экраны.
+ * в remember-корутине и показывает итог (SignedIn/Offline/SignedOut/ошибка
+ * handoff) с кнопкой выхода. Заменяется реальной оболочкой приложения в
+ * Stage 6; поведенческая сессия — в [SessionManager] (jvmTest), здесь только
+ * маппинг на экраны. Офлайн-режим (Stage 3 п.5) — факт состояния: данные из
+ * Room и полоса «нет сети» приходят в M4 с репозиторием.
  */
 @Composable
 fun App(session: SessionManager) {
@@ -47,6 +48,11 @@ fun App(session: SessionManager) {
                     Text(
                         text = "Signed in: ${current.user.name ?: "anonymous"} " +
                             "(id=${current.user.id}, key=${current.user.recoveryKey.take(8)}…)",
+                    )
+                is SessionState.Offline ->
+                    Text(
+                        text = "Offline: ${current.user.name ?: "anonymous"} " +
+                            "(id=${current.user.id}) — cached_user; no network",
                     )
                 is SessionState.SignedOut -> Text(text = "Signed out: recovery key absent or session invalid")
                 is SessionState.HandoffImportFailed ->
