@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup (API 24+): SecureStore-шифротекст исключён — ключ AES-GCM
+     живёт в AndroidKeyStore и не бэкапится, восстановленный шифротекст
+     на другом устройстве был бы невалидным мусором. -->
+<full-backup-content>
+    <exclude domain="file" path="greenthumb_secure_store.preferences_pb" />
+</full-backup-content>

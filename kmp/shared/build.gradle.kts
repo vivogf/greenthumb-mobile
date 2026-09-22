@@ -29,17 +29,29 @@ kotlin {
             implementation(libs.ktorClientContentNegotiation)
             implementation(libs.ktorClientLogging)
             implementation(libs.ktorSerializationKotlinxJson)
+            // DataStore: SecureStore (шифротекст) + AppSettings (Stage 3, architecture.md §6).
+            implementation(libs.datastorePreferencesCore)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)
+            // datastore-core-android: PreferenceDataStoreFactory доступна на androidMain
+            // (транзитивная через datastore-preferences-core не всегда поднимает
+            // android-вариант в KMP-своде).
+            implementation(libs.datastorePreferencesCore)
         }
         jvmMain.dependencies {
             implementation(libs.ktorClientCio)
+            // datastore-core-okio-jvm: PreferenceDataStoreFactory на jvmMain
+            // (та же логика, что и в androidMain).
+            implementation(libs.datastorePreferencesCore)
         }
         jvmTest.dependencies {
             implementation(libs.ktorClientMock)
             implementation(libs.kotlinxCoroutinesTest)
             implementation(libs.kotlinTest)
+            // jvmTest компилирует отдельный source set: без явной datastore-зависимости
+            // actual-класс jvmMain не виден из теста (нет транзитивности через jvmTest).
+            implementation(libs.datastorePreferencesCore)
         }
     }
 }
