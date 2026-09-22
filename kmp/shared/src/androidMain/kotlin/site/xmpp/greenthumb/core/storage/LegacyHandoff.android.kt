@@ -20,19 +20,19 @@ import java.io.File
  * Context — applicationContext androidApp-активности (инжектируется точкой
  * входа Stage 6; до неё actual создаётся лениво из текущего процесса).
  */
-public actual class LegacyHandoff(
-    appContext: Context,
-) {
-    private val appContext = appContext.applicationContext
+public actual class LegacyHandoff actual constructor(
+    appContext: Any,
+) : HandoffSource {
+    private val appContext = (appContext as Context).applicationContext
 
-    actual fun readHandoff(): HandoffPayload? {
+    actual override fun readHandoff(): HandoffPayload? {
         val file = handoffFile()
         if (!file.exists()) return null
         val content = runCatching { file.readText() }.getOrNull() ?: return null
         return HandoffPayload.parse(content)
     }
 
-    actual fun clearHandoff() {
+    actual override fun clearHandoff() {
         handoffFile().takeIf { it.exists() }?.delete()
     }
 

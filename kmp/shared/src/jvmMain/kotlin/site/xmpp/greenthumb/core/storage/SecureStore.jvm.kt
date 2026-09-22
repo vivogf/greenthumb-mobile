@@ -41,24 +41,27 @@ import javax.crypto.spec.SecretKeySpec
  * Каталог по умолчанию — `~/.greenthumb` (desktop-харнесс); тестам —
  * JvmSecureStoreStorage с инжектируемым каталогом.
  */
-public actual class SecureStore {
+public actual class SecureStore actual constructor(appContext: Any) : SecureKeyValueStore {
     private val delegate = JvmSecureStoreStorage(defaultStorageDir())
 
-    actual suspend fun get(key: String): String? = delegate.get(key)
+    actual override suspend fun get(key: String): String? = delegate.get(key)
 
-    actual suspend fun set(key: String, value: String): Boolean =
+    actual override suspend fun set(key: String, value: String): Boolean =
         delegate.set(key, value)
 
-    actual suspend fun remove(key: String) = delegate.remove(key)
+    actual override suspend fun remove(key: String) = delegate.remove(key)
+
+    public fun close() = delegate.close()
 }
 
 /**
  * Инжектируемая jvm-реализация (открытый конструктор для jvmTest).
- * Логика описана в [SecureStore].
+ * Логика описана в [SecureStore]; сессионный слой потребляет её через
+ * [SecureKeyValueStore] (SessionManager).
  */
 public class JvmSecureStoreStorage(
     storageDir: File,
-) {
+) : SecureKeyValueStore {
     private val dir: File = storageDir.absoluteFile
     private val dataStoreFile = File(dir, DATA_FILE_NAME)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -66,14 +69,14 @@ public class JvmSecureStoreStorage(
     private val crypto = JvmAesGcm(dir)
     private val writeMutex = Mutex()
 
-    suspend fun get(key: String): String? {
+    override suspend fun get(key: String): String? {
         val ciphertext = readCiphertext(key)
         if (ciphertext == null) return null
         // Порча/подмена ключа шифрования читается как «не записано» (null), не крэш.
         return runCatching { crypto.decrypt(ciphertext) }.getOrNull()
     }
 
-    suspend fun set(key: String, value: String): Boolean {
+    override suspend fun set(key: String, value: String): Boolean {
         val ciphertext = runCatching { crypto.encrypt(value) }.getOrElse { return false }
         val ok = writeMutex.withLock {
             try {
@@ -93,7 +96,7 @@ public class JvmSecureStoreStorage(
         return ok
     }
 
-    suspend fun remove(key: String) {
+    override suspend fun remove(key: String) {
         dataStore.edit { it.remove(stringPreferencesKey(key)) }
     }
 

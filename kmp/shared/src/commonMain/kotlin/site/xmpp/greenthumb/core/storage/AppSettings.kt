@@ -26,6 +26,12 @@ import site.xmpp.greenthumb.core.network.UserDto
  * - флаг «карусель интро пройдена/пропущена» (RN setHasSeenIntro);
  * - `cached_user` — сериализованный [UserDto] для офлайн-сессии (Stage 3 п.5).
  *
+ * cached_user содержит recovery_key (несекретное хранилище): RN хранит тот же
+ * объект User в AsyncStorage, сервер восстанавливает аккаунт ТОЛЬКО по ключу,
+ * а бэкапы (cloud/device-transfer) с файлом настроек без SecureStore-ключа
+ * вход не дают (восстановить нельзя). Правила чистки при выходе —
+ * [clearCachedUser] (SessionManager.signOut, VAL-DATA-008).
+ *
  * Старый RN AsyncStorage напрямую НЕ читается (на Android это SQLite
  * `RKStorage`) — старые значения приезжают только через handoff-файл
  * Stage 0 ([applyLegacyHandoffValues] вызывается фичей kmp-legacy-handoff).
@@ -51,48 +57,48 @@ import site.xmpp.greenthumb.core.network.UserDto
  *   НЕ исключается из бэкапов — настройки несекретные и должны переживать
  *   восстановление; из бэкапа исключён только SecureStore-шифротекст).
  */
-public expect class AppSettings {
+public expect class AppSettings(appContext: Any) : AppPreferencesStore {
     /** Язык интерфейса или null (не задан). */
-    public suspend fun getLanguage(): AppLanguage?
+    override suspend fun getLanguage(): AppLanguage?
 
-    public suspend fun setLanguage(language: AppLanguage)
+    override suspend fun setLanguage(language: AppLanguage)
 
     /** Режим отображения дашборда или null (не задан; RN-дефолт list). */
-    public suspend fun getLayoutMode(): LayoutMode?
+    override suspend fun getLayoutMode(): LayoutMode?
 
-    public suspend fun setLayoutMode(mode: LayoutMode)
+    override suspend fun setLayoutMode(mode: LayoutMode)
 
     /** Выбор темы или null (не задан; RN-дефолт auto). */
-    public suspend fun getTheme(): ThemePreference?
+    override suspend fun getTheme(): ThemePreference?
 
-    public suspend fun setTheme(theme: ThemePreference)
+    override suspend fun setTheme(theme: ThemePreference)
 
     /** True, если карусель интро пройдена или пропущена. */
-    public suspend fun isIntroSeen(): Boolean
+    override suspend fun isIntroSeen(): Boolean
 
     /** Идемпотентная фиксация флага интро (RN setHasSeenIntro). */
-    public suspend fun setIntroSeen()
+    override suspend fun setIntroSeen()
 
     /** Последний известный пользователь (офлайн-сессия) или null. */
-    public suspend fun getCachedUser(): UserDto?
+    override suspend fun getCachedUser(): UserDto?
 
-    public suspend fun setCachedUser(user: UserDto)
+    override suspend fun setCachedUser(user: UserDto)
 
     /** Сброс cached_user (выход из аккаунта); предпочтения не тронуты. */
-    public suspend fun clearCachedUser()
+    override suspend fun clearCachedUser()
 
     /** Реактивное чтение (null = не задано) — без перезапуска процесса. */
-    public val language: Flow<AppLanguage?>
-    public val layoutMode: Flow<LayoutMode?>
-    public val theme: Flow<ThemePreference?>
-    public val introSeen: Flow<Boolean>
-    public val cachedUser: Flow<UserDto?>
+    override val language: Flow<AppLanguage?>
+    override val layoutMode: Flow<LayoutMode?>
+    override val theme: Flow<ThemePreference?>
+    override val introSeen: Flow<Boolean>
+    override val cachedUser: Flow<UserDto?>
 
     /**
      * Применение значений из handoff-файла Stage 0 (kmp-legacy-handoff):
      * перезаписывает только переданные значения; null не трогает ничего.
      */
-    public suspend fun applyLegacyHandoffValues(
+    override suspend fun applyLegacyHandoffValues(
         language: AppLanguage?,
         theme: ThemePreference?,
         layoutMode: LayoutMode?,
@@ -181,7 +187,7 @@ public enum class LayoutMode(public val wire: String) {
  * [JvmSecureStoreStorage]: платформенные тесты и входные точки создают
  * инстансы с нужным каталогом.
  */
-public abstract class PreferencesAppSettingsCore {
+public abstract class PreferencesAppSettingsCore : AppPreferencesStore {
     /** Scope хранилища (IO-диспетчер подставляет actual); cancel в [close]. */
     protected abstract val scope: CoroutineScope
 
@@ -204,45 +210,45 @@ public abstract class PreferencesAppSettingsCore {
     // Геттеры / сеттеры
     // ------------------------------------------------------------------
 
-    public suspend fun getLanguage(): AppLanguage? =
+    public override suspend fun getLanguage(): AppLanguage? =
         AppLanguage.fromWire(readString(AppSettingsKeys.LANGUAGE))
 
-    public suspend fun setLanguage(language: AppLanguage) {
+    public override suspend fun setLanguage(language: AppLanguage) {
         writeString(AppSettingsKeys.LANGUAGE, language.wire)
     }
 
-    public suspend fun getLayoutMode(): LayoutMode? =
+    public override suspend fun getLayoutMode(): LayoutMode? =
         LayoutMode.fromWire(readString(AppSettingsKeys.LAYOUT_MODE))
 
-    public suspend fun setLayoutMode(mode: LayoutMode) {
+    public override suspend fun setLayoutMode(mode: LayoutMode) {
         writeString(AppSettingsKeys.LAYOUT_MODE, mode.wire)
     }
 
-    public suspend fun getTheme(): ThemePreference? =
+    public override suspend fun getTheme(): ThemePreference? =
         ThemePreference.fromWire(readString(AppSettingsKeys.THEME))
 
-    public suspend fun setTheme(theme: ThemePreference) {
+    public override suspend fun setTheme(theme: ThemePreference) {
         writeString(AppSettingsKeys.THEME, theme.wire)
     }
 
-    public suspend fun isIntroSeen(): Boolean =
+    public override suspend fun isIntroSeen(): Boolean =
         readString(AppSettingsKeys.INTRO_SEEN) == INTRO_SEEN_VALUE
 
-    public suspend fun setIntroSeen() {
+    public override suspend fun setIntroSeen() {
         writeString(AppSettingsKeys.INTRO_SEEN, INTRO_SEEN_VALUE)
     }
 
-    public suspend fun getCachedUser(): UserDto? =
+    public override suspend fun getCachedUser(): UserDto? =
         readString(AppSettingsKeys.CACHED_USER)?.let { payload ->
             runCatching { settingsJson.decodeFromString(UserDto.serializer(), payload) }
                 .getOrNull()
         }
 
-    public suspend fun setCachedUser(user: UserDto) {
+    public override suspend fun setCachedUser(user: UserDto) {
         writeString(AppSettingsKeys.CACHED_USER, settingsJson.encodeToString(UserDto.serializer(), user))
     }
 
-    public suspend fun clearCachedUser() {
+    public override suspend fun clearCachedUser() {
         dataStore.edit { it.remove(stringPreferencesKey(AppSettingsKeys.CACHED_USER)) }
     }
 
@@ -252,27 +258,27 @@ public abstract class PreferencesAppSettingsCore {
     // DataStore при конструировании подкласса (до присвоения его scope).
     // ------------------------------------------------------------------
 
-    public val language: Flow<AppLanguage?> by lazy {
+    public override val language: Flow<AppLanguage?> by lazy {
         dataStore.data.map { AppLanguage.fromWire(it[stringPreferencesKey(AppSettingsKeys.LANGUAGE)]) }
             .distinctUntilChanged()
     }
 
-    public val layoutMode: Flow<LayoutMode?> by lazy {
+    public override val layoutMode: Flow<LayoutMode?> by lazy {
         dataStore.data.map { LayoutMode.fromWire(it[stringPreferencesKey(AppSettingsKeys.LAYOUT_MODE)]) }
             .distinctUntilChanged()
     }
 
-    public val theme: Flow<ThemePreference?> by lazy {
+    public override val theme: Flow<ThemePreference?> by lazy {
         dataStore.data.map { ThemePreference.fromWire(it[stringPreferencesKey(AppSettingsKeys.THEME)]) }
             .distinctUntilChanged()
     }
 
-    public val introSeen: Flow<Boolean> by lazy {
+    public override val introSeen: Flow<Boolean> by lazy {
         dataStore.data.map { it[stringPreferencesKey(AppSettingsKeys.INTRO_SEEN)] == INTRO_SEEN_VALUE }
             .distinctUntilChanged()
     }
 
-    public val cachedUser: Flow<UserDto?> by lazy {
+    public override val cachedUser: Flow<UserDto?> by lazy {
         dataStore.data.map { prefs ->
             prefs[stringPreferencesKey(AppSettingsKeys.CACHED_USER)]?.let { payload ->
                 runCatching { settingsJson.decodeFromString(UserDto.serializer(), payload) }
@@ -285,7 +291,7 @@ public abstract class PreferencesAppSettingsCore {
     // Handoff-применение (вызывается kmp-legacy-handoff, VAL-HANDOFF-IMP-001)
     // ------------------------------------------------------------------
 
-    public suspend fun applyLegacyHandoffValues(
+    public override suspend fun applyLegacyHandoffValues(
         language: AppLanguage?,
         theme: ThemePreference?,
         layoutMode: LayoutMode?,

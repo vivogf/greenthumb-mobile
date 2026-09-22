@@ -6,8 +6,8 @@ package site.xmpp.greenthumb.core.storage
  * файлу там взяться неоткуда (фича kmp-legacy-handoff; VAL-HANDOFF-IMP-004
  * покрывается jvmTest-ами общего парсера).
  */
-public actual class LegacyHandoff {
-    actual fun readHandoff(): HandoffPayload? = null
+public actual class LegacyHandoff actual constructor(appContext: Any) : HandoffSource {
+    actual override fun readHandoff(): HandoffPayload? = null
 
-    actual fun clearHandoff() = Unit
+    actual override fun clearHandoff() = Unit
 }

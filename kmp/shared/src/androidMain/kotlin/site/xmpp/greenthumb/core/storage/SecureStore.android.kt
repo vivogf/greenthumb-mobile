@@ -43,39 +43,40 @@ import javax.crypto.spec.GCMParameterSpec
  * Context — applicationContext androidApp-активности (инжектируется точкой
  * входа Stage 6; до неё actual создаётся лениво из текущего процесса).
  */
-public actual class SecureStore(
-    appContext: Context,
-) {
-    private val delegate = AndroidSecureStoreStorage(appContext.applicationContext)
+public actual class SecureStore actual constructor(
+    appContext: Any,
+) : SecureKeyValueStore {
+    private val delegate = AndroidSecureStoreStorage((appContext as Context).applicationContext)
 
-    actual suspend fun get(key: String): String? = delegate.get(key)
+    actual override suspend fun get(key: String): String? = delegate.get(key)
 
-    actual suspend fun set(key: String, value: String): Boolean =
+    actual override suspend fun set(key: String, value: String): Boolean =
         delegate.set(key, value)
 
-    actual suspend fun remove(key: String) = delegate.remove(key)
+    actual override suspend fun remove(key: String) = delegate.remove(key)
 }
 
 /**
  * Инжектируемая android-реализация (открытый конструктор для тестов/входной
- * точки). Логика описана в [SecureStore].
+ * точки). Логика описана в [SecureStore]; сессионный слой потребляет её
+ * через [SecureKeyValueStore] (SessionManager).
  */
 public class AndroidSecureStoreStorage(
     private val appContext: Context,
-) {
+) : SecureKeyValueStore {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dataStore: DataStore<Preferences> by lazy { createDataStore() }
     private val crypto = AndroidAesGcm()
     private val writeMutex = Mutex()
 
-    suspend fun get(key: String): String? {
+    override suspend fun get(key: String): String? {
         val ciphertext = readCiphertext(key)
         if (ciphertext == null) return null
         // Подмена/порча ключа Keystore читается как «не записано», не крэш.
         return runCatching { crypto.decrypt(ciphertext) }.getOrNull()
     }
 
-    suspend fun set(key: String, value: String): Boolean {
+    override suspend fun set(key: String, value: String): Boolean {
         val ciphertext = runCatching { crypto.encrypt(value) }.getOrElse { return false }
         val ok = writeMutex.withLock {
             try {
@@ -95,7 +96,7 @@ public class AndroidSecureStoreStorage(
         return ok
     }
 
-    suspend fun remove(key: String) {
+    override suspend fun remove(key: String) {
         dataStore.edit { it.remove(stringPreferencesKey(key)) }
     }
 
