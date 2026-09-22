@@ -38,6 +38,14 @@ public sealed class SessionState {
     /** Вход выполнен; [user] — последний известный пользователь (me/recovery/вход). */
     public data class SignedIn(public val user: UserDto) : SessionState()
 
+    /**
+     * Офлайн-режим (Stage 3 п.5): сетевой провал me при сохранённом ключе и
+     * последнем известном пользователе; [user] — сериализованный cached_user.
+     * Пользователь продолжает работу: данные из Room и полоса «нет сети» —
+     * M4 (kmp-connectivity/репозиторий), здесь только факт режима.
+     */
+    public data class Offline(public val user: UserDto) : SessionState()
+
     /** Экран входа (нет ключа/сессии или явный 401 при восстановлении). */
     public data object SignedOut : SessionState()
 
@@ -76,6 +84,11 @@ public sealed class SessionState {
  *   3. иной не-OK / транспортный провал → ничего: ключ хранится, экран входа
  *      (401 от me на raw-уровне уже пытался восстановиться сам — шов M2; здесь
  *      только классификация результата, повторной попытки нет)
+ *   4. сетевой провал me ([ApiError.Network]/[ApiError.Timeout]) + ключ в
+ *      SecureStore + cached_user → [SessionState.Offline] (Stage 3 п.5,
+ *      VAL-OFF-003): пользователь в офлайн-режиме с последним известным
+ *      аккаунтом. Полный офлайн-флоу (данные из Room, очередь мутаций,
+ *      полоса «нет сети») доезжает в M4 — здесь только факт режима.
  *
  * Дисциплина чистки ключа (parity + Stage 0): ключ стирается ТОЛЬКО при явном
  * 401 ([onAuthError], signOut, 401 от login-recovery) и всегда вместе с
@@ -197,24 +210,41 @@ public class SessionManager(
     }
 
     /**
-     * Три шага RN initSession (`contexts/AuthContext.tsx:53-91`):
-     * me → 401? recovery → иной не-OK ничего. Итог — состояние для UI.
+     * Три шага RN initSession (`contexts/AuthContext.tsx:53-91`)
+     * + офлайн-ветка Stage 3 п.5 (VAL-OFF-003): me → 401? recovery →
+     * сетевой провал? офлайн → иной не-OK ничего. Итог — состояние для UI.
      */
     public suspend fun initSession(): SessionState {
         val me = try {
             api.me()
         } catch (e: ApiError) {
-            if (e is ApiError.Unauthorized) {
-                // 401 наверх означает: клиентская попытка восстановления (шов
-                // M2) не состоялась или 401 сам от login-recovery — оба исхода
-                // решены в [recover].
-                return recover()
+            when (e) {
+                is ApiError.Unauthorized ->
+                    // 401 наверх означает: клиентская попытка восстановления (шов
+                    // M2) не состоялась или 401 сам от login-recovery — оба исхода
+                    // решены в [recover]. Офлайн-режим явный 401 не включает.
+                    return recover()
+                is ApiError.Network, is ApiError.Timeout ->
+                    // Офлайн-ветка Stage 3 п.5 (VAL-OFF-003): ключ + cached_user
+                    // → офлайн; любой компонент отсутствует → экран входа.
+                    return offlineOrNull() ?: SessionState.SignedOut
+                // Транзиентный сбой 5xx/429 (parity: не «офлайн-причина» в RN):
+                // ключ и cached_user хранятся, пользователя нет.
+                else -> return SessionState.SignedOut
             }
-            // Транзиентный сбой (сеть/таймаут/5xx/429): ключ и cached_user
-            // хранятся, пользователя нет (офлайн-ветка Stage 3 п.5 в M4).
-            return SessionState.SignedOut
         }
         return applyUser(me)
+    }
+
+    /**
+     * Офлайн-сессия (Stage 3 п.5): сохранённый ключ + cached_user →
+     * [SessionState.Offline] с последним известным пользователем; любой
+     * компонент отсутствует → null (экран входа).
+     */
+    private suspend fun offlineOrNull(): SessionState.Offline? {
+        val key = secure.get(SecureStoreKeys.RECOVERY_KEY) ?: return null
+        val user = settings.getCachedUser() ?: return null
+        return SessionState.Offline(user)
     }
 
     // ------------------------------------------------------------------
@@ -288,17 +318,28 @@ public class SessionManager(
     // Внутреннее
     // ------------------------------------------------------------------
 
-    /** 401 от me → одна попытка recovery (шаг 2 initSession). */
+    /**
+     * 401 от me → одна попытка recovery (шаг 2 initSession). Сетевой провал
+     * самой recovery (сеть/таймаут) при ключе и cached_user тоже уходит в
+     * офлайн-режим (Stage 3 п.5: сессия с сервера не ожила, но пользователь
+     * есть локально); 5xx/429 recovery — обычный SignedOut.
+     */
     private suspend fun recover(): SessionState {
         val key = secure.get(SecureStoreKeys.RECOVERY_KEY) ?: return SessionState.SignedOut
         val user = try {
             api.loginRecovery(key)
         } catch (e: ApiError) {
-            if (e is ApiError.Unauthorized) {
-                // Явный 401 от recovery: ключ невалиден — чистим (VAL-LOGIN-004).
-                clearKeyAndCachedUser()
+            when (e) {
+                is ApiError.Unauthorized ->
+                    // Явный 401 от recovery: ключ невалиден — чистим (VAL-LOGIN-004).
+                    clearKeyAndCachedUser()
+                is ApiError.Network, is ApiError.Timeout ->
+                    // Провал сети при recovery: офлайн-ветка Stage 3 п.5
+                    // (сессия не ожила, но пользователь есть локально).
+                    return offlineOrNull() ?: SessionState.SignedOut
+                // Транзиентные 429/5xx recovery ключ ХРАНЯТ (VAL-LOGIN-004).
+                else -> Unit
             }
-            // Транзиентные (429/5xx/сеть/таймаут) ключ ХРАНЯТ (VAL-LOGIN-004).
             return SessionState.SignedOut
         }
         return applyUser(user)
