@@ -11,6 +11,7 @@ import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.SecureStoreKeys
 import site.xmpp.greenthumb.core.storage.SessionManager
+import site.xmpp.greenthumb.core.storage.isUpdateInstall
 
 /**
  * Точка сборки сессии (Stage 3 п.4): по одному инстансу каждого хранилища
@@ -43,14 +44,20 @@ public class SessionGraph private constructor(
         private set
 
     public companion object {
-        /** Сборка графа; manager последним (ссылка Recovery на manager уже замкнута лениво). */
+        /**
+         * Сборка графа; manager последним (ссылка Recovery на manager уже
+         * замкнута лениво). Факт «установка — обновление» ([isUpdateInstall])
+         * читается здесь, ОДИН раз на создание графа, до крутящегося
+         * [SessionManager.startup] (Stage 3 п.6): конструкторный факт, не
+         * реактивное состояние.
+         */
         public fun create(
             secure: SecureStore,
             settings: AppSettings,
             handoff: LegacyHandoff,
         ): SessionGraph {
             val graph = SessionGraph(secure, settings, handoff, PlatformEngine.default())
-            graph.manager = SessionManager(graph.secure, graph.settings, graph.handoff, graph.api)
+            graph.manager = SessionManager(graph.secure, graph.settings, graph.handoff, graph.api, isUpdateInstall())
             return graph
         }
     }
