@@ -55,6 +55,15 @@ fun App(session: SessionManager) {
                             "(id=${current.user.id}) — cached_user; no network",
                     )
                 is SessionState.SignedOut -> Text(text = "Signed out: recovery key absent or session invalid")
+                is SessionState.KeyNotFound ->
+                    // Экран «ключ не найден» (Stage 3 п.6): строка — заголовок
+                    // из строк i18n (RU-локаль, полный экран и локализация — Stage 6).
+                    Text(
+                        text = "Аккаунт не найден на устройстве. " +
+                            "Ваш аккаунт хранится на сервере — введите ключ восстановления вручную " +
+                            "или создайте новый аккаунт (старый ключ восстановить нельзя).",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 is SessionState.HandoffImportFailed ->
                     Text(
                         text = "Handoff import failed. Recovery key to copy:\n${current.recoveryKey}",
@@ -63,7 +72,7 @@ fun App(session: SessionManager) {
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            if (state is SessionState.SignedOut) {
+            if (state is SessionState.SignedOut || state is SessionState.KeyNotFound) {
                 OutlinedButton(onClick = { session.retryStartup() }) {
                     Text(text = "Retry session")
                 }

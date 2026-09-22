@@ -54,6 +54,18 @@ public sealed class SessionState {
      * ошибки с предложением СКОПИРОВАТЬ ключ (VAL-HANDOFF-IMP-005).
      */
     public data class HandoffImportFailed(public val recoveryKey: String) : SessionState()
+
+    /**
+     * Экран «ключ не найден» (Stage 3 п.6, VAL-HANDOFF-IMP-002): ключа нет
+     * НИГДЕ (SecureStore + handoff), а установка — обновление поверх предыдущей
+     * (androidMain: lastUpdateTime ≠ firstInstallTime). Ряды матрицы «Expo-без-
+     * handoff → KMP» и «handoff доставлен, но приложение не запускалось → KMP»:
+     * аккаунт пользователя жив на сервере, ключ нужно ввести руками (кнопка
+     * ввода), восстановить ключ невозможно — предлагается создать новый аккаунт
+     * (вторая кнопка). НЕ показывается на чистой установке (обычный логин) и
+     * после обычного выхода/сброса ключа пользователем ([SessionState.SignedOut]).
+     */
+    public data object KeyNotFound : SessionState()
 }
 
 /**
@@ -89,6 +101,13 @@ public sealed class SessionState {
  *      VAL-OFF-003): пользователь в офлайн-режиме с последним известным
  *      аккаунтом. Полный офлайн-флоу (данные из Room, очередь мутаций,
  *      полоса «нет сети») доезжает в M4 — здесь только факт режима.
+ *   5. пустой исход (нет ключа НИГДЕ после шагов 1-2) при установке-обновлении
+ *      (androidMain lastUpdateTime ≠ firstInstallTime) → [SessionState.KeyNotFound]
+ *      — экран «ключ не найден» (Stage 3 п.6, VAL-HANDOFF-IMP-002): ряды матрицы
+ *      «Expo-без-handoff → KMP» и «handoff доставлен, но не запускался → KMP».
+ *      Только холодный старт; обычный вход/выход/транзиентные сбои дают
+ *      [SessionState.SignedOut] (сравнение с EmptyScreen-логикой RN: у RN
+ *      отсутствует — осознанное улучшение architecture.md §6).
  *
  * Дисциплина чистки ключа (parity + Stage 0): ключ стирается ТОЛЬКО при явном
  * 401 ([onAuthError], signOut, 401 от login-recovery) и всегда вместе с
@@ -113,6 +132,15 @@ public class SessionManager(
      */
     public val handoff: HandoffSource,
     api: GreenThumbApi,
+    /**
+     * Факт «установка — обновление поверх предыдущей» (Stage 3 п.6,
+     * androidMain: lastUpdateTime ≠ firstInstallTime). Пустой исход
+     * initSession (нет ключа ни в SecureStore, ни в handoff) при этом
+     * факте → [SessionState.KeyNotFound] (VAL-HANDOFF-IMP-002), иначе
+     * обычный [SessionState.SignedOut]. На desktop-харнессе фактический
+     * jvm-actual всегда false; jvmTest инжектирует факт явно.
+     */
+    private val isUpdateInstall: Boolean = false,
 ) {
     private val secure = secure
     private val settings = settings
@@ -211,35 +239,92 @@ public class SessionManager(
 
     /**
      * Три шага RN initSession (`contexts/AuthContext.tsx:53-91`)
-     * + офлайн-ветка Stage 3 п.5 (VAL-OFF-003): me → 401? recovery →
-     * сетевой провал? офлайн → иной не-OK ничего. Итог — состояние для UI.
+     * + офлайн-ветка Stage 3 п.5 (VAL-OFF-003) + экран «ключ не найден»
+     * Stage 3 п.6 (VAL-HANDOFF-IMP-002): me → 401? recovery → сетевой
+     * провал? офлайн → иной не-OK / пусто: экран входа, при пустом исходе
+     * на установке-обновлении — [SessionState.KeyNotFound]. Итог — состояние
+     * для UI.
      */
     public suspend fun initSession(): SessionState {
         val me = try {
             api.me()
         } catch (e: ApiError) {
             when (e) {
-                is ApiError.Unauthorized ->
-                    // 401 наверх означает: клиентская попытка восстановления (шов
-                    // M2) не состоялась или 401 сам от login-recovery — оба исхода
-                    // решены в [recover]. Офлайн-режим явный 401 не включает.
-                    return recover()
+                is ApiError.Unauthorized -> {
+                    // 401 от me: recover() сохранённым ключом. Результат
+                    // recover с ПУСТЫМИ хранилищами (ключа нет нигде — шов
+                    // клиента уже сбросил сессию или ключа не было) — пустой
+                    // исход п.6 на установке-обновлении → «ключ не найден»:
+                    // аккаунт жив на сервере (мне сервер ответил 401, т.е.
+                    // запрос дошёл), ключа нет нигде — эквивалент ряда
+                    // «handoff доставлен, но не запускался». Пустота после
+                    // ДЕЙСТВИЯ пользователя (401 на входе, выход) отсекается
+                    // [hadSession].
+                    val recovered = recover()
+                    return if (recovered is SessionState.SignedOut) signedOutOrKeyNotFound() else recovered
+                }
                 is ApiError.Network, is ApiError.Timeout ->
                     // Офлайн-ветка Stage 3 п.5 (VAL-OFF-003): ключ + cached_user
-                    // → офлайн; любой компонент отсутствует → экран входа.
-                    return offlineOrNull() ?: SessionState.SignedOut
+                    // → офлайн; любой компонент отсутствует → экран входа
+                    // (или «ключ не найден» на установке-обновлении — Stage 3 п.6).
+                    return offlineOrNull() ?: signedOutOrKeyNotFound()
                 // Транзиентный сбой 5xx/429 (parity: не «офлайн-причина» в RN):
                 // ключ и cached_user хранятся, пользователя нет.
-                else -> return SessionState.SignedOut
+                // И «не-OK без 401» при пустых хранилищах — стартовая пустота
+                // п.6: сервер ответил, но ни ключа, ни handoff нет → «ключ
+                // не найден» на обновлении (эквивалент ряда «handoff доставлен,
+                // но не запускался»: сервер жив, ключа нигде нет).
+                else -> return signedOutOrKeyNotFound()
             }
         }
         return applyUser(me)
     }
 
     /**
+     * Пустой исход старта (Stage 3 п.6): нет ключа НИГДЕ (SecureStore пуст,
+     * handoff отсутствует/мусор) + установка — обновление поверх предыдущей →
+     * [SessionState.KeyNotFound] — экран «ключ не найден» с объяснением
+     * (аккаунт на сервере; ключ ввести руками; восстановить нельзя → создать
+     * новый) вместо пустого логина (VAL-HANDOFF-IMP-002). Чистая установка
+     * или любой исход после действия пользователя (выход, 401 на вход) →
+     * обычный [SessionState.SignedOut].
+     *
+     * «Только холодный старт» — [SessionState.SignedOut] из обычного выхода
+     * ([signOut]) и явного 401 на входе ([signInWithRecoveryKey]) в этот
+     * хелпер не попадает: они возвращают SignedOut напрямую.
+     *
+     * Пустота проверяется заново перед KeyNotFound (не только флаг конструктора):
+     * между конструированием и стартом импорт handoff мог записать ключ; если
+     * ключ появился (в [SecureStoreKeys.RECOVERY_KEY] или handoff-файле) —
+     * обычный экран входа, «не найден» ложью быть не может.
+     *
+     * Плюс признак «сессия уже жила в этом процессе» ([hadSession]): исходы
+     * после успешного входа, выхода, 401 на входе и runtime-401 при живом
+     * ключе — не холодный старт, экран «ключ не найден» больше не показывается
+     * (пустота в этом случае создана действием пользователя, а не обновлением).
+     */
+    private suspend fun signedOutOrKeyNotFound(): SessionState {
+        if (!isUpdateInstall) return SessionState.SignedOut
+        if (hadSession) return SessionState.SignedOut
+        val stored = secure.get(SecureStoreKeys.RECOVERY_KEY)
+        if (stored != null) return SessionState.SignedOut
+        if (handoff.readHandoff() != null) return SessionState.SignedOut
+        return SessionState.KeyNotFound
+    }
+
+    /**
+     * В этом процессе уже был успешный вход ([applyUser]) или явная
+     * неавторизация по действию пользователя (401 на входе / выход /
+     * runtime-401 при живом ключе) — исход после такого шага уже не «холодный
+     * старт», и экран «ключ не найден» больше не показывается.
+     */
+    private var hadSession: Boolean = false
+
+    /**
      * Офлайн-сессия (Stage 3 п.5): сохранённый ключ + cached_user →
      * [SessionState.Offline] с последним известным пользователем; любой
-     * компонент отсутствует → null (экран входа).
+     * компонент отсутствует → null (пустой исход решает вызывающий:
+     * [signedOutOrKeyNotFound] — экран входа или «ключ не найден»).
      */
     private suspend fun offlineOrNull(): SessionState.Offline? {
         val key = secure.get(SecureStoreKeys.RECOVERY_KEY) ?: return null
@@ -257,7 +342,14 @@ public class SessionManager(
             return applyUser(api.loginRecovery(recoveryKey))
         } catch (e: ApiError) {
             if (e is ApiError.Unauthorized) {
-                // Явный 401 на вход: ключ невалиден (или стёрт) — чистим.
+                // Явный 401 на вход: ключ невалиден (или стёрт) — чистим
+                // (VAL-LOGIN-004). Экран входа после этого — обычный
+                // [SessionState.SignedOut]: ключ пользователь ввёл сам, «ключ
+                // не найден» здесь не показывается (Stage 3 п.6).
+                // Признак «в этом процессе уже был успешный вход» (см.
+                // [signedOutOrKeyNotFound]): пустота после такого шага —
+                // не стартовая.
+                hadSession = true
                 clearKeyAndCachedUser()
             }
             throw e
@@ -286,10 +378,13 @@ public class SessionManager(
     /**
      * Рантайм-шов для ApiClient (Stage 2 п.7): исход сетевого вызова наверх.
      * Явный 401 (ключ не принял сервер) → ключ + cached_user чистятся
-     * (VAL-LOGIN-004); транзиентные — ключ хранится.
+     * (VAL-LOGIN-004); транзиентные — ключ хранятся. Явный 401 при живом
+     * ключе — тоже признак «сессия жила» (см. [signedOutOrKeyNotFound]).
      */
     public suspend fun onAuthError(error: ApiError) {
         if (error is ApiError.Unauthorized) {
+            val hadKey = secure.get(SecureStoreKeys.RECOVERY_KEY) != null
+            if (hadKey) hadSession = true
             clearKeyAndCachedUser()
         }
     }
@@ -297,7 +392,10 @@ public class SessionManager(
     /**
      * Выход (Stage 3 п.5, полная чистка c БД в Stage 4 п.5): серверный logout
      * best-effort + локально ключ, cached_user и handoff-файл; предпочтения
-     * (язык/тема/сетка/интро) не тронуты. Обновляет [state].
+     * (язык/тема/сетка/интро) не тронуты. Обновляет [state]. Итог — обычный
+     * [SessionState.SignedOut] (экран входа): пользователь сам вышел, экран
+     * «ключ не найден» [SessionState.KeyNotFound] тут не показывается
+     * (Stage 3 п.6 — только холодный старт без ключа).
      */
     public suspend fun signOut(): SessionState {
         try {
@@ -305,6 +403,9 @@ public class SessionManager(
         } catch (e: ApiError) {
             // logout best-effort (parity RN): локальная чистка не зависит от сети.
         }
+        // Выход — действие пользователя: исход после него уже не «холодный
+        // старт», «ключ не найден» больше не показывается (см. hadSession).
+        hadSession = true
         sessionMutex.withLock {
             secure.remove(SecureStoreKeys.RECOVERY_KEY)
             settings.clearCachedUser()
@@ -323,8 +424,17 @@ public class SessionManager(
      * самой recovery (сеть/таймаут) при ключе и cached_user тоже уходит в
      * офлайн-режим (Stage 3 п.5: сессия с сервера не ожила, но пользователь
      * есть локально); 5xx/429 recovery — обычный SignedOut.
+     *
+     * [SessionState.KeyNotFound] здесь НЕ показывается (см. [hadSession]:
+     * пустота после 401-шага — не стартовая). Исход пустоты [initSession] при
+     * отсутствии 401-шага (сервер недостижим/транзиент/не-OK) мапится через
+     * [signedOutOrKeyNotFound].
      */
     private suspend fun recover(): SessionState {
+        // НЕ KeyNotFound: пустота здесь — не «ключ не найден» п.6. 401-шаг
+        // всегда означает, что сессия уже жила (или ключ стёрт самим
+        // пользователем на входе/выходе); экран «ключ не найден» — только
+        // исход стартовой пустоты (см. [initSession]).
         val key = secure.get(SecureStoreKeys.RECOVERY_KEY) ?: return SessionState.SignedOut
         val user = try {
             api.loginRecovery(key)
@@ -340,6 +450,8 @@ public class SessionManager(
                 // Транзиентные 429/5xx recovery ключ ХРАНЯТ (VAL-LOGIN-004).
                 else -> Unit
             }
+            // Ключ был и жив после транзиентного сбоя — это не «ключ не найден»:
+            // обычный экран входа (Stage 3 п.6 — только пустота «нигде»).
             return SessionState.SignedOut
         }
         return applyUser(user)
@@ -347,6 +459,9 @@ public class SessionManager(
 
     /** Успешный вход: cached_user + ключ сервера (если отличается) → SignedIn. */
     private suspend fun applyUser(user: UserDto): SessionState {
+        // Признак «в этом процессе уже был успешный вход» (см.
+        // [signedOutOrKeyNotFound]): пустота после такого шага — не стартовая.
+        hadSession = true
         settings.setCachedUser(user)
         if (user.recoveryKey.isNotEmpty() && user.recoveryKey != secure.get(SecureStoreKeys.RECOVERY_KEY)) {
             // Провал записи здесь не фатален (не handoff-импорт): ключ останется

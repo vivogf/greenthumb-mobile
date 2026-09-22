@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Сеть (Stage 2): без этого разрешения все HTTP-вызовы падают с
+         Network/UnknownHost ещё на connect — me/recovery/login не доходят
+         до сервера. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="GreenThumb"
         android:supportsRtl="true"
