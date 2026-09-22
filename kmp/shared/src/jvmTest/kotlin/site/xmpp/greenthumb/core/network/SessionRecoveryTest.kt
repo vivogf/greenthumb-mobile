@@ -36,8 +36,8 @@ private const val plantsJson =
 private class FakeProvider(initialKey: String?) : SessionRecoveryProvider {
     var key: String? = initialKey
     var resetCount = 0
-    override fun getRecoveryKey(): String? = key
-    override fun onSessionReset() {
+    override suspend fun getRecoveryKey(): String? = key
+    override suspend fun onSessionReset() {
         resetCount++
         key = null
     }

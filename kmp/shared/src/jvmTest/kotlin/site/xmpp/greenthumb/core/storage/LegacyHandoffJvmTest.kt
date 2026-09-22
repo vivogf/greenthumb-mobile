@@ -188,7 +188,7 @@ class LegacyHandoffJvmTest {
 
     @Test
     fun jvm_actual_reads_null_and_clear_is_noop() {
-        val handoff = LegacyHandoff()
+        val handoff = LegacyHandoff(Any())
 
         // JVM-харнесс никогда не был Expo-приложением: файла нет даже
         // теоретически (файл в temp-каталоге теста — для чистоты парсера).

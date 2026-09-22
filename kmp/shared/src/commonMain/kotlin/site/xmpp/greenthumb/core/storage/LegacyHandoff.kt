@@ -115,8 +115,8 @@ public data class HandoffPayload(
  * Файловый IO — вызывать вне main-потока (стартовая последовательность Stage 6
  * крутится в корутине на IO/Default).
  */
-public expect class LegacyHandoff {
-    public fun readHandoff(): HandoffPayload?
+public expect class LegacyHandoff(appContext: Any) : HandoffSource {
+    override fun readHandoff(): HandoffPayload?
 
-    public fun clearHandoff()
+    override fun clearHandoff()
 }

@@ -20,10 +20,10 @@ package site.xmpp.greenthumb.core.storage
  *
  * iOS Keychain — вне скоупа миссии (iOS-таргетов нет).
  */
-public expect class SecureStore {
-    suspend fun get(key: String): String?
-    suspend fun set(key: String, value: String): Boolean
-    suspend fun remove(key: String)
+public expect class SecureStore(appContext: Any) : SecureKeyValueStore {
+    override suspend fun get(key: String): String?
+    override suspend fun set(key: String, value: String): Boolean
+    override suspend fun remove(key: String)
 }
 
 /** Имена ключей SecureStore (значения — из RN lib/constants.ts, переносятся 1:1). */

@@ -7,3 +7,11 @@ import io.ktor.client.engine.HttpClientEngineFactory
  * expect объявлен в commonMain; actual'ы — androidMain/jvmMain.
  */
 internal expect fun platformEngineFactory(): HttpClientEngineFactory<*>
+
+/**
+ * Public-фабрика движка для точек входа (MainActivity, desktop main.kt):
+ * ktor-типы наружу не выставляются — entry points не знают ktor вообще.
+ */
+public object PlatformEngine {
+    public fun default(): HttpClientEngineFactory<*> = platformEngineFactory()
+}
