@@ -45,6 +45,10 @@ object Motion {
 
     const val SkeletonPulseMs = 800
 
+    /** Границы пульса `components/SkeletonPlaceholder.tsx` (0.35 ↔ 1). */
+    const val SkeletonMinAlpha = 0.35f
+    const val SkeletonMaxAlpha = 1f
+
     const val WaterParticlesMs = 1800
     const val WaterParticleStaggerMaxMs = 300
     const val WaterPressLeadMs = 400
