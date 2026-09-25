@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Data Extraction Rules (API 31+): SecureStore-шифротекст исключён и из
-     облачного бэкапа, и из device-to-device переноса (ключ AES-GCM остаётся
-     в AndroidKeyStore исходного устройства). -->
+<!-- Data Extraction Rules (API 31+): оба файла исключены и из облачного
+     бэкапа, и из device-to-device переноса.
+     SecureStore: ключ AES-GCM остаётся в AndroidKeyStore исходного устройства.
+     Settings: cached_user содержит plaintext recovery_key (VAL-STOR-003).
+     Локальное хранение и офлайн-сессия не меняются. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="greenthumb_secure_store.preferences_pb" />
+        <exclude domain="file" path="greenthumb_settings.preferences_pb" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="greenthumb_secure_store.preferences_pb" />
+        <exclude domain="file" path="greenthumb_settings.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>

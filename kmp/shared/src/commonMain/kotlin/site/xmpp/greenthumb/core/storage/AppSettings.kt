@@ -16,20 +16,24 @@ import kotlinx.serialization.json.Json
 import site.xmpp.greenthumb.core.network.UserDto
 
 /**
- * Кроссплатформенное несекретное хранилище настроек поверх
- * androidx.datastore-preferences 1.2.1 — architecture.md §6, VAL-STOR-002.
+ * Кроссплатформенное хранилище настроек поверх androidx.datastore-preferences
+ * 1.2.1 — architecture.md §6, VAL-STOR-002.
  *
- * Секретного здесь нет: recovery key живёт в [SecureStore]. Содержимое:
+ * Содержимое:
  * - язык интерфейса ([AppLanguage]) — рантайм-переключение в Stage 6;
  * - режим сетки дашборда ([LayoutMode]) — персист выбора из RN Phase 3;
  * - тема ([ThemePreference]) — light/dark/auto, Stage 6;
  * - флаг «карусель интро пройдена/пропущена» (RN setHasSeenIntro);
  * - `cached_user` — сериализованный [UserDto] для офлайн-сессии (Stage 3 п.5).
  *
- * cached_user содержит recovery_key (несекретное хранилище): RN хранит тот же
- * объект User в AsyncStorage, сервер восстанавливает аккаунт ТОЛЬКО по ключу,
- * а бэкапы (cloud/device-transfer) с файлом настроек без SecureStore-ключа
- * вход не дают (восстановить нельзя). Правила чистки при выходе —
+ * cached_user — полный [UserDto], включая plaintext `recovery_key` (ответ
+ * me/login). Это не несекретный кэш и не эквивалент RN AsyncStorage: в RN
+ * объект User живёт только в React state, AsyncStorage хранит язык, тему,
+ * сетку и интро. Сериализацию, локальный кэш и офлайн-сессию не менять:
+ * автологин читает ключ из [SecureStore], а cached_user нужен офлайн-старту.
+ * На Android файл `greenthumb_settings.preferences_pb` исключён из Auto Backup,
+ * cloud-backup и device-transfer вместе с SecureStore-файлом (решение
+ * пользователя 2026-09-25, VAL-STOR-003). Правила чистки при выходе —
  * [clearCachedUser] (SessionManager.signOut, VAL-DATA-008).
  *
  * Старый RN AsyncStorage напрямую НЕ читается (на Android это SQLite
@@ -52,10 +56,12 @@ import site.xmpp.greenthumb.core.network.UserDto
  * datastore-core 1.2.1) — actual'ы создают один инстанс в объекте.
  *
  * Платформенные actual'ы:
- * - jvmMain: ~/.greenthumb/settings.preferences_pb (desktop-харнесс);
- * - androidMain: filesDir/greenthumb_settings.preferences_pb (domain "file",
- *   НЕ исключается из бэкапов — настройки несекретные и должны переживать
- *   восстановление; из бэкапа исключён только SecureStore-шифротекст).
+ * - jvmMain: ~/.greenthumb/settings.preferences_pb (desktop-харнесс; Android
+ *   backup-правила к нему не относятся);
+ * - androidMain: filesDir/greenthumb_settings.preferences_pb (domain "file").
+ *   Файл исключён из Auto Backup, cloud-backup и device-transfer, потому что
+ *   cached_user содержит plaintext recovery_key. На устройстве файл остаётся
+ *   и переживает рестарт процесса.
  */
 public expect class AppSettings(appContext: Any) : AppPreferencesStore {
     /** Язык интерфейса или null (не задан). */
@@ -175,8 +181,9 @@ public enum class LayoutMode(public val wire: String) {
 /**
  * Платформенно-нейтральное ядро [AppSettings]: чтение/запись ключей,
  * конверсия wire-строк, cached_user-сериализация, handoff-применение.
- * Файл хранит только несекретные настройки — крипто-инвариантов нет
- * (в отличие от SecureStore, шифрующего значения).
+ * Значения лежат plaintext (в отличие от SecureStore, который шифрует):
+ * cached_user включает recovery_key, поэтому на Android файл исключён из
+ * резервных копий, а не объявлен несекретным. Сериализацию не менять.
  *
  * Actual'ы переопределяют только [createDataStore] (путь к файлу —
  * единственная платформенная разница):

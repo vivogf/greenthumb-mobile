@@ -16,8 +16,12 @@ import site.xmpp.greenthumb.core.network.UserDto
  * Android-actual AppSettings (architecture.md §6): DataStore-файл
  * `greenthumb_settings.preferences_pb` в filesDir (domain "file").
  *
- * Из бэкапов НЕ исключается — настройки несекретные (recovery key — в
- * SecureStore, его файл исключён) и должны переживать восстановление.
+ * Файл исключён из Auto Backup, cloud-backup и device-transfer
+ * (full_backup_content.xml и обе секции data_extraction_rules.xml,
+ * VAL-STOR-003). cached_user — полный UserDto с plaintext recovery_key;
+ * это не несекретные настройки и не аналог RN AsyncStorage (там User не
+ * пишется). Локальный файл на устройстве не трогается: сериализация и
+ * офлайн-сессия те же. SecureStore-файл исключён отдельно.
  * Старый AsyncStorage (SQLite RKStorage) не читается: legacy-значения
  * приезжают только через handoff-файл (kmp-legacy-handoff).
  *
@@ -81,7 +85,8 @@ public class AndroidAppSettingsStorage(
             corruptionHandler =
                 ReplaceFileCorruptionHandler { emptyPreferences() },
             scope = scope,
-            // Полный файл-путь (domain "file" в backup-правилах), не sharedPreferences.
+            // Полный файл-путь (domain "file"), не sharedPreferences.
+            // Исключён из Auto Backup / cloud-backup / device-transfer (VAL-STOR-003).
             produceFile = { appContext.getFileStreamPath(DATA_FILE_NAME) },
         )
 
