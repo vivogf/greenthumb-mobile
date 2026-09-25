@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Auto Backup (API 24+): оба DataStore-файла в filesDir исключены.
+<!-- Auto Backup (API 24+): оба DataStore-файла и plaintext handoff в filesDir исключены.
      greenthumb_secure_store.preferences_pb — шифротекст AES-GCM; ключ живёт
      в AndroidKeyStore и не бэкапится, восстановленный шифротекст был бы мусором.
      greenthumb_settings.preferences_pb — cached_user с plaintext recovery_key
-     (VAL-STOR-003, решение пользователя 2026-09-25). Локальные файлы на
-     устройстве эта запись не трогает. -->
+     (VAL-STOR-003, решение пользователя 2026-09-25).
+     gt-handoff.json — plaintext recovery_key до успешного импорта; файл может
+     оставаться при провале или неизвестной версии (VAL-STOR-004, отдельное
+     решение пользователя 2026-09-25). Локальные файлы на устройстве эта запись
+     не трогает. -->
 <full-backup-content>
     <exclude domain="file" path="greenthumb_secure_store.preferences_pb" />
     <exclude domain="file" path="greenthumb_settings.preferences_pb" />
+    <exclude domain="file" path="gt-handoff.json" />
 </full-backup-content>
