@@ -1,5 +1,6 @@
 package site.xmpp.greenthumb
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,7 +42,10 @@ import site.xmpp.greenthumb.data.UnsavedMutation
 import site.xmpp.greenthumb.data.RefreshOutcome
 import site.xmpp.greenthumb.data.SyncBanner
 import site.xmpp.greenthumb.data.SyncMetaSource
+import site.xmpp.greenthumb.ui.components.SecondaryButton
+import site.xmpp.greenthumb.ui.screens.gallery.ComponentGalleryScreen
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
+import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
  * Стартовая поверхность сессии (Stage 3 п.4): крутит [SessionManager.startup]
@@ -59,9 +63,13 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @Composable
 fun App(session: SessionManager, connectivity: Connectivity, plants: PlantRepositoryOpener) {
-    // Stage 6 подставит light/dark/auto. Пока светлая — как дефолт MaterialTheme скелета.
-    GreenThumbTheme(darkTheme = false) {
-        Surface(modifier = Modifier.fillMaxSize()) {
+    // Тема галереи живёт здесь, чтобы переключатель менял весь GreenThumbTheme.
+    // Вне галереи остаётся светлая — как дефолт скелета до Stage 6.
+    var showGallery by remember { mutableStateOf(false) }
+    var darkTheme by remember { mutableStateOf(false) }
+    GreenThumbTheme(darkTheme = darkTheme) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Surface(modifier = Modifier.fillMaxSize()) {
         val state by session.state.collectAsState()
         val online by connectivity.isOnline.collectAsState()
         // Единственный запуск стартовой последовательности при появлении App:
@@ -71,6 +79,12 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
         var recoveryInput by remember { mutableStateOf("") }
         var signInError by remember { mutableStateOf("") }
         Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+            SecondaryButton(
+                text = "Component gallery",
+                onClick = { showGallery = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(text = "GreenThumb", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -174,6 +188,17 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
                 }
             }
         }
+            }
+            if (showGallery) {
+                ComponentGalleryScreen(
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = { darkTheme = it },
+                    onClose = {
+                        darkTheme = false
+                        showGallery = false
+                    },
+                )
+            }
         }
     }
 }
