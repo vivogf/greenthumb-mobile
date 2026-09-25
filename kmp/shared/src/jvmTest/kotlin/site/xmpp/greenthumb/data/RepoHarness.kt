@@ -104,3 +104,25 @@ internal fun openHarness(
     )
     return RepoHarness(dir, databases, client, repo)
 }
+
+/**
+ * Второй инстанс на том же файле — «следующий старт». Предыдущий репозиторий
+ * обязан быть закрыт: два открытых Room на один файл не поддерживаются.
+ */
+internal fun reopenRepository(
+    databases: JvmPlantDatabases,
+    handler: MockRequestHandler,
+    nowMillis: () -> Long = { SYNCED_AT },
+): Pair<ApiClient, PlantRepository> {
+    val client = ApiClient(io.ktor.client.engine.mock.MockEngine(handler))
+    var n = 0
+    val repo = PlantRepository(
+        userId = USER,
+        db = databases.open(USER),
+        api = GreenThumbApi(client),
+        deleteFiles = { id -> databases.delete(id) },
+        clocks = PlantClocks(nowMillis = nowMillis, zone = TimeZone.UTC),
+        newId = { "r-${++n}" },
+    )
+    return client to repo
+}

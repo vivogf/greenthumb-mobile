@@ -24,13 +24,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.time.Clock
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantEffect
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.RefreshCoordinator
+import site.xmpp.greenthumb.data.UnsavedMutation
 import site.xmpp.greenthumb.data.RefreshOutcome
 import site.xmpp.greenthumb.data.SyncBanner
 import site.xmpp.greenthumb.data.SyncMetaSource
@@ -108,6 +112,8 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
                 SessionPlants(
                     userId = sessionUserId,
                     onlineSession = state is SessionState.SignedIn,
+                    online = online,
+                    isOnline = connectivity.isOnline,
                     opener = plants,
                 )
             }
@@ -139,6 +145,8 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
 private fun SessionPlants(
     userId: String,
     onlineSession: Boolean,
+    online: Boolean,
+    isOnline: Flow<Boolean>,
     opener: PlantRepositoryOpener,
 ) {
     val repo = remember(userId) { opener.open(userId) }
@@ -146,10 +154,13 @@ private fun SessionPlants(
         onDispose { repo.close() }
     }
     val plants by repo.observePlants().collectAsState(emptyList())
+    val unsavedIds by repo.observeUnsavedPlantIds().collectAsState(emptySet())
     var refreshFailed by remember(userId) { mutableStateOf(false) }
     var banner by remember(userId) { mutableStateOf<SyncBanner?>(null) }
     var effectLabel by remember(userId) { mutableStateOf("") }
+    var actionNote by remember(userId) { mutableStateOf("") }
     var otherScreen by remember(userId) { mutableStateOf(false) }
+    var sawOffline by remember(userId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(repo) {
@@ -168,12 +179,27 @@ private fun SessionPlants(
             banner = repo.syncBanner()
             return@LaunchedEffect
         }
+        if (online) {
+            val replay = runCatching { repo.replayPending() }
+            if (replay.isFailure) refreshFailed = true
+        }
         val coordinator = RefreshCoordinator(
             syncMeta = SyncMetaSource { repo.lastSyncedAtMillis() },
             nowMillis = { Clock.System.now().toEpochMilliseconds() },
             refresh = { repo.refresh() },
         )
-        refreshFailed = coordinator.onFirstShow() is RefreshOutcome.Failed
+        if (coordinator.onFirstShow() is RefreshOutcome.Failed) refreshFailed = true
+        banner = repo.syncBanner()
+        coordinator.attachConnectivity(this, isOnline)
+    }
+    LaunchedEffect(online) {
+        if (!online) {
+            sawOffline = true
+            return@LaunchedEffect
+        }
+        if (!sawOffline) return@LaunchedEffect
+        val replay = runCatching { repo.replayPending() }
+        if (replay.isFailure) refreshFailed = true
         banner = repo.syncBanner()
     }
 
@@ -191,6 +217,10 @@ private fun SessionPlants(
         Text(text = effectLabel)
         Spacer(modifier = Modifier.height(8.dp))
     }
+    if (actionNote.isNotEmpty()) {
+        Text(text = actionNote)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
     if (otherScreen) {
         Text(text = "Другой экран")
         Spacer(modifier = Modifier.height(8.dp))
@@ -202,12 +232,26 @@ private fun SessionPlants(
             Text(text = "Список пуст")
         } else {
             plants.forEach { plant ->
-                Text(text = "Plant: ${plant.name} · ${plant.lastWateredDate}")
+                val mark = if (plant.id in unsavedIds) " · ${UnsavedMutation.LABEL}" else ""
+                Text(text = "Plant: ${plant.name} · ${plant.lastWateredDate}$mark")
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(onClick = {
+                    scope.launch {
+                        actionNote = confirmedSaveError(runCatching { repo.water(plant.id) }.exceptionOrNull())
+                    }
+                }) {
+                    Text(text = "Полить")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (onlineSession) {
-            Button(onClick = { scope.launch { runCatching { repo.waterAll() } } }) {
+            Button(onClick = {
+                scope.launch {
+                    actionNote = confirmedSaveError(runCatching { repo.waterAll() }.exceptionOrNull())
+                }
+            }) {
                 Text(text = "Полить все")
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -216,4 +260,10 @@ private fun SessionPlants(
             Text(text = "Другой экран")
         }
     }
+}
+
+/** Сеть и отмена — не ошибка сохранения: карточка уже помечена «не сохранено». */
+private fun confirmedSaveError(error: Throwable?): String = when (error) {
+    null, is ApiError.Network, is ApiError.Timeout, is CancellationException -> ""
+    else -> "Ошибка сохранения"
 }

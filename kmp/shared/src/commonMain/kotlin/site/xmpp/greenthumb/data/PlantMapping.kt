@@ -9,8 +9,8 @@ import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.core.storage.PlantEntity
 
 /**
- * Типы журнала `pending_mutations.type`. Досылка (следующая фича) читает
- * их как есть: не переименовывать без миграции уже записанных строк.
+ * Типы журнала `pending_mutations.type`. Досылка читает их как есть:
+ * не переименовывать без миграции уже записанных строк.
  *
  * Снимок — JSON [PlantDto] (или массив для [MutationType.WATER_ALL]).
  * У [MutationType.ADD] снимка нет: отката нет, строку просто удаляют.
