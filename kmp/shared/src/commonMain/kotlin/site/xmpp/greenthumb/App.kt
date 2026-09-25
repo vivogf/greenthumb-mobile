@@ -41,6 +41,7 @@ import site.xmpp.greenthumb.data.UnsavedMutation
 import site.xmpp.greenthumb.data.RefreshOutcome
 import site.xmpp.greenthumb.data.SyncBanner
 import site.xmpp.greenthumb.data.SyncMetaSource
+import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
 /**
  * Стартовая поверхность сессии (Stage 3 п.4): крутит [SessionManager.startup]
@@ -58,7 +59,9 @@ import site.xmpp.greenthumb.data.SyncMetaSource
  */
 @Composable
 fun App(session: SessionManager, connectivity: Connectivity, plants: PlantRepositoryOpener) {
-    Surface(modifier = Modifier.fillMaxSize()) {
+    // Stage 6 подставит light/dark/auto. Пока светлая — как дефолт MaterialTheme скелета.
+    GreenThumbTheme(darkTheme = false) {
+        Surface(modifier = Modifier.fillMaxSize()) {
         val state by session.state.collectAsState()
         val online by connectivity.isOnline.collectAsState()
         // Единственный запуск стартовой последовательности при появлении App:
@@ -170,6 +173,7 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
                     Text(text = "Sign out")
                 }
             }
+        }
         }
     }
 }
