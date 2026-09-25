@@ -64,10 +64,10 @@ public sealed class RefreshOutcome {
  *
  * Часы инжектируются ([nowMillis]) — тесты детерминированы без ожидания.
  *
- * Сам жизненный цикл не слушает: скелет Stage 3 ещё не имеет
- * `PlantRepository.refresh()` и экрана, которому принадлежит «первый показ».
- * Оболочка M4/Stage 6 вызывает [onFirstShow] при первом показе данных,
- * [onResume] из `ON_RESUME` и [attachConnectivity] на поток
+ * Сам жизненный цикл не слушает. Скелет вызывает [onFirstShow] при входе
+ * в онлайн-сессию и передаёт [PlantRepository.refresh]: успех пишет
+ * `sync_meta`, ошибка таблицу не трогает. [onResume] и привязка к
+ * `ON_RESUME` остаются оболочке Stage 6. [attachConnectivity] — на поток
  * [site.xmpp.greenthumb.core.platform.Connectivity.isOnline]. [refresh] не
  * должен звать координатор повторно — мьютекс не реентерабелен.
  *

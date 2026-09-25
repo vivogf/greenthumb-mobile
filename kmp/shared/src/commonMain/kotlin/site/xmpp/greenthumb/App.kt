@@ -13,16 +13,27 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlin.time.Clock
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
+import site.xmpp.greenthumb.data.PlantEffect
+import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.data.RefreshCoordinator
+import site.xmpp.greenthumb.data.RefreshOutcome
+import site.xmpp.greenthumb.data.SyncBanner
+import site.xmpp.greenthumb.data.SyncMetaSource
 
 /**
  * Стартовая поверхность сессии (Stage 3 п.4): крутит [SessionManager.startup]
@@ -32,12 +43,14 @@ import site.xmpp.greenthumb.core.storage.SessionState
  * маппинг на экраны.
  *
  * Полоса «нет сети» питается от [connectivity] (Stage 4 п.8) — она отдельна
- * от «данные несвежие»: баннер «обновлено в HH:mm» придёт от `sync_meta`
- * вместе с репозиторием M4. Здесь же видно, что android-actual
+ * от «данные несвежие». Баннер «обновлено в HH:mm» считается от
+ * `sync_meta` ([SyncBanner], часы системные на этой поверхности).
+ * Список — [PlantRepository.observePlants]: ошибка refresh не заменяет его
+ * полноэкранной ошибкой. Здесь же видно, что android-actual
  * ([android.net.ConnectivityManager]) реально отдаёт переходы.
  */
 @Composable
-fun App(session: SessionManager, connectivity: Connectivity) {
+fun App(session: SessionManager, connectivity: Connectivity, plants: PlantRepositoryOpener) {
     Surface(modifier = Modifier.fillMaxSize()) {
         val state by session.state.collectAsState()
         val online by connectivity.isOnline.collectAsState()
@@ -61,7 +74,7 @@ fun App(session: SessionManager, connectivity: Connectivity) {
                 is SessionState.SignedIn ->
                     Text(
                         text = "Signed in: ${current.user.name ?: "anonymous"} " +
-                            "(id=${current.user.id}, key=${current.user.recoveryKey.take(8)}…)",
+                            "(id=${current.user.id}, key=***********************************…)",
                     )
                 is SessionState.Offline ->
                     Text(
@@ -85,6 +98,20 @@ fun App(session: SessionManager, connectivity: Connectivity) {
                     )
             }
 
+            val sessionUserId = when (val current = state) {
+                is SessionState.SignedIn -> current.user.id
+                is SessionState.Offline -> current.user.id
+                else -> null
+            }
+            if (sessionUserId != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SessionPlants(
+                    userId = sessionUserId,
+                    onlineSession = state is SessionState.SignedIn,
+                    opener = plants,
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
             if (state is SessionState.SignedOut || state is SessionState.KeyNotFound) {
                 OutlinedButton(onClick = { session.retryStartup() }) {
@@ -99,6 +126,94 @@ fun App(session: SessionManager, connectivity: Connectivity) {
                     Text(text = "Sign out")
                 }
             }
+        }
+    }
+}
+
+/**
+ * Список из Room для скелета (VAL-OFF-001 / VAL-DATA-011). Оболочка Stage 6
+ * заменит это экраном. «Другой экран» — смена вкладки: данные уже новые,
+ * анимация их не держит.
+ */
+@Composable
+private fun SessionPlants(
+    userId: String,
+    onlineSession: Boolean,
+    opener: PlantRepositoryOpener,
+) {
+    val repo = remember(userId) { opener.open(userId) }
+    DisposableEffect(repo) {
+        onDispose { repo.close() }
+    }
+    val plants by repo.observePlants().collectAsState(emptyList())
+    var refreshFailed by remember(userId) { mutableStateOf(false) }
+    var banner by remember(userId) { mutableStateOf<SyncBanner?>(null) }
+    var effectLabel by remember(userId) { mutableStateOf("") }
+    var otherScreen by remember(userId) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(repo) {
+        repo.effects.collect { effect ->
+            effectLabel = when (effect) {
+                is PlantEffect.WaterAll -> "Эффект: полив всех (${effect.plantIds.size})"
+                is PlantEffect.Water -> "Эффект: полив"
+                is PlantEffect.Added -> "Эффект: добавление"
+                is PlantEffect.Updated -> "Эффект: изменение"
+                is PlantEffect.Deleted -> "Эффект: удаление"
+            }
+        }
+    }
+    LaunchedEffect(repo, onlineSession) {
+        if (!onlineSession) {
+            banner = repo.syncBanner()
+            return@LaunchedEffect
+        }
+        val coordinator = RefreshCoordinator(
+            syncMeta = SyncMetaSource { repo.lastSyncedAtMillis() },
+            nowMillis = { Clock.System.now().toEpochMilliseconds() },
+            refresh = { repo.refresh() },
+        )
+        refreshFailed = coordinator.onFirstShow() is RefreshOutcome.Failed
+        banner = repo.syncBanner()
+    }
+
+    val shown = banner
+    if (shown != null && shown.visible && shown.syncedAtLabel != null) {
+        val prefix = if (shown.showOfflineIcon) "офлайн · " else ""
+        Text(text = "${prefix}Обновлено в ${shown.syncedAtLabel}")
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (refreshFailed) {
+        Text(text = "Не удалось обновить")
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (effectLabel.isNotEmpty()) {
+        Text(text = effectLabel)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (otherScreen) {
+        Text(text = "Другой экран")
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(onClick = { otherScreen = false }) {
+            Text(text = "К списку")
+        }
+    } else {
+        if (plants.isEmpty()) {
+            Text(text = "Список пуст")
+        } else {
+            plants.forEach { plant ->
+                Text(text = "Plant: ${plant.name} · ${plant.lastWateredDate}")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        if (onlineSession) {
+            Button(onClick = { scope.launch { runCatching { repo.waterAll() } } }) {
+                Text(text = "Полить все")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        OutlinedButton(onClick = { otherScreen = true }) {
+            Text(text = "Другой экран")
         }
     }
 }

@@ -42,6 +42,9 @@ public abstract class GreenThumbDb : RoomDatabase() {
     public abstract fun syncMeta(): SyncMetaDao
 
     public abstract fun pendingMutations(): PendingMutationDao
+
+    /** Транзакционные записи репозитория (Room KMP не имеет withTransaction). */
+    public abstract fun store(): PlantStoreDao
 }
 
 @Suppress(

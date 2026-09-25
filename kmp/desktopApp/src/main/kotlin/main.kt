@@ -7,7 +7,9 @@ import site.xmpp.greenthumb.SessionGraph
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
+import site.xmpp.greenthumb.core.storage.PlantDatabases
 import site.xmpp.greenthumb.core.storage.SecureStore
+import site.xmpp.greenthumb.data.openerFor
 
 fun main() = application {
     val graph = SessionGraph.create(
@@ -17,6 +19,7 @@ fun main() = application {
     )
     // jvm-actual: всегда онлайн — у харнесса источника состояния сети нет.
     val connectivity = Connectivity(Any())
+    val opener = PlantDatabases(Any()).openerFor(graph.api)
     Window(
         onCloseRequest = {
             connectivity.close()
@@ -25,6 +28,6 @@ fun main() = application {
         },
         title = "GreenThumb",
     ) {
-        App(graph.manager, connectivity)
+        App(graph.manager, connectivity, opener)
     }
 }

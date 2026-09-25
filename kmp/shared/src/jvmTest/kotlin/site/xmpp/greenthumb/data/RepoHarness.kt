@@ -1,0 +1,106 @@
+package site.xmpp.greenthumb.data
+
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.MockRequestHandler
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
+import io.ktor.http.headersOf
+import kotlin.time.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.serialization.encodeToString
+import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.GreenThumbApi
+import site.xmpp.greenthumb.core.network.PlantDto
+import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
+import java.io.File
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.createTempDirectory
+import kotlin.io.path.deleteRecursively
+
+internal const val USER: String = "24"
+
+/** Полдень UTC → локальный день 2026-09-25 в [TimeZone.UTC]. */
+internal val SYNCED_AT: Long = Instant.parse("2026-09-25T12:00:00Z").toEpochMilliseconds()
+
+internal const val TODAY: String = "2026-09-25"
+
+internal val JSON_HEADERS = headersOf("Content-Type", "application/json")
+
+internal fun plant(
+    id: String,
+    lastWatered: String,
+    frequency: Int = 7,
+    name: String = id,
+): PlantDto = PlantDto(
+    id = id,
+    userId = USER,
+    name = name,
+    location = "shelf",
+    photoUrl = "",
+    waterFrequencyDays = frequency,
+    lastWateredDate = lastWatered,
+    notes = "",
+    createdAt = "2026-01-01T00:00:00.000Z",
+)
+
+/** Просрочено на 2026-09-25 при частоте 7. */
+internal fun overduePlant(): PlantDto = plant("overdue", "2026-09-01")
+
+/** Полив сегодня (статус today, не healthy). */
+internal fun dueTodayPlant(): PlantDto = plant("due", "2026-09-18")
+
+/** Ещё не пора. */
+internal fun healthyPlant(): PlantDto = plant("healthy", "2026-09-24")
+
+internal fun plantsJson(plants: List<PlantDto>): String = ApiClient.json.encodeToString(plants)
+
+internal fun plantJson(plant: PlantDto): String = ApiClient.json.encodeToString(plant)
+
+internal fun MockRequestHandleScope.ok(body: String) = respond(body, HttpStatusCode.OK, JSON_HEADERS)
+
+internal fun MockRequestHandleScope.serverError() =
+    respond("""{"error":"fail"}""", HttpStatusCode.InternalServerError, JSON_HEADERS)
+
+internal fun requestBody(content: Any): String? = when (content) {
+    is TextContent -> content.text
+    else -> null
+}
+
+@OptIn(ExperimentalPathApi::class)
+internal class RepoHarness(
+    val dir: File,
+    val databases: JvmPlantDatabases,
+    val client: ApiClient,
+    val repo: PlantRepository,
+) : AutoCloseable {
+    override fun close() {
+        runCatching { repo.close() }
+        runCatching { client.close() }
+        dir.toPath().deleteRecursively()
+    }
+}
+
+@OptIn(ExperimentalPathApi::class)
+internal fun openHarness(
+    nowMillis: () -> Long = { SYNCED_AT },
+    ids: ArrayDeque<String> = ArrayDeque(),
+    handler: MockRequestHandler,
+): RepoHarness {
+    val dir = createTempDirectory(prefix = "gt-repo").toFile()
+    val databases = JvmPlantDatabases(dir)
+    val client = ApiClient(io.ktor.client.engine.mock.MockEngine(handler))
+    val api = GreenThumbApi(client)
+    var n = 0
+    val repo = PlantRepository(
+        userId = USER,
+        db = databases.open(USER),
+        api = api,
+        deleteFiles = { id -> databases.delete(id) },
+        clocks = PlantClocks(nowMillis = nowMillis, zone = TimeZone.UTC),
+        newId = {
+            if (ids.isEmpty()) "m-${++n}" else ids.removeFirst()
+        },
+    )
+    return RepoHarness(dir, databases, client, repo)
+}
