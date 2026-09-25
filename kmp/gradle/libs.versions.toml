@@ -45,6 +45,9 @@ composeRuntime = { module = "org.jetbrains.compose.runtime:runtime", version.ref
 composeFoundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 composeUi = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 composeMaterial3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
+# Compose UI-тесты на desktop (VAL-DS-003 pressed-ветка). Версия = CMP-пин 1.12.0,
+# повышение версии не требуется; сам артфакт — тот же org.jetbrains.compose.ui, что и composeUi.
+composeUiTestJunit4 = { module = "org.jetbrains.compose.ui:ui-test-junit4", version.ref = "composeMultiplatform" }
 androidxActivityCompose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 ktorClientCore = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
