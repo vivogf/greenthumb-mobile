@@ -58,6 +58,13 @@ public class SessionGraph private constructor(
             secure: SecureStore,
             settings: AppSettings,
             handoff: LegacyHandoff,
+            /**
+             * Стирает базу ушедшего пользователя (VAL-DATA-008). Точка входа
+             * подставляет [site.xmpp.greenthumb.data.AccountPlantGate.closeAndDelete]
+             * после сборки графа: гейт сам зависит от [api] и [accountSession].
+             * Лямбда не зовётся из [create].
+             */
+            deleteUserDatabase: suspend (String) -> Unit = {},
         ): SessionGraph {
             val graph = SessionGraph(secure, settings, handoff, PlatformEngine.default())
             graph.manager = SessionManager(
@@ -67,6 +74,7 @@ public class SessionGraph private constructor(
                 graph.api,
                 isUpdateInstall(),
                 onSessionEnded = { graph.client.endSession() },
+                deleteUserDatabase = deleteUserDatabase,
             )
             return graph
         }
