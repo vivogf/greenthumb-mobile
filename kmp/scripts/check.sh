@@ -14,8 +14,11 @@
 #   K3 (аналог R7) — дата со временем в теле запроса: литерал "YYYY-MM-DDT…" / toISOString(
 #                    (консервативно; точный grep по слоям данных — M11)
 #   K4 (аналог R4) — Room.databaseBuilder вне core.storage|data: БД только через репозиторий
-#   K5 — UI-литералы в ui/screens/**: .dp, Color(, .sp, TextUnit (architecture.md §8;
-#        исключение — литералы размеров в ui.components/**, он K5 не сканируется)
+#   K5 (Stage 5 п.5) — UI-литералы в ui/screens/**: .dp, Color(, .sp, TextUnit —
+#       оформление только через токены GreenThumbTheme/Spacing/Radii (architecture.md §8).
+#       .dp/.sp проверяются с границей слова, чтобы .split(/.display не были ложными
+#       попаданиями. Исключение — Modifier.size внутри ui.components/**: ui.components
+#       K5 не сканируется вовсе (AGENTS.md: «K5 сканирует только ui/screens/**»).
 # Тестовые исходники (src/*Test/) не сканируются: там MockEngine/фикстуры легальны.
 # Ограничение каркаса (как в check.mjs): пропускаются только // -комментарии, не /* */.
 
@@ -60,8 +63,8 @@ grep_rules() {
         print "K4\t" FILENAME ":" FNR "\t" $0
 
       if (FILENAME ~ /ui\/screens\//) {
-        if (match($0, /\.dp/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
-        else if (match($0, /\.sp/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
+        if (match($0, /\.dp([^[:alnum:]_]|$)/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
+        else if (match($0, /\.sp([^[:alnum:]_]|$)/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
         else if (match($0, /(^|[^a-zA-Z])Color\(/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
         else if (match($0, /TextUnit/) && !inComment($0, RSTART)) print "K5\t" FILENAME ":" FNR "\t" $0
       }
@@ -74,7 +77,7 @@ grep_rules() {
     "unsplash.com URL (аналог R3)"
     "date-with-time in request body (аналог R7, каркас)"
     "Room.databaseBuilder outside core.storage|data (БД мимо репозитория, каркас)"
-    "UI literals in ui/screens/** (.dp/Color(/.sp/TextUnit)"
+    "UI literals in ui/screens/** (.dp/Color(/.sp/TextUnit — только токены ui.theme)"
   )
 
   failed=0
