@@ -9,8 +9,10 @@ import io.ktor.http.headersOf
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.serialization.encodeToString
+import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.GreenThumbApi
+import site.xmpp.greenthumb.core.network.NoSessionRecoveryProvider
 import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import java.io.File
@@ -85,11 +87,12 @@ internal class RepoHarness(
 internal fun openHarness(
     nowMillis: () -> Long = { SYNCED_AT },
     ids: ArrayDeque<String> = ArrayDeque(),
+    session: AccountSession = AccountSession(),
     handler: MockRequestHandler,
 ): RepoHarness {
     val dir = createTempDirectory(prefix = "gt-repo").toFile()
     val databases = JvmPlantDatabases(dir)
-    val client = ApiClient(io.ktor.client.engine.mock.MockEngine(handler))
+    val client = ApiClient(io.ktor.client.engine.mock.MockEngine(handler), NoSessionRecoveryProvider, session)
     val api = GreenThumbApi(client)
     var n = 0
     val repo = PlantRepository(
@@ -101,6 +104,7 @@ internal fun openHarness(
         newId = {
             if (ids.isEmpty()) "m-${++n}" else ids.removeFirst()
         },
+        session = session,
     )
     return RepoHarness(dir, databases, client, repo)
 }

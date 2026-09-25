@@ -19,7 +19,7 @@ fun main() = application {
     )
     // jvm-actual: всегда онлайн — у харнесса источника состояния сети нет.
     val connectivity = Connectivity(Any())
-    val opener = PlantDatabases(Any()).openerFor(graph.api)
+    val opener = PlantDatabases(Any()).openerFor(graph.api, graph.accountSession)
     Window(
         onCloseRequest = {
             connectivity.close()

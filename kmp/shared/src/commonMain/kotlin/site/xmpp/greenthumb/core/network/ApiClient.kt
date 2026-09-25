@@ -13,6 +13,7 @@ import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.cookies.CookiesStorage
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -25,8 +26,13 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -72,11 +78,23 @@ class ApiClient(
     debugLogging: Boolean,
     engineFactory: HttpClientEngineFactory<*>,
     recoveryProvider: SessionRecoveryProvider,
+    private val session: AccountSession = AccountSession(),
 ) {
     constructor(
         engineFactory: HttpClientEngineFactory<*>,
         recoveryProvider: SessionRecoveryProvider,
     ) : this(debugLogging = false, engineFactory = engineFactory, recoveryProvider = recoveryProvider)
+
+    constructor(
+        engineFactory: HttpClientEngineFactory<*>,
+        recoveryProvider: SessionRecoveryProvider,
+        session: AccountSession,
+    ) : this(
+        debugLogging = false,
+        engineFactory = engineFactory,
+        recoveryProvider = recoveryProvider,
+        session = session,
+    )
 
     constructor(engineFactory: HttpClientEngineFactory<*>) : this(engineFactory, NoSessionRecoveryProvider)
 
@@ -92,7 +110,23 @@ class ApiClient(
         recoveryProvider: SessionRecoveryProvider,
     ) : this(debugLogging = false, engineFactory = EngineInstanceFactory(engine), recoveryProvider = recoveryProvider)
 
-    val client: HttpClient = HttpClient(engineFactory) { configureCommon(debugLogging) }
+    internal constructor(
+        engine: io.ktor.client.engine.HttpClientEngine,
+        recoveryProvider: SessionRecoveryProvider,
+        session: AccountSession,
+    ) : this(
+        debugLogging = false,
+        engineFactory = EngineInstanceFactory(engine),
+        recoveryProvider = recoveryProvider,
+        session = session,
+    )
+
+    private val cookies = ResettableCookieStorage()
+
+    /** Родитель запросов. [endSession] отменяет детей, не сам supervisor. */
+    private val requests = SupervisorJob()
+
+    val client: HttpClient = HttpClient(engineFactory) { configureCommon(debugLogging, cookies = cookies) }
 
     /** Восстановление сессии на 401 (Stage 2 п.7): провайдер ключа + сериализация попыток. */
     private val recoveryProvider: SessionRecoveryProvider = recoveryProvider
@@ -114,18 +148,21 @@ class ApiClient(
         path: String,
         body: String? = null,
     ): HttpResponse {
-        val first = try {
-            requestVia(client, method, path, body)
-        } catch (cancellation: CancellationException) {
-            throw mapTransportException(cancellation)
-        } catch (cause: Throwable) {
-            throw mapTransportException(cause)
-        }
-        if (first.status.value != 401 || path == LOGIN_RECOVERY_PATH) return first
+        val stamp = session.current()
+        return withContext(requests + CookieEpoch(stamp)) {
+            val first = try {
+                requestVia(client, method, path, body)
+            } catch (cancellation: CancellationException) {
+                throw mapTransportException(cancellation)
+            } catch (cause: Throwable) {
+                throw mapTransportException(cause)
+            }
+            if (first.status.value != 401 || path == LOGIN_RECOVERY_PATH) return@withContext first
 
-        // Восстановление сессии (только на 401): re-login сохранённым ключом,
-        // затем повтор исходного запроса. Не retry — сетевые ошибки сюда не входят.
-        return recoverAndRetry(method, path, body) ?: first
+            // Восстановление сессии (только на 401): re-login сохранённым ключом,
+            // затем повтор исходного запроса. Не retry — сетевые ошибки сюда не входят.
+            recoverAndRetry(method, path, body) ?: first
+        }
     }
 
     /**
@@ -151,8 +188,45 @@ class ApiClient(
         throw ApiError.fromStatus(status, text)
     }
 
+    /**
+     * Смена сессии (Stage 4 п.5): новый session-id, отмена чужих запросов,
+     * пустое cookie-хранилище. Текущий вызов (401-сброс изнутри [raw]) не
+     * отменяется — иначе восстановление сессии не смогло бы вернуть 401.
+     */
+    suspend fun endSession() {
+        val next = session.advance()
+        cancelOtherRequests(currentCoroutineContext()[Job])
+        cookies.openFor(next)
+    }
+
     fun close() {
+        requests.cancel()
         client.close()
+        cookies.close()
+    }
+
+    /**
+     * Отменяет запросы, кроме того, изнутри которого вызван сброс (401).
+     * Job запроса — ребёнок [requests], не job вызывающего: отмена не
+     * срывает корутину, которая сама меняет сессию.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun cancelOtherRequests(caller: Job?) {
+        requests.children.toList().forEach { child ->
+            if (caller == null || (caller != child && !caller.isChildOf(child))) {
+                child.cancel(SessionSuperseded())
+            }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun Job.isChildOf(ancestor: Job): Boolean {
+        var current: Job? = this
+        while (current != null) {
+            if (current == ancestor) return true
+            current = current.parent
+        }
+        return false
     }
 
     /**
@@ -262,6 +336,7 @@ class ApiClient(
         internal fun HttpClientConfig<*>.configureCommon(
             debugLogging: Boolean,
             requestTimeoutMillisOverride: Long? = null,
+            cookies: CookiesStorage = AcceptAllCookiesStorage(),
         ) {
             expectSuccess = false
             defaultRequest {
@@ -271,7 +346,7 @@ class ApiClient(
                 requestTimeoutMillis = requestTimeoutMillisOverride ?: REQUEST_TIMEOUT_MILLIS
             }
             install(HttpCookies) {
-                storage = AcceptAllCookiesStorage()
+                storage = cookies
             }
             install(ContentNegotiation) {
                 json(ApiClient.json)

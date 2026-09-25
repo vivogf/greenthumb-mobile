@@ -141,6 +141,13 @@ public class SessionManager(
      * jvm-actual всегда false; jvmTest инжектирует факт явно.
      */
     private val isUpdateInstall: Boolean = false,
+    /**
+     * Смена сессии (Stage 4 п.5): отмена запросов, новый session-id, сброс
+     * cookies. БД пользователя сюда не входит — это kmp-account-lifecycle.
+     * Колбэк не должен бросать [kotlinx.coroutines.CancellationException]
+     * кроме настоящей отмены вызывающего.
+     */
+    private val onSessionEnded: suspend () -> Unit = {},
 ) {
     private val secure = secure
     private val settings = settings
@@ -148,6 +155,14 @@ public class SessionManager(
 
     /** Сериализация мутаций ключа/настроек (импорт, сбросы, выходы). */
     private val sessionMutex = Mutex()
+
+    /**
+     * Пользователь, для которого уже открыта сессия в этом процессе.
+     * Не [state]: вход с экрана логина пишет пользователя в хранилище раньше,
+     * чем UI успевает прочитать [state]. Нужен, чтобы смена аккаунта сбросила
+     * cookies до запроса нового входа.
+     */
+    private var activeUserId: String? = null
 
     /**
      * Реактивное состояние сессии для UI (Stage 6 подменяет экраны):
@@ -338,6 +353,7 @@ public class SessionManager(
 
     /** Вход recovery key (логин-экран, VAL-LOGIN-004). Бросает [ApiError]. */
     public suspend fun signInWithRecoveryKey(recoveryKey: String): SessionState {
+        endActiveAccount()
         try {
             return applyUser(api.loginRecovery(recoveryKey))
         } catch (e: ApiError) {
@@ -350,14 +366,19 @@ public class SessionManager(
                 // [signedOutOrKeyNotFound]): пустота после такого шага —
                 // не стартовая.
                 hadSession = true
+                activeUserId = null
                 clearKeyAndCachedUser()
+                onSessionEnded()
             }
             throw e
         }
     }
 
     /** Создание анонимного аккаунта (логин-экран, режим create). Бросает [ApiError]. */
-    public suspend fun createAnonymousAccount(): SessionState = applyUser(api.createAnonymous())
+    public suspend fun createAnonymousAccount(): SessionState {
+        endActiveAccount()
+        return applyUser(api.createAnonymous())
+    }
 
     // ------------------------------------------------------------------
     // Рантайм
@@ -385,14 +406,18 @@ public class SessionManager(
         if (error is ApiError.Unauthorized) {
             val hadKey = secure.get(SecureStoreKeys.RECOVERY_KEY) != null
             if (hadKey) hadSession = true
+            activeUserId = null
             clearKeyAndCachedUser()
+            onSessionEnded()
         }
     }
 
     /**
-     * Выход (Stage 3 п.5, полная чистка c БД в Stage 4 п.5): серверный logout
-     * best-effort + локально ключ, cached_user и handoff-файл; предпочтения
-     * (язык/тема/сетка/интро) не тронуты. Обновляет [state]. Итог — обычный
+     * Выход (Stage 3 п.5; запросы и cookies — Stage 4 п.5, БД — следующая
+     * фича): серверный logout best-effort, затем [onSessionEnded] (отмена
+     * запросов, новый session-id, сброс cookies), затем ключ, cached_user
+     * и handoff-файл. Предпочтения (язык/тема/сетка/интро) не тронуты.
+     * Обновляет [state]. Итог — обычный
      * [SessionState.SignedOut] (экран входа): пользователь сам вышел, экран
      * «ключ не найден» [SessionState.KeyNotFound] тут не показывается
      * (Stage 3 п.6 — только холодный старт без ключа).
@@ -406,6 +431,8 @@ public class SessionManager(
         // Выход — действие пользователя: исход после него уже не «холодный
         // старт», «ключ не найден» больше не показывается (см. hadSession).
         hadSession = true
+        activeUserId = null
+        onSessionEnded()
         sessionMutex.withLock {
             secure.remove(SecureStoreKeys.RECOVERY_KEY)
             settings.clearCachedUser()
@@ -462,6 +489,7 @@ public class SessionManager(
         // Признак «в этом процессе уже был успешный вход» (см.
         // [signedOutOrKeyNotFound]): пустота после такого шага — не стартовая.
         hadSession = true
+        activeUserId = user.id
         settings.setCachedUser(user)
         if (user.recoveryKey.isNotEmpty() && user.recoveryKey != secure.get(SecureStoreKeys.RECOVERY_KEY)) {
             // Провал записи здесь не фатален (не handoff-импорт): ключ останется
@@ -469,6 +497,17 @@ public class SessionManager(
             secure.set(SecureStoreKeys.RECOVERY_KEY, user.recoveryKey)
         }
         return SessionState.SignedIn(user)
+    }
+
+    /**
+     * Уже есть аккаунт в этом процессе: перед новым входом сбросить сессию,
+     * чтобы запрос логина не уехал со старой cookie и поздний ответ не
+     * записался в данные нового пользователя.
+     */
+    private suspend fun endActiveAccount() {
+        if (activeUserId == null) return
+        activeUserId = null
+        onSessionEnded()
     }
 
     /** Единая чистка: только явный 401 (VAL-LOGIN-004). */
