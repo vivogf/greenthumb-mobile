@@ -6,6 +6,9 @@ agp = "9.3.1"
 kotlin = "2.4.20"
 composeMultiplatform = "1.12.0"
 composeMaterial3 = "1.12.0-alpha03"
+# 2026-09-25: KSP 2.3.12 собрал реальный Room 2.8.5 (сущности/DAO/GreenThumbDb)
+# на Kotlin 2.4.20, конфигурации kspAndroid+kspJvm. Fallback на Kotlin 2.3.21
+# не понадобился. Файлы под KSP — синтаксис Kotlin ≤2.3 (Analysis API 2.3.20).
 ksp = "2.3.12"
 ktor = "3.5.2"
 # Kotlin 2.4.20: serialization-плагин больше не вшивает рантайм (версияless-зависимость
@@ -34,6 +37,8 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMul
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidKmpLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+# androidx.room (не room3): schemaDirectory для экспорта схемы. Версия = room 2.8.5.
+room = { id = "androidx.room", version.ref = "room" }
 
 [libraries]
 composeRuntime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
