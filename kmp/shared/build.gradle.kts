@@ -37,6 +37,8 @@ kotlin {
             // Room 2.8.5 + sqlite-bundled 2.7.1 (architecture.md §4, §7). Не room3.
             implementation(libs.roomRuntime)
             implementation(libs.sqliteBundled)
+            // Даты полива и баннер «обновлено в HH:mm» (локальный день, не UTC).
+            implementation(libs.kotlinxDatetime)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)

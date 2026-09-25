@@ -8,8 +8,10 @@ import site.xmpp.greenthumb.SessionGraph
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
+import site.xmpp.greenthumb.core.storage.PlantDatabases
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.registerAppContext
+import site.xmpp.greenthumb.data.openerFor
 
 class MainActivity : ComponentActivity() {
 
@@ -27,8 +29,9 @@ class MainActivity : ComponentActivity() {
             handoff = LegacyHandoff(appContext),
         )
         connectivity = Connectivity(appContext)
+        val opener = PlantDatabases(appContext).openerFor(graph.api)
         setContent {
-            App(graph.manager, connectivity)
+            App(graph.manager, connectivity, opener)
         }
     }
 
