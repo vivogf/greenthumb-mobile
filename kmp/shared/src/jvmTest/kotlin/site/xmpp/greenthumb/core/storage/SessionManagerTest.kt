@@ -245,6 +245,7 @@ class SessionManagerTest {
     private fun newManager(
         handoff: HandoffSource = FileHandoff(handoffFile),
         server: FakeServer = FakeServer(),
+        onSessionEnded: suspend () -> Unit = {},
     ): SessionManager {
         val engine = MockEngine(server.handler)
         val client = site.xmpp.greenthumb.core.network.ApiClient(
@@ -252,7 +253,7 @@ class SessionManagerTest {
             InMemoryRecoveryProvider(secure, settings) { sessionKeyProvider() },
         )
         clientRef = client
-        return SessionManager(secure, settings, handoff, GreenThumbApi(client))
+        return SessionManager(secure, settings, handoff, GreenThumbApi(client), onSessionEnded = onSessionEnded)
     }
 
     /** Провайдер над инжектированными двойниками (ключ живёт в secure.map). */
@@ -742,6 +743,26 @@ class SessionManagerTest {
         assertSignedIn(state)
         assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY))
         assertEquals("key-55", settings.getCachedUser()!!.recoveryKey)
+    }
+
+    @Test
+    fun `signOut ends the http session`() = runBlocking {
+        var ended = 0
+        val manager = newManager(onSessionEnded = { ended++ })
+        manager.signInWithRecoveryKey("typed-key")
+        assertEquals(0, ended, "первый вход не сбрасывает пустую сессию")
+        manager.signOut()
+        assertEquals(1, ended, "выход зовёт сброс cookies и отмену запросов")
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+    }
+
+    @Test
+    fun `sign-in over an active session ends the previous http session first`() = runBlocking {
+        var ended = 0
+        val manager = newManager(onSessionEnded = { ended++ })
+        manager.signInWithRecoveryKey("typed-key")
+        manager.createAnonymousAccount()
+        assertEquals(1, ended, "смена аккаунта сбрасывает сессию до нового входа")
     }
 
     // ------------------------------------------------------------------

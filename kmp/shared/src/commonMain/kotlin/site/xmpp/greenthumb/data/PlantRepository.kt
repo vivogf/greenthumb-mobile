@@ -12,9 +12,11 @@ import kotlin.time.Instant
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
+import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
+import site.xmpp.greenthumb.core.network.SessionSuperseded
 import site.xmpp.greenthumb.core.network.InsertPlantDto
 import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
@@ -51,9 +53,13 @@ import kotlin.uuid.Uuid
  * пишет: сначала досылка уже лежащего журнала, затем вызов, затем [refresh].
  * Алерт на ошибку — дело экрана, не репозитория (у RN postponeAll алерта нет).
  *
- * Гонки по plant_id и игнор ответа после смены сессии — следующая фича.
- * Здесь мутации, досылка и refresh сериализованы одним мьютексом, чтобы откат
- * не пересёкся с заменой таблицы.
+ * Мутации одного plant_id идут очередью ([PlantMutationQueue]): вторая не
+ * начинает сеть, пока первая не записала ответ или не откатилась. Общий
+ * [gate] сериализует журнал и refresh, чтобы откат не пересёкся с заменой
+ * таблицы и полив B не обогнал неподтверждённый полив A.
+ *
+ * Ответ применяется, только если [AccountSession] не сменилась с момента
+ * запроса. Иначе [SessionSuperseded]: в базу не пишем, журнал не снимаем.
  *
  * @param deleteFiles стирает `plants_${userId}.db` вместе с wal/shm/journal.
  *   Вызывающий отменяет свою работу до [deleteDatabaseForUser].
@@ -65,8 +71,10 @@ public class PlantRepository(
     private val deleteFiles: (String) -> Unit,
     private val clocks: PlantClocks = PlantClocks(),
     private val newId: () -> String = { newMutationId() },
+    private val session: AccountSession = AccountSession(),
 ) {
     private val gate = Mutex()
+    private val plantQueues = PlantMutationQueue()
     private val json = ApiClient.json
 
     private val effectSink = MutableSharedFlow<PlantEffect>(
@@ -141,6 +149,12 @@ public class PlantRepository(
     }
 
     public suspend fun water(plantId: String) {
+        plantQueues.withPlant(plantId) {
+            waterQueued(plantId)
+        }
+    }
+
+    private suspend fun waterQueued(plantId: String) {
         val today = clocks.todayString()
         runOptimistic(
             write = {
@@ -221,11 +235,13 @@ public class PlantRepository(
      * не доходит до postpone.
      */
     public suspend fun postponeAll() {
+        val stamp = session.current()
         gate.withLock {
             when (val older = drainAll()) {
                 is DrainStep.Held -> throw older.cause
                 else -> {
                     api.postponeAll()
+                    ensureCurrent(stamp)
                     refreshUnlocked()
                 }
             }
@@ -234,6 +250,12 @@ public class PlantRepository(
 
     public suspend fun add(plant: InsertPlantDto): PlantDto {
         val localId = newId()
+        return plantQueues.withPlant(localId) {
+            addQueued(plant, localId)
+        }
+    }
+
+    private suspend fun addQueued(plant: InsertPlantDto, localId: String): PlantDto {
         return runOptimistic(
             write = {
                 val entity = plant.toOptimisticEntity(
@@ -259,6 +281,12 @@ public class PlantRepository(
     }
 
     public suspend fun update(plantId: String, patch: PatchPlantDto): PlantDto {
+        return plantQueues.withPlant(plantId) {
+            updateQueued(plantId, patch)
+        }
+    }
+
+    private suspend fun updateQueued(plantId: String, patch: PatchPlantDto): PlantDto {
         return runOptimistic(
             write = {
                 val current = db.plants().getById(plantId)
@@ -281,6 +309,12 @@ public class PlantRepository(
     }
 
     public suspend fun delete(plantId: String) {
+        plantQueues.withPlant(plantId) {
+            deleteQueued(plantId)
+        }
+    }
+
+    private suspend fun deleteQueued(plantId: String) {
         runOptimistic(
             write = {
                 val current = db.plants().getById(plantId)
@@ -320,7 +354,9 @@ public class PlantRepository(
     }
 
     private suspend fun refreshUnlocked() {
+        val stamp = session.current()
         val remote = api.getPlants()
+        ensureCurrent(stamp)
         val protectedIds = unsavedPlantIds(db.pendingMutations().listOldestFirst())
         val incoming = remote.map { it.toEntity() }.filter { it.id !in protectedIds }
         val remoteIds = remote.map { it.id }.toSet()
@@ -342,6 +378,7 @@ public class PlantRepository(
             is DrainStep.Held -> throw older.cause
             else -> {}
         }
+        val stamp = session.current()
         val result = try {
             request()
         } catch (cancellation: CancellationException) {
@@ -349,8 +386,14 @@ public class PlantRepository(
         } catch (error: Throwable) {
             fail(entry, error)
         }
+        ensureCurrent(stamp)
         onSuccess(entry, result)
         result
+    }
+
+    /** Ответ после смены сессии в базу не пишем. Журнал остаётся. */
+    private suspend fun ensureCurrent(stamp: Long) {
+        if (!session.isCurrent(stamp)) throw SessionSuperseded()
     }
 
     private suspend fun fail(entry: PendingMutationEntity, error: Throwable): Nothing {
@@ -441,6 +484,7 @@ public class PlantRepository(
      * `water_all` — только POST, без повторного локального проставления даты.
      */
     private suspend fun sendOne(entry: PendingMutationEntity): DrainStep {
+        val stamp = session.current()
         try {
             when (entry.type) {
                 MutationType.WATER -> {
@@ -450,27 +494,32 @@ public class PlantRepository(
                         plantId,
                         PatchPlantDto(lastWateredDate = Patch.Value(payload.lastWateredDate)),
                     )
+                    ensureCurrent(stamp)
                     db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
                 }
                 MutationType.WATER_ALL -> {
                     api.waterAll()
+                    ensureCurrent(stamp)
                     db.store().dropPending(entry.id)
                 }
                 MutationType.ADD -> {
                     val body = json.decodeFromString<InsertPlantDto>(entry.payload)
                     val localId = requireNotNull(entry.plantId)
                     val server = api.addPlant(body)
+                    ensureCurrent(stamp)
                     db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
                 }
                 MutationType.UPDATE -> {
                     val patch = json.decodeFromString<PatchPlantDto>(entry.payload)
                     val plantId = requireNotNull(entry.plantId)
                     val server = api.updatePlant(plantId, patch)
+                    ensureCurrent(stamp)
                     db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
                 }
                 MutationType.DELETE -> {
                     val plantId = requireNotNull(entry.plantId)
                     api.deletePlant(plantId)
+                    ensureCurrent(stamp)
                     db.store().dropPending(entry.id)
                 }
                 else -> rollback(entry)
@@ -491,7 +540,7 @@ public class PlantRepository(
         }
     }
 
-        /** Сеть/таймаут — ответ не подтверждён. HTTP-отказ — подтверждённый провал. */
+    /** Сеть/таймаут — ответ не подтверждён. HTTP-отказ — подтверждённый провал. */
     private fun keepForReplay(error: Throwable): Boolean =
         error is ApiError.Network || error is ApiError.Timeout
 }
@@ -524,12 +573,16 @@ public fun interface PlantRepositoryOpener {
     public fun open(userId: String): PlantRepository
 }
 
-public fun PlantDatabases.openerFor(api: GreenThumbApi): PlantRepositoryOpener =
+public fun PlantDatabases.openerFor(
+    api: GreenThumbApi,
+    session: AccountSession,
+): PlantRepositoryOpener =
     PlantRepositoryOpener { userId ->
         PlantRepository(
             userId = userId,
             db = open(userId),
             api = api,
             deleteFiles = { id -> delete(id) },
+            session = session,
         )
     }

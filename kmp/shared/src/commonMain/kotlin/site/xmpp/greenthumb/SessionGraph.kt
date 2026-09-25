@@ -1,6 +1,7 @@
 package site.xmpp.greenthumb
 
 import io.ktor.client.engine.HttpClientEngineFactory
+import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
@@ -35,7 +36,9 @@ public class SessionGraph private constructor(
     public val handoff: LegacyHandoff,
     engine: HttpClientEngineFactory<*>,
 ) {
-    public val client: ApiClient = ApiClient(engine, Recovery())
+    public val accountSession: AccountSession = AccountSession()
+
+    public val client: ApiClient = ApiClient(engine, Recovery(), accountSession)
 
     public val api: GreenThumbApi = GreenThumbApi(client)
 
@@ -57,7 +60,14 @@ public class SessionGraph private constructor(
             handoff: LegacyHandoff,
         ): SessionGraph {
             val graph = SessionGraph(secure, settings, handoff, PlatformEngine.default())
-            graph.manager = SessionManager(graph.secure, graph.settings, graph.handoff, graph.api, isUpdateInstall())
+            graph.manager = SessionManager(
+                graph.secure,
+                graph.settings,
+                graph.handoff,
+                graph.api,
+                isUpdateInstall(),
+                onSessionEnded = { graph.client.endSession() },
+            )
             return graph
         }
     }

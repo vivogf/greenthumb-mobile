@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
             handoff = LegacyHandoff(appContext),
         )
         connectivity = Connectivity(appContext)
-        val opener = PlantDatabases(appContext).openerFor(graph.api)
+        val opener = PlantDatabases(appContext).openerFor(graph.api, graph.accountSession)
         setContent {
             App(graph.manager, connectivity, opener)
         }
