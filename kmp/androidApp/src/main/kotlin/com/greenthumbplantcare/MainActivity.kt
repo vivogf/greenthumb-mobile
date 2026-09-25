@@ -5,12 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import site.xmpp.greenthumb.App
 import site.xmpp.greenthumb.SessionGraph
+import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.registerAppContext
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var connectivity: Connectivity
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val appContext = applicationContext
@@ -22,8 +26,18 @@ class MainActivity : ComponentActivity() {
             settings = AppSettings(appContext),
             handoff = LegacyHandoff(appContext),
         )
+        connectivity = Connectivity(appContext)
         setContent {
-            App(graph.manager)
+            App(graph.manager, connectivity)
         }
+    }
+
+    override fun onDestroy() {
+        // onDestroy может прийти, если onCreate не дошёл до присваивания
+        // (редкий крэш конструктора). close идемпотентен, но lateinit — нет.
+        if (::connectivity.isInitialized) {
+            connectivity.close()
+        }
+        super.onDestroy()
     }
 }

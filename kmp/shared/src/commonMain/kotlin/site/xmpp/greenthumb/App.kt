@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 
@@ -28,19 +29,32 @@ import site.xmpp.greenthumb.core.storage.SessionState
  * в remember-корутине и показывает итог (SignedIn/Offline/SignedOut/ошибка
  * handoff) с кнопкой выхода. Заменяется реальной оболочкой приложения в
  * Stage 6; поведенческая сессия — в [SessionManager] (jvmTest), здесь только
- * маппинг на экраны. Офлайн-режим (Stage 3 п.5) — факт состояния: данные из
- * Room и полоса «нет сети» приходят в M4 с репозиторием.
+ * маппинг на экраны.
+ *
+ * Полоса «нет сети» питается от [connectivity] (Stage 4 п.8) — она отдельна
+ * от «данные несвежие»: баннер «обновлено в HH:mm» придёт от `sync_meta`
+ * вместе с репозиторием M4. Здесь же видно, что android-actual
+ * ([android.net.ConnectivityManager]) реально отдаёт переходы.
  */
 @Composable
-fun App(session: SessionManager) {
+fun App(session: SessionManager, connectivity: Connectivity) {
     Surface(modifier = Modifier.fillMaxSize()) {
         val state by session.state.collectAsState()
+        val online by connectivity.isOnline.collectAsState()
         // Единственный запуск стартовой последовательности при появлении App:
         // без него state навсегда остаётся null («Session: starting…»).
         LaunchedEffect(Unit) { session.startup() }
         Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
             Text(text = "GreenThumb", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (!online) {
+                Text(
+                    text = "Нет подключения к интернету",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             when (val current = state) {
                 null -> Text(text = "Session: starting…")

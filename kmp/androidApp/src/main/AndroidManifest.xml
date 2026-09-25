@@ -6,6 +6,11 @@
          до сервера. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Состояние сети (Stage 4 п.8, Connectivity): без него
+         registerDefaultNetworkCallback бросает SecurityException, и полоса
+         «нет сети» с третьим триггером обновления работать не будут. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:label="GreenThumb"
         android:supportsRtl="true"
