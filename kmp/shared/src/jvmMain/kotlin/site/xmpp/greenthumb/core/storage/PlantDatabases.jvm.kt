@@ -39,6 +39,7 @@ public class JvmPlantDatabases(
         plantDatabaseRelatedFileNames(userId).forEach { fileName ->
             File(directory, fileName).delete()
         }
+        File(directory, plantDatabaseFileName(userId) + ".lck").delete()
     }
 
     public fun absolutePath(userId: String): String =

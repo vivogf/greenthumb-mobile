@@ -347,6 +347,9 @@ public class PlantRepository(
         deleteFiles(targetUserId)
     }
 
+    /** Соединение уже закрыто (повторный [close] ничего не делает). */
+    public fun isClosed(): Boolean = closed
+
     public fun close() {
         if (closed) return
         closed = true

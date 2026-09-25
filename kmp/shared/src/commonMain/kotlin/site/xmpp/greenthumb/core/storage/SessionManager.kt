@@ -113,8 +113,9 @@ public sealed class SessionState {
  * 401 ([onAuthError], signOut, 401 от login-recovery) и всегда вместе с
  * cached_user + handoff-файлом; транзиентные сбои ключ хранят.
  *
- * signOut(): server logout best-effort + ключ + cached_user + handoff-файл;
- * предпочтения (язык/тема/сетка/интро) не тронуты.
+ * signOut(): server logout best-effort + ключ + cached_user + handoff-файл
+ * + база пользователя (WAL/SHM) через [deleteUserDatabase]; cookies сбрасывает
+ * [onSessionEnded]. Предпочтения (язык/тема/сетка/интро) не тронуты.
  *
  * cached_user — сериализованный UserDto после каждого успешного me/логина
  * (офлайн-сессия Stage 3 п.5 читает его в M4).
@@ -143,11 +144,16 @@ public class SessionManager(
     private val isUpdateInstall: Boolean = false,
     /**
      * Смена сессии (Stage 4 п.5): отмена запросов, новый session-id, сброс
-     * cookies. БД пользователя сюда не входит — это kmp-account-lifecycle.
-     * Колбэк не должен бросать [kotlinx.coroutines.CancellationException]
+     * cookies. Колбэк не должен бросать [kotlinx.coroutines.CancellationException]
      * кроме настоящей отмены вызывающего.
      */
     private val onSessionEnded: suspend () -> Unit = {},
+    /**
+     * Стирает `plants_${userId}.db` вместе с WAL/SHM (VAL-DATA-008).
+     * Вызывающий закрывает открытое соединение до удаления файла.
+     * Пустой колбэк — тесты сессии без Room.
+     */
+    private val deleteUserDatabase: suspend (userId: String) -> Unit = {},
 ) {
     private val secure = secure
     private val settings = settings
@@ -344,6 +350,8 @@ public class SessionManager(
     private suspend fun offlineOrNull(): SessionState.Offline? {
         val key = secure.get(SecureStoreKeys.RECOVERY_KEY) ?: return null
         val user = settings.getCachedUser() ?: return null
+        // Иначе выход из офлайн-сессии не знает, чью базу стирать.
+        activeUserId = user.id
         return SessionState.Offline(user)
     }
 
@@ -353,9 +361,10 @@ public class SessionManager(
 
     /** Вход recovery key (логин-экран, VAL-LOGIN-004). Бросает [ApiError]. */
     public suspend fun signInWithRecoveryKey(recoveryKey: String): SessionState {
+        val previous = closingUserId()
         endActiveAccount()
         try {
-            return applyUser(api.loginRecovery(recoveryKey))
+            return finishSignIn(previous, applyUser(api.loginRecovery(recoveryKey)))
         } catch (e: ApiError) {
             if (e is ApiError.Unauthorized) {
                 // Явный 401 на вход: ключ невалиден (или стёрт) — чистим
@@ -369,6 +378,9 @@ public class SessionManager(
                 activeUserId = null
                 clearKeyAndCachedUser()
                 onSessionEnded()
+                mutableState.value = SessionState.SignedOut
+                // Аккаунт, из которого уходили, больше не на устройстве.
+                discardAccountDatabase(previous)
             }
             throw e
         }
@@ -376,8 +388,9 @@ public class SessionManager(
 
     /** Создание анонимного аккаунта (логин-экран, режим create). Бросает [ApiError]. */
     public suspend fun createAnonymousAccount(): SessionState {
+        val previous = closingUserId()
         endActiveAccount()
-        return applyUser(api.createAnonymous())
+        return finishSignIn(previous, applyUser(api.createAnonymous()))
     }
 
     // ------------------------------------------------------------------
@@ -389,11 +402,7 @@ public class SessionManager(
      * ApiClient-провайдером и тестами). Пишет cached_user; Бросает [ApiError].
      */
     public suspend fun loginRecovery(recoveryKey: String): UserDto {
-        val state = applyUser(api.loginRecovery(recoveryKey))
-        if (state !is SessionState.SignedIn) {
-            throw AssertionError("applyUser обязан вернуть SignedIn")
-        }
-        return state.user
+        return applyUser(api.loginRecovery(recoveryKey)).user
     }
 
     /**
@@ -404,25 +413,30 @@ public class SessionManager(
      */
     public suspend fun onAuthError(error: ApiError) {
         if (error is ApiError.Unauthorized) {
+            val closing = closingUserId()
             val hadKey = secure.get(SecureStoreKeys.RECOVERY_KEY) != null
             if (hadKey) hadSession = true
             activeUserId = null
             clearKeyAndCachedUser()
             onSessionEnded()
+            mutableState.value = SessionState.SignedOut
+            discardAccountDatabase(closing)
         }
     }
 
     /**
-     * Выход (Stage 3 п.5; запросы и cookies — Stage 4 п.5, БД — следующая
-     * фича): серверный logout best-effort, затем [onSessionEnded] (отмена
-     * запросов, новый session-id, сброс cookies), затем ключ, cached_user
-     * и handoff-файл. Предпочтения (язык/тема/сетка/интро) не тронуты.
-     * Обновляет [state]. Итог — обычный
+     * Выход (Stage 3 п.5 + Stage 4 п.5, VAL-DATA-008): серверный logout
+     * best-effort, затем [onSessionEnded] (отмена запросов, новый session-id,
+     * сброс cookies), затем ключ, cached_user и handoff-файл. База этого
+     * пользователя удаляется вместе с WAL/SHM уже после сброса cookies —
+     * открытое соединение закрывает [deleteUserDatabase]. Предпочтения
+     * (язык/тема/сетка/интро) не тронуты. Обновляет [state]. Итог — обычный
      * [SessionState.SignedOut] (экран входа): пользователь сам вышел, экран
      * «ключ не найден» [SessionState.KeyNotFound] тут не показывается
      * (Stage 3 п.6 — только холодный старт без ключа).
      */
     public suspend fun signOut(): SessionState {
+        val closing = closingUserId()
         try {
             api.logout()
         } catch (e: ApiError) {
@@ -439,6 +453,7 @@ public class SessionManager(
         }
         handoff.clearHandoff()
         mutableState.value = SessionState.SignedOut
+        discardAccountDatabase(closing)
         return SessionState.SignedOut
     }
 
@@ -467,9 +482,13 @@ public class SessionManager(
             api.loginRecovery(key)
         } catch (e: ApiError) {
             when (e) {
-                is ApiError.Unauthorized ->
-                    // Явный 401 от recovery: ключ невалиден — чистим (VAL-LOGIN-004).
+                is ApiError.Unauthorized -> {
+                    // Явный 401 от recovery: ключ невалиден — чистим (VAL-LOGIN-004)
+                    // вместе с базой этого пользователя, если она была.
+                    val closing = closingUserId()
                     clearKeyAndCachedUser()
+                    discardAccountDatabase(closing)
+                }
                 is ApiError.Network, is ApiError.Timeout ->
                     // Провал сети при recovery: офлайн-ветка Stage 3 п.5
                     // (сессия не ожила, но пользователь есть локально).
@@ -485,7 +504,7 @@ public class SessionManager(
     }
 
     /** Успешный вход: cached_user + ключ сервера (если отличается) → SignedIn. */
-    private suspend fun applyUser(user: UserDto): SessionState {
+    private suspend fun applyUser(user: UserDto): SessionState.SignedIn {
         // Признак «в этом процессе уже был успешный вход» (см.
         // [signedOutOrKeyNotFound]): пустота после такого шага — не стартовая.
         hadSession = true
@@ -516,5 +535,39 @@ public class SessionManager(
             secure.remove(SecureStoreKeys.RECOVERY_KEY)
             settings.clearCachedUser()
         }
+    }
+
+    /**
+     * Кого закрываем: живой [activeUserId], иначе пользователь на экране,
+     * иначе cached_user (офлайн-старт ещё не писал [activeUserId]).
+     */
+    private suspend fun closingUserId(): String? {
+        activeUserId?.let { return it }
+        when (val current = mutableState.value) {
+            is SessionState.SignedIn -> return current.user.id
+            is SessionState.Offline -> return current.user.id
+            else -> Unit
+        }
+        return settings.getCachedUser()?.id
+    }
+
+    /**
+     * Успешный вход поверх другого аккаунта стирает базу предыдущего
+     * (architecture.md §7). Повторный вход в того же пользователя базу
+     * не трогает. [state] публикуется после удаления, чтобы UI не открыл
+     * новый файл, пока старое соединение ещё живо.
+     */
+    private suspend fun finishSignIn(previousUserId: String?, state: SessionState.SignedIn): SessionState {
+        if (previousUserId != null && previousUserId != state.user.id) {
+            discardAccountDatabase(previousUserId)
+        }
+        mutableState.value = state
+        return state
+    }
+
+    /** Файл базы + журналы. Нет id — нечего стирать. Ошибка удаления не откатывает выход. */
+    private suspend fun discardAccountDatabase(userId: String?) {
+        if (userId.isNullOrBlank()) return
+        deleteUserDatabase(userId)
     }
 }

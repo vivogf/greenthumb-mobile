@@ -11,7 +11,8 @@ import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.PlantDatabases
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.registerAppContext
-import site.xmpp.greenthumb.data.openerFor
+import site.xmpp.greenthumb.data.AccountPlantGate
+import site.xmpp.greenthumb.data.accountGate
 
 class MainActivity : ComponentActivity() {
 
@@ -23,15 +24,17 @@ class MainActivity : ComponentActivity() {
         // Контекст для isUpdateInstall() (Stage 3 п.6): чтение firstInstallTime/
         // lastUpdateTime пакета до первого запроса сессии.
         registerAppContext(appContext)
+        lateinit var plants: AccountPlantGate
         val graph = SessionGraph.create(
             secure = SecureStore(appContext),
             settings = AppSettings(appContext),
             handoff = LegacyHandoff(appContext),
+            deleteUserDatabase = { userId -> plants.closeAndDelete(userId) },
         )
+        plants = PlantDatabases(appContext).accountGate(graph.api, graph.accountSession)
         connectivity = Connectivity(appContext)
-        val opener = PlantDatabases(appContext).openerFor(graph.api, graph.accountSession)
         setContent {
-            App(graph.manager, connectivity, opener)
+            App(graph.manager, connectivity, plants)
         }
     }
 

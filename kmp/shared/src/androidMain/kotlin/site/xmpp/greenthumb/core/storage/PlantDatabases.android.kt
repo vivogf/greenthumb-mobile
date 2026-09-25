@@ -41,6 +41,9 @@ public class AndroidPlantDatabases(
             plantDatabaseRelatedFileNames(userId).forEach { fileName ->
                 File(dir, fileName).delete()
             }
+            // Room/SQLite lock. deleteDatabase его не трогает, а имя
+            // содержит userId — после выхода его не должно быть в ls.
+            File(dir, plantDatabaseFileName(userId) + ".lck").delete()
         }
         appContext.deleteDatabase(plantDatabaseFileName(userId))
     }

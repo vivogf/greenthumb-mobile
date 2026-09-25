@@ -3,6 +3,7 @@ package site.xmpp.greenthumb
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Connectivity
@@ -61,6 +64,9 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
         // Единственный запуск стартовой последовательности при появлении App:
         // без него state навсегда остаётся null («Session: starting…»).
         LaunchedEffect(Unit) { session.startup() }
+        val scope = rememberCoroutineScope()
+        var recoveryInput by remember { mutableStateOf("") }
+        var signInError by remember { mutableStateOf("") }
         Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
             Text(text = "GreenThumb", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(12.dp))
@@ -120,14 +126,46 @@ fun App(session: SessionManager, connectivity: Connectivity, plants: PlantReposi
 
             Spacer(modifier = Modifier.height(12.dp))
             if (state is SessionState.SignedOut || state is SessionState.KeyNotFound) {
+                OutlinedTextField(
+                    value = recoveryInput,
+                    onValueChange = {
+                        recoveryInput = it
+                        signInError = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = "Recovery key") },
+                    singleLine = true,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = {
+                    val key = recoveryInput.trim()
+                    if (key.isEmpty()) return@Button
+                    scope.launch {
+                        signInError = ""
+                        try {
+                            session.signInWithRecoveryKey(key)
+                            recoveryInput = ""
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: ApiError) {
+                            signInError = "Sign-in failed"
+                        }
+                    }
+                }) {
+                    Text(text = "Sign in")
+                }
+                if (signInError.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = signInError)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(onClick = { session.retryStartup() }) {
                     Text(text = "Retry session")
                 }
             }
             if (state != null && state !is SessionState.HandoffImportFailed) {
                 Spacer(modifier = Modifier.height(8.dp))
-                // Выход — suspend (сеть + DataStore); dev-кнопка крутит в scope.
-                val scope = rememberCoroutineScope()
+                // Выход — suspend (сеть + DataStore + файл базы).
                 Button(onClick = { scope.launch { session.signOut() } }) {
                     Text(text = "Sign out")
                 }
@@ -153,8 +191,9 @@ private fun SessionPlants(
     DisposableEffect(repo) {
         onDispose { repo.close() }
     }
-    val plants by repo.observePlants().collectAsState(emptyList())
-    val unsavedIds by repo.observeUnsavedPlantIds().collectAsState(emptySet())
+    // Закрытие базы на выходе завершает Flow ошибкой — не роняем композицию.
+    val plants by repo.observePlants().catch { emit(emptyList()) }.collectAsState(emptyList())
+    val unsavedIds by repo.observeUnsavedPlantIds().catch { emit(emptySet()) }.collectAsState(emptySet())
     var refreshFailed by remember(userId) { mutableStateOf(false) }
     var banner by remember(userId) { mutableStateOf<SyncBanner?>(null) }
     var effectLabel by remember(userId) { mutableStateOf("") }
