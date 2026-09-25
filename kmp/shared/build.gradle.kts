@@ -1,6 +1,9 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidKmpLibrary)
+    // KSP после android-таргета: конфигурации kspAndroid / kspJvm (Room 2.8.5).
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.kotlinSerialization)
@@ -31,6 +34,9 @@ kotlin {
             implementation(libs.ktorSerializationKotlinxJson)
             // DataStore: SecureStore (шифротекст) + AppSettings (Stage 3, architecture.md §6).
             implementation(libs.datastorePreferencesCore)
+            // Room 2.8.5 + sqlite-bundled 2.7.1 (architecture.md §4, §7). Не room3.
+            implementation(libs.roomRuntime)
+            implementation(libs.sqliteBundled)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)
@@ -52,6 +58,21 @@ kotlin {
             // jvmTest компилирует отдельный source set: без явной datastore-зависимости
             // actual-класс jvmMain не виден из теста (нет транзитивности через jvmTest).
             implementation(libs.datastorePreferencesCore)
+            // Явно, как datastore выше: jvmTest видит Room-типы и sqlite-bundled.
+            implementation(libs.roomRuntime)
+            implementation(libs.sqliteBundled)
         }
     }
+}
+
+// Компилятор Room — только KSP-конфигурации таргетов (не commonMain).
+// kspIos* нет: iOS вне миссии.
+dependencies {
+    add("kspAndroid", libs.roomCompiler)
+    add("kspJvm", libs.roomCompiler)
+}
+
+// Экспорт схемы для будущих миграций. Миграции только добавляют, никогда не удаляют данные.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
