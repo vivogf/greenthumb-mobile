@@ -49,10 +49,10 @@ public interface SyncMetaDao {
 
 @Dao
 public interface PendingMutationDao {
-    @Query("SELECT * FROM pending_mutations ORDER BY created_at ASC")
+    @Query("SELECT * FROM pending_mutations ORDER BY created_at ASC, id ASC")
     public suspend fun listOldestFirst(): List<PendingMutationEntity>
 
-    @Query("SELECT * FROM pending_mutations ORDER BY created_at ASC")
+    @Query("SELECT * FROM pending_mutations ORDER BY created_at ASC, id ASC")
     public fun observeAll(): Flow<List<PendingMutationEntity>>
 
     @Insert

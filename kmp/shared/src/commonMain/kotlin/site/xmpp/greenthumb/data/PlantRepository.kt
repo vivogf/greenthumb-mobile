@@ -37,16 +37,23 @@ import kotlin.uuid.Uuid
  * транзакции с журнальной строкой и шлют [effects] сразу, не дожидаясь сети и
  * не дожидаясь анимации. HTTP-отказ (4xx/5xx) откатывает снимок и снимает
  * журнал. [ApiError.Network] и [ApiError.Timeout] журнал не снимают: ответ не
- * подтверждён, досылка — следующая фича. Отмена корутины тоже оставляет
- * журнал (процесс «умер» между записью и ответом).
+ * подтверждён. Отмена корутины тоже оставляет журнал (процесс «умер» между
+ * записью и ответом).
+ *
+ * Досылка — [replayPending]: строки по `created_at`, затем [refresh].
+ * Её зовут на старте и когда сеть вернулась. Пока журнал открыт, [refresh]
+ * не перезаписывает эти строки и не воскрешает оптимистично удалённые.
+ * Новая мутация сначала досылает более старые строки: порядок не перескакивает.
+ * Подтверждённый HTTP-отказ одной строки откатывает только её и не стопорит
+ * очередь. Сеть/таймаут стопорят очередь, остаток ждёт следующей попытки.
  *
  * `waterAll` меняет только статус ≠ healthy. `postponeAll` локально ничего не
- * пишет: вызов, затем [refresh]. Алерт на ошибку — дело экрана, не репозитория
- * (у RN postponeAll алерта нет).
+ * пишет: сначала досылка уже лежащего журнала, затем вызов, затем [refresh].
+ * Алерт на ошибку — дело экрана, не репозитория (у RN postponeAll алерта нет).
  *
- * Гонки по plant_id, игнор ответа после смены сессии и «refresh не затирает
- * открытую мутацию» — следующие фичи. Здесь мутации и refresh сериализованы
- * одним мьютексом, чтобы откат не пересёкся с заменой таблицы.
+ * Гонки по plant_id и игнор ответа после смены сессии — следующая фича.
+ * Здесь мутации, досылка и refresh сериализованы одним мьютексом, чтобы откат
+ * не пересёкся с заменой таблицы.
  *
  * @param deleteFiles стирает `plants_${userId}.db` вместе с wal/shm/journal.
  *   Вызывающий отменяет свою работу до [deleteDatabaseForUser].
@@ -83,6 +90,13 @@ public class PlantRepository(
     public fun observePending(): Flow<List<PendingMutationEntity>> =
         db.pendingMutations().observeAll()
 
+    /**
+     * Id растений с открытым журналом. Экраны рисуют [UnsavedMutation.LABEL]
+     * на этих карточках и не выдумывают свою строку.
+     */
+    public fun observeUnsavedPlantIds(): Flow<Set<String>> =
+        observePending().map { unsavedPlantIds(it) }
+
     public suspend fun currentPlants(): List<PlantDto> =
         db.plants().listAll().map { it.toDto() }
 
@@ -99,9 +113,31 @@ public class PlantRepository(
     /**
      * GET → транзакция → sync_meta. Бросает [ApiError] (и транспорт), не
      * очищая таблицу. Пустой 200 — успешная очистка, это не ошибка.
+     *
+     * Строки с открытым журналом не перезаписываются и не удаляются:
+     * сервер ещё не подтвердил локальную правку (VAL-DATA-006).
      */
     public suspend fun refresh() {
         gate.withLock { refreshUnlocked() }
+    }
+
+    /**
+     * Досылка журнала по `created_at`, затем [refresh], если очередь дошла
+     * до конца. Пустой журнал — [ReplayResult.Idle], без сети.
+     * Сеть/таймаут — [ReplayResult.Held], refresh не зовётся.
+     * HTTP-отказ строки откатывает её снимок и очередь идёт дальше.
+     */
+    public suspend fun replayPending(): ReplayResult = gate.withLock {
+        if (db.pendingMutations().listOldestFirst().isEmpty()) {
+            return@withLock ReplayResult.Idle
+        }
+        when (val drain = drainAll()) {
+            is DrainStep.Held -> ReplayResult.Held(drain.cause)
+            else -> {
+                refreshUnlocked()
+                ReplayResult.Converged
+            }
+        }
     }
 
     public suspend fun water(plantId: String) {
@@ -148,7 +184,10 @@ public class PlantRepository(
                     WateringStatus.Healthy
             }
             if (due.isEmpty()) {
-                api.waterAll()
+                when (val older = drainAll()) {
+                    is DrainStep.Held -> throw older.cause
+                    else -> api.waterAll()
+                }
                 return@withLock
             }
             val ids = due.map { it.id }
@@ -163,22 +202,33 @@ public class PlantRepository(
                 entry,
             )
             effectSink.tryEmit(PlantEffect.WaterAll(ids))
-            try {
-                api.waterAll()
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (error: Throwable) {
-                fail(entry, error)
+            when (val older = drainBefore(entry.id)) {
+                is DrainStep.Held -> throw older.cause
+                else -> {}
             }
-            db.store().dropPending(entry.id)
+            when (val step = sendOne(entry)) {
+                is DrainStep.Held -> throw step.cause
+                is DrainStep.Rejected -> throw step.cause
+                is DrainStep.Done -> {}
+            }
         }
     }
 
-    /** Без оптимистичной записи: вызов, затем [refresh]. Ошибка вызова refresh не зовёт. */
+    /**
+     * Без оптимистичной записи. Сначала досылка уже лежащего журнала
+     * (первый успешный ответ не должен обогнать очередь), затем вызов,
+     * затем [refresh]. Ошибка вызова refresh не зовёт. Сеть на досылке
+     * не доходит до postpone.
+     */
     public suspend fun postponeAll() {
         gate.withLock {
-            api.postponeAll()
-            refreshUnlocked()
+            when (val older = drainAll()) {
+                is DrainStep.Held -> throw older.cause
+                else -> {
+                    api.postponeAll()
+                    refreshUnlocked()
+                }
+            }
         }
     }
 
@@ -271,9 +321,12 @@ public class PlantRepository(
 
     private suspend fun refreshUnlocked() {
         val remote = api.getPlants()
-        val incoming = remote.map { it.toEntity() }
-        val incomingIds = incoming.map { it.id }.toSet()
-        val removeIds = db.plants().listAll().map { it.id }.filter { it !in incomingIds }
+        val protectedIds = unsavedPlantIds(db.pendingMutations().listOldestFirst())
+        val incoming = remote.map { it.toEntity() }.filter { it.id !in protectedIds }
+        val remoteIds = remote.map { it.id }.toSet()
+        val removeIds = db.plants().listAll().map { it.id }.filter { id ->
+            id !in remoteIds && id !in protectedIds
+        }
         db.store().replaceAll(incoming, removeIds, clocks.nowMillis())
     }
 
@@ -285,6 +338,10 @@ public class PlantRepository(
     ): T = gate.withLock {
         val entry = write()
         effectSink.tryEmit(effect)
+        when (val older = drainBefore(entry.id)) {
+            is DrainStep.Held -> throw older.cause
+            else -> {}
+        }
         val result = try {
             request()
         } catch (cancellation: CancellationException) {
@@ -330,23 +387,122 @@ public class PlantRepository(
 
     private fun decodePlants(text: String): List<PlantDto> = json.decodeFromString(text)
 
-    private fun pending(
+    private suspend fun pending(
         type: String,
         plantId: String?,
         payload: String,
         snapshotJson: String?,
-    ): PendingMutationEntity = PendingMutationEntity(
-        id = newId(),
-        type = type,
-        plantId = plantId,
-        payload = payload,
-        snapshotJson = snapshotJson,
-        createdAt = clocks.nowMillis(),
-    )
+    ): PendingMutationEntity {
+        val now = clocks.nowMillis()
+        val latest = db.pendingMutations().listOldestFirst().lastOrNull()?.createdAt
+        val createdAt = if (latest == null || now > latest) now else latest + 1
+        return PendingMutationEntity(
+            id = newId(),
+            type = type,
+            plantId = plantId,
+            payload = payload,
+            snapshotJson = snapshotJson,
+            createdAt = createdAt,
+        )
+    }
 
-    /** Сеть/таймаут — ответ не подтверждён. HTTP-отказ — подтверждённый провал. */
+    /**
+     * Досылает весь журнал. HTTP-отказ строки откатывает её и идёт дальше.
+     * Сеть/таймаут останавливают очередь, строка остаётся.
+     */
+    private suspend fun drainAll(): DrainStep {
+        while (true) {
+            val next = db.pendingMutations().listOldestFirst().firstOrNull() ?: return DrainStep.Done
+            when (val step = sendOne(next)) {
+                is DrainStep.Held -> return step
+                else -> {}
+            }
+        }
+    }
+
+    /** Досылает строки старше [entryId]. Саму строку не трогает — её шлёт вызывающий. */
+    private suspend fun drainBefore(entryId: String): DrainStep {
+        while (true) {
+            val next = db.pendingMutations().listOldestFirst().firstOrNull() ?: return DrainStep.Done
+            if (next.id == entryId) return DrainStep.Done
+            when (val step = sendOne(next)) {
+                is DrainStep.Held -> return step
+                else -> {}
+            }
+        }
+    }
+
+    /**
+     * Одна строка журнала. Успех применяет ответ и снимает строку.
+     * Сеть/таймаут строку не снимает. Подтверждённый отказ откатывает снимок.
+     * Отмена корутины строку не снимает.
+     *
+     * Дата `water` берётся из payload, не из часов на момент досылки.
+     * `water_all` — только POST, без повторного локального проставления даты.
+     */
+    private suspend fun sendOne(entry: PendingMutationEntity): DrainStep {
+        try {
+            when (entry.type) {
+                MutationType.WATER -> {
+                    val payload = json.decodeFromString<WaterPayload>(entry.payload)
+                    val plantId = requireNotNull(entry.plantId)
+                    val server = api.updatePlant(
+                        plantId,
+                        PatchPlantDto(lastWateredDate = Patch.Value(payload.lastWateredDate)),
+                    )
+                    db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
+                }
+                MutationType.WATER_ALL -> {
+                    api.waterAll()
+                    db.store().dropPending(entry.id)
+                }
+                MutationType.ADD -> {
+                    val body = json.decodeFromString<InsertPlantDto>(entry.payload)
+                    val localId = requireNotNull(entry.plantId)
+                    val server = api.addPlant(body)
+                    db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
+                }
+                MutationType.UPDATE -> {
+                    val patch = json.decodeFromString<PatchPlantDto>(entry.payload)
+                    val plantId = requireNotNull(entry.plantId)
+                    val server = api.updatePlant(plantId, patch)
+                    db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
+                }
+                MutationType.DELETE -> {
+                    val plantId = requireNotNull(entry.plantId)
+                    api.deletePlant(plantId)
+                    db.store().dropPending(entry.id)
+                }
+                else -> rollback(entry)
+            }
+            return DrainStep.Done
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Throwable) {
+            if (keepForReplay(error)) return DrainStep.Held(error)
+            return try {
+                rollback(entry)
+                DrainStep.Rejected(error)
+            } catch (rollbackError: Throwable) {
+                if (rollbackError is CancellationException) throw rollbackError
+                error.addSuppressed(rollbackError)
+                DrainStep.Held(rollbackError)
+            }
+        }
+    }
+
+        /** Сеть/таймаут — ответ не подтверждён. HTTP-отказ — подтверждённый провал. */
     private fun keepForReplay(error: Throwable): Boolean =
         error is ApiError.Network || error is ApiError.Timeout
+}
+
+/** Шаг разбора одной журнальной строки. Снаружи репозитория не виден. */
+private sealed class DrainStep {
+    data object Done : DrainStep()
+
+    data class Held(val cause: Throwable) : DrainStep()
+
+    data class Rejected(val cause: Throwable) : DrainStep()
 }
 
 /** Часы репозитория. Прод — системные; тесты подставляют свои. */
