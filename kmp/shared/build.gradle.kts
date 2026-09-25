@@ -57,6 +57,12 @@ kotlin {
             implementation(libs.ktorClientMock)
             implementation(libs.kotlinxCoroutinesTest)
             implementation(libs.kotlinTest)
+            // Compose UI-тест на desktop-таргете (VAL-DS-003: pointer down → pressed → up → idle
+            // у PrimaryButton). Версия = CMP-пин, без повышения.
+            implementation(libs.composeUiTestJunit4)
+            // Skia-рантайм для UI-теста: runDesktopComposeUiTest рендерит offscreen и без него
+            // падает LibraryLoadException (нет skiko-нативов текущей ОС). Версия = плагин CMP.
+            implementation(compose.desktop.currentOs)
             // jvmTest компилирует отдельный source set: без явной datastore-зависимости
             // actual-класс jvmMain не виден из теста (нет транзитивности через jvmTest).
             implementation(libs.datastorePreferencesCore)
