@@ -28,6 +28,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.storage.AppLanguage
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.ThemePreference
@@ -261,14 +262,15 @@ private fun InterimLoginScreen(session: SessionManager) {
 /**
  * Промежуточный профиль: выход из скелета — единственный UI-триггер выхода
  * до Stage 7 (screen-profile портит все настройки). Держит матрицу выхода
- * (VAL-DATA-008) доступной из UI. Дев-переключатель темы (Stage 6 п.3) —
- * поверхность верификации light/dark/auto (VAL-THEME-002 и ручное
- * переключение в харнессе); заменяется пикером Stage 7 (screen-profile).
+ * (VAL-DATA-008) доступной из UI. Дев-переключатели темы (Stage 6 п.3,
+ * VAL-THEME-002) и языка (Stage 6 п.5, VAL-I18N-004/005) — поверхности
+ * верификации рантайм-настроек; заменяются пикерами Stage 7 (screen-profile).
  */
 @Composable
 private fun InterimProfileScreen(session: SessionManager, settings: AppPreferencesStore) {
     val scope = rememberCoroutineScope()
     val themePreference by settings.theme.collectAsState(initial = null)
+    val languagePreference by settings.language.collectAsState(initial = null)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -290,6 +292,23 @@ private fun InterimProfileScreen(session: SessionManager, settings: AppPreferenc
                             ThemePreference.Dark -> ThemePreference.Auto
                             ThemePreference.Auto, null -> ThemePreference.Light
                         }
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        SecondaryButton(
+            // null (= язык не задан) = системная локаль: фолбэк ресурсов en —
+            // дефолт RN. Цикл system → ru → en → ru; выбор пишется в AppSettings
+            // (greenthumb_language), AppEnvironment{key(customAppLocale)} сразу
+            // перекомпоновывает все подписи (VAL-I18N-004) и переживает рестарт
+            // (VAL-I18N-005). Значение wire ('ru'/'en') читает подписка пушей (M9).
+            text = "Language: ${languagePreference?.wire ?: "system"} (dev)",
+            onClick = {
+                scope.launch {
+                    settings.setLanguage(
+                        if (languagePreference == AppLanguage.Ru) AppLanguage.En else AppLanguage.Ru
                     )
                 }
             },

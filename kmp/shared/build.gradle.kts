@@ -16,6 +16,14 @@ kotlin {
         // пины из architecture.md §4 не трогаем — подстраивается только compileSdk.
         compileSdk = 37
         minSdk = 24
+        // Обработка android-ресурсов/ассетов ВЫКЛЮЧЕНА по умолчанию в новом
+        // KMP-library-плагине (AGP 9). Без неё у вариантов нет assets-пайплайна:
+        // compose-плагин не может привязать copyAndroidMainComposeResourcesToAndroidAssets
+        // к variant.sources.assets → .cvr-блоб не попадает в APK → краш
+        // MissingResourceException при первом обращении к строкам (CMP-9547).
+        androidResources {
+            enable = true
+        }
     }
 
     jvm()
