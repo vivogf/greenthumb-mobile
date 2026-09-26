@@ -41,6 +41,10 @@ kotlin {
             implementation(libs.kotlinxDatetime)
             // Навигация Stage 6 (architecture.md §9): org.jetbrains.androidx.navigation 2.9.2.
             implementation(libs.navigationCompose)
+            // Compose Resources (Stage 6 п.4): строки strings.xml en + values-ru,
+            // генерация Res-класса. Без явной зависимости generateResClass=auto
+            // не генерирует Res вовсе.
+            implementation(compose.components.resources)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)
@@ -85,4 +89,11 @@ dependencies {
 // Экспорт схемы для будущих миграций. Миграции только добавляют, никогда не удаляют данные.
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+// Пакет генерируемого Res-класса (Stage 6 п.4). Дефолт — «{group}.{module}.generated.resources» —
+// при пустой group даёт невалидное имя, поэтому фиксируем явно. Res остаётся internal:
+// потребители строк — только composables этого модуля (ui.nav, ui.screens).
+compose.resources {
+    packageOfResClass = "site.xmpp.greenthumb.ui.res"
 }

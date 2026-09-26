@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Гейт kmp-кода: компиляция Android+JVM+desktop, :shared:jvmTest, grep-правила.
+# Гейт kmp-кода: компиляция Android+JVM+desktop, :shared:jvmTest, grep-правила, i18n-паритет.
 # Замена npm run check для kmp/ (Expo-гейт живёт отдельно: scripts/check.mjs, job check).
 # Вызывается: mission-check.sh, CI job kmp (.github/workflows/check.yml), вручную.
 #
@@ -131,4 +131,12 @@ echo
 if ! grep_rules; then
   exit 1
 fi
+
+# Stage 6 п.4 (VAL-I18N-003): множества ключей strings.xml en/ru покрывают
+# i18n/locales полностью (плюральные формы, интерполяция, KMP-ключи session.*).
+echo "== [3/3] i18n parity (scripts/i18n_check.py) =="
+if ! python3 scripts/i18n_check.py; then
+  exit 1
+fi
+echo
 exit 0
