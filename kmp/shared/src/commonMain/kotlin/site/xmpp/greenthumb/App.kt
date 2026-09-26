@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
@@ -18,6 +19,7 @@ import site.xmpp.greenthumb.ui.nav.StartRoute
 import site.xmpp.greenthumb.ui.nav.resolveStartRoute
 import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
+import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
 
 /**
  * Корень приложения (Stage 6 п.1–2): тема + стартовая маршрутизация + граф
@@ -31,8 +33,16 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  * гейт готовности → индикатор без редиректа; пользователь → дашборд;
  * иначе интро; иначе логин. Поверхности [SessionState.KeyNotFound] и
  * [SessionState.HandoffImportFailed] — вне графа (KMP-состояния Stage 3,
- * кнопки — Stage 7). Тема light/dark/auto — фича kmp-theme-runtime (п.3);
- * до неё светлая.
+ * кнопки — Stage 7).
+ *
+ * Тема (Stage 6 п.3, VAL-THEME-001/002): предпочтение light/dark/auto из
+ * AppSettings (`greenthumb_theme`; null = не задано = auto, дефолт RN) +
+ * системная схема через [isSystemDarkTheme] (androidMain —
+ * LocalConfiguration/UI_MODE_NIGHT_MASK; jvmMain — LocalSystemTheme) —
+ * [resolveDarkTheme]. Auto в реальном времени следует за системой: на Android
+ * смена uimode обновляет LocalConfiguration без пересоздания Activity
+ * (`android:configChanges="uiMode"` в манифесте androidApp), на desktop
+ * LocalSystemTheme обновляется опросом.
  */
 @Composable
 fun App(
@@ -41,7 +51,9 @@ fun App(
     plants: PlantRepositoryOpener,
     settings: AppPreferencesStore,
 ) {
-    GreenThumbTheme(darkTheme = false) {
+    val themePreference by settings.theme.collectAsState(initial = null)
+    val systemDark = isSystemDarkTheme()
+    GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
         val state by session.state.collectAsState()
         val introSeen by settings.introSeen.collectAsState(initial = null)
         // Единственный запуск стартовой последовательности при появлении App:
@@ -59,6 +71,7 @@ fun App(
                 session = session,
                 connectivity = connectivity,
                 plants = plants,
+                settings = settings,
             )
             StartRoute.Welcome -> GtAppNavGraph(
                 startDestination = NavRoutes.WELCOME,
@@ -67,6 +80,7 @@ fun App(
                 session = session,
                 connectivity = connectivity,
                 plants = plants,
+                settings = settings,
             )
             StartRoute.Login -> GtAppNavGraph(
                 startDestination = NavRoutes.LOGIN,
@@ -75,6 +89,7 @@ fun App(
                 session = session,
                 connectivity = connectivity,
                 plants = plants,
+                settings = settings,
             )
         }
     }

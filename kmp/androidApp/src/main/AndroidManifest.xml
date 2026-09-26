@@ -17,10 +17,19 @@
         android:fullBackupContent="@xml/full_backup_content"
         android:dataExtractionRules="@xml/data_extraction_rules">
 
+        <!-- configChanges uiMode (Stage 6 п.3): смена системной темы НЕ
+             пересоздаёт Activity (как у Expo-активности RN). Дефолтное
+             пересоздание строило бы второй SessionGraph в том же процессе
+             поверх живых DataStore-инстансов (один активный DataStore на
+             файл на процесс — IllegalStateException на первом чтении).
+             Реактивность даёт Compose: onConfigurationChanged обновляет
+             MutableState-configuration, и LocalConfiguration (а с ней
+             GreenThumbTheme в auto) перечитывается без рестарта. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:configChanges="uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
