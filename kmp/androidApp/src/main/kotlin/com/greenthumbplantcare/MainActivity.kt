@@ -4,15 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import site.xmpp.greenthumb.App
-import site.xmpp.greenthumb.SessionGraph
 import site.xmpp.greenthumb.core.platform.Connectivity
-import site.xmpp.greenthumb.core.storage.AppSettings
-import site.xmpp.greenthumb.core.storage.LegacyHandoff
-import site.xmpp.greenthumb.core.storage.PlantDatabases
-import site.xmpp.greenthumb.core.storage.SecureStore
-import site.xmpp.greenthumb.core.storage.registerAppContext
-import site.xmpp.greenthumb.data.AccountPlantGate
-import site.xmpp.greenthumb.data.accountGate
 
 class MainActivity : ComponentActivity() {
 
@@ -20,21 +12,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val appContext = applicationContext
-        // Контекст для isUpdateInstall() (Stage 3 п.6): чтение firstInstallTime/
-        // lastUpdateTime пакета до первого запроса сессии.
-        registerAppContext(appContext)
-        lateinit var plants: AccountPlantGate
-        val graph = SessionGraph.create(
-            secure = SecureStore(appContext),
-            settings = AppSettings(appContext),
-            handoff = LegacyHandoff(appContext),
-            deleteUserDatabase = { userId -> plants.closeAndDelete(userId) },
-        )
-        plants = PlantDatabases(appContext).accountGate(graph.api, graph.accountSession)
-        connectivity = Connectivity(appContext)
+        // Граф сессии и opener per-user баз — на процесс (Application, фикс M6
+        // VAL-SHELL-003): пересоздание Activity конфигурацией (поворот, масштаб
+        // шрифта) переиспользует их вместо повторного открытия DataStore-файлов
+        // того же процесса (второй инстанс — IllegalStateException).
+        val app = application as GreenThumbApplication
+        // Connectivity — ресурс Activity (architecture.md §9): колбэк сети
+        // снимается при уничтожении экрана, поэтому создаётся здесь, а не в
+        // Application.
+        connectivity = Connectivity(applicationContext)
         setContent {
-            App(graph.manager, connectivity, plants, graph.settings)
+            App(app.sessionGraph.manager, connectivity, app.plantGate, app.sessionGraph.settings)
         }
     }
 

@@ -71,8 +71,12 @@ fun App(
     // [AppLocalizedContent] пересоздаётся при смене языка, и LaunchedEffect
     // внутри перезапустил бы startup() (сплеш-вспышка + повторный me-запрос;
     // транзиентный сбой выкинул бы на логин). Перекомпоновка подписей сессию
-    // не трогает (Stage 6 п.5, VAL-I18N-004/006).
-    LaunchedEffect(Unit) { session.startup() }
+    // не трогает (Stage 6 п.5, VAL-I18N-004/006). startupIfNeeded, а не
+    // startup(): на Android пересоздание Activity (поворот, масштаб шрифта)
+    // монтирует новый состав UI поверх того же менеджера (граф — на процесс,
+    // architecture.md §9) — инициализированная сессия не перезапускается
+    // (фикс M6 VAL-SHELL-003).
+    LaunchedEffect(Unit) { session.startupIfNeeded() }
     AppEnvironment(customAppLocale = languagePreference?.wire) {
         GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
             val state by session.state.collectAsState()
