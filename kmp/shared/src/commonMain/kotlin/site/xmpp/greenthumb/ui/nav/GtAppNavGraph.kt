@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,7 +28,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
+import site.xmpp.greenthumb.core.storage.ThemePreference
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.PrimaryButton
@@ -72,6 +75,7 @@ public fun GtAppNavGraph(
     session: SessionManager,
     connectivity: Connectivity,
     plants: PlantRepositoryOpener,
+    settings: AppPreferencesStore,
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -103,7 +107,7 @@ public fun GtAppNavGraph(
         }
         composable(NavRoutes.TABS_PROFILE) {
             TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
-                InterimProfileScreen(session = session)
+                InterimProfileScreen(session = session, settings = settings)
             }
         }
         composable(NavRoutes.ADD_PLANT) {
@@ -257,11 +261,14 @@ private fun InterimLoginScreen(session: SessionManager) {
 /**
  * Промежуточный профиль: выход из скелета — единственный UI-триггер выхода
  * до Stage 7 (screen-profile портит все настройки). Держит матрицу выхода
- * (VAL-DATA-008) доступной из UI.
+ * (VAL-DATA-008) доступной из UI. Дев-переключатель темы (Stage 6 п.3) —
+ * поверхность верификации light/dark/auto (VAL-THEME-002 и ручное
+ * переключение в харнессе); заменяется пикером Stage 7 (screen-profile).
  */
 @Composable
-private fun InterimProfileScreen(session: SessionManager) {
+private fun InterimProfileScreen(session: SessionManager, settings: AppPreferencesStore) {
     val scope = rememberCoroutineScope()
+    val themePreference by settings.theme.collectAsState(initial = null)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -270,6 +277,25 @@ private fun InterimProfileScreen(session: SessionManager) {
         Spacer(modifier = Modifier.height(Spacing.xxl))
         PlaceholderHeader(title = NavRoutes.TABS_PROFILE, note = "настройки профиля — Stage 7")
         Spacer(modifier = Modifier.height(Spacing.lg))
+        SecondaryButton(
+            // null (= ключ ещё не прочитан) показывается и циклится как auto —
+            // дефолт RN. Цикл auto → light → dark → auto; выбор пишется в
+            // AppSettings (greenthumb_theme) и переживает рестарт (VAL-STOR-002).
+            text = "Theme: ${themePreference?.wire ?: ThemePreference.Auto.wire} (dev)",
+            onClick = {
+                scope.launch {
+                    settings.setTheme(
+                        when (themePreference) {
+                            ThemePreference.Light -> ThemePreference.Dark
+                            ThemePreference.Dark -> ThemePreference.Auto
+                            ThemePreference.Auto, null -> ThemePreference.Light
+                        }
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
         SecondaryButton(
             text = "Sign out",
             onClick = { scope.launch { session.signOut() } },
