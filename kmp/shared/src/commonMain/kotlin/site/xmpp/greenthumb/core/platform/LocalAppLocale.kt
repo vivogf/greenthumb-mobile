@@ -15,13 +15,21 @@ import androidx.compose.runtime.ProvidedValue
  *
  * `provides(value)` не просто подставляет CompositionLocal: actual'ы
  * ПЕРЕЗАПИСЫВАЮТ платформенное состояние, из которого читают строки
- * `stringResource`/`pluralStringResource`:
+ * `stringResource`/`pluralStringResource`, И публикуют наблюдаемое значение:
  * - androidMain — `Configuration.setLocale` + `resources.updateConfiguration`
- *   (ресурсы читают конфигурацию контекста);
- * - jvmMain — `Locale.setDefault` (ресурсы desktop читают дефолтную локаль JVM).
+ *   (ресурсы читают конфигурацию контекста) + CompositionLocal (см. actual);
+ * - jvmMain — `Locale.setDefault` (ресурсы desktop читают дефолтную локаль JVM)
+ *   + CompositionLocal.
  *
- * Смена языка — `key(customAppLocale)` в [AppEnvironment] вокруг контента:
- * дерево перекомпоновывается заново, включая плюральные формы.
+ * Требование наблюдаемости (VAL-I18N-004/006): `current` обязан читаться из
+ * состояния Compose, меняющегося в `provides`, — иначе [AppLocalizedContent]
+ * не перекомпонуется, `key(locale)` не пересчитается, и подписи останутся на
+ * старом языке до перемонтирования поддерева (мутации глобального
+ * `Locale`/того же экземпляра `Configuration` Compose не наблюдает).
+ *
+ * Единственный `key(customAppLocale)` стоит в [AppLocalizedContent] вокруг
+ * локализованного контента (исправление VAL-I18N-006): rememberNavController,
+ * back stack и `session.startup()` живут вне ключа.
  */
 public expect object LocalAppLocale {
     public val current: String

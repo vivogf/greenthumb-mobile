@@ -66,6 +66,12 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  * прогонов — двойник opener'а, а не продукт; после фикса M6 (экран не
  * закрывает общий репозиторий, opener — AccountPlantGate) двойник
  * повторяет прод-семантику кэша, и закрытая БД в createFlow недостижима.
+ *
+ * Фикстура дашборд-кейса стабилизирована (раунд 1 m6: ожидаемо редкий
+ * «лишнего refresh нет expected:<0> but was:<1>»): первый sync дашборда
+ * (onFirstShow → refresh) оседает до capture счётчика — легитимная
+ * сетевая механика, а не перемонтирование данных; равенство счётчика
+ * после смены языка осталось строгим.
  */
 @OptIn(ExperimentalTestApi::class)
 class LocaleNavigationParityTest {
@@ -293,6 +299,13 @@ class LocaleNavigationParityTest {
             // Старт: сессия решена (me → 200), дашборд с вкладками на ru.
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.meCount == 1 }
             waitUntilAtLeastOneExists(hasText("Растения"), TIMEOUT)
+            // Первый sync дашборда (onFirstShow → refresh) асинхронный —
+            // ожидаем его осадки ДО ухода на «Профиль», иначе in-flight
+            // refresh отменяется размонтированием экрана и абсолютный счётчик
+            // plantsCount недетерминирован (раунд 1 m6: expected 0 but was 1).
+            // Поведение сети не ослабляется: refresh дашборда легитимен,
+            // ждём его завершения.
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.plantsCount >= 1 }
             onNodeWithText("Профиль").performClick()
             waitUntilAtLeastOneExists(hasText("tabs/profile"), TIMEOUT)
             onNodeWithText("tabs/dashboard").assertDoesNotExist()
@@ -338,6 +351,13 @@ class LocaleNavigationParityTest {
             }
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.meCount == 1 }
             waitUntilAtLeastOneExists(hasText("Растения"), TIMEOUT)
+            // Первый sync дашборда асинхронный: осадить ДО capture, иначе
+            // счётчик меняется между capture и сменой языка — ложный красный
+            // «лишнего refresh нет expected:<0> but was:<1>» (раунд 1 m6).
+            // Утверждение не ослабляется: после осадки первый refresh больше
+            // не повторяется, и равенство ниже по-прежнему доказывает, что
+            // смена языка НЕ перемонтирует данные.
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.plantsCount >= 1 }
             val plantsBefore = graph.server.plantsCount
 
             runBlocking { graph.settings.setLanguage(AppLanguage.En) }
