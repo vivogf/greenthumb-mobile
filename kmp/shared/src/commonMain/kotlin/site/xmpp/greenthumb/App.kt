@@ -46,11 +46,12 @@ import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
  * LocalSystemTheme обновляется опросом.
  *
  * Язык (Stage 6 п.4–5): [AppEnvironment] вокруг всего контента — preference из
- * AppSettings (`greenthumb_language`; null = системная) + key() на смену:
- * строки ресурсов (values/strings.xml en + values-ru) перекомпоновываются
- * без рестарта. Старт сессии — вне key()-поддерева: смена языка не
- * перезапускает [SessionManager.startup] (VAL-I18N-004 — подписи меняются
- * немедленно, без сплеша и повторного me-запроса).
+ * AppSettings (`greenthumb_language`; null = системная) + CompositionLocal.
+ * key() на смену языка НЕ здесь, а в [AppLocalizedContent] вокруг локализованного
+ * UI ([site.xmpp.greenthumb.ui.nav.GtAppNavGraph]): NavHost и back stack живут
+ * вне ключа, смена языка не сбрасывает выбранную вкладку и не перезапускает
+ * сессию (VAL-I18N-006). Старт сессии — вне [AppEnvironment] так же по другой
+ * причине: она запускается один раз на жизнь процесса.
  */
 @Composable
 fun App(
@@ -66,10 +67,11 @@ fun App(
     // key(customAppLocale) внутри — перекомпоновка всех подписей при смене языка.
     val languagePreference by settings.language.collectAsState(initial = null)
     // Единственный запуск стартовой последовательности на жизнь процесса —
-    // ВНЕ [AppEnvironment]: её key(customAppLocale) пересоздаёт поддерево при
-    // смене языка, и LaunchedEffect внутри перезапустил бы startup() (сплеш-
-    // вспышка + повторный me-запрос; транзиентный сбой выкинул бы на логин).
-    // Перекомпоновка подписей сессию не трогает (Stage 6 п.5, VAL-I18N-004).
+    // ВНЕ [AppEnvironment]: поддерево под key(customAppLocale) в
+    // [AppLocalizedContent] пересоздаётся при смене языка, и LaunchedEffect
+    // внутри перезапустил бы startup() (сплеш-вспышка + повторный me-запрос;
+    // транзиентный сбой выкинул бы на логин). Перекомпоновка подписей сессию
+    // не трогает (Stage 6 п.5, VAL-I18N-004/006).
     LaunchedEffect(Unit) { session.startup() }
     AppEnvironment(customAppLocale = languagePreference?.wire) {
         GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
