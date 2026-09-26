@@ -44,6 +44,7 @@ import site.xmpp.greenthumb.core.storage.SecureKeyValueStore
 import site.xmpp.greenthumb.core.storage.SecureStoreKeys
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.ThemePreference
+import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 
@@ -62,8 +63,9 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  * вернулся на место) — профиль-кейс падал на assertExists("tabs/profile")
  * (маршрут сбрасывался на дашборд); дашборд-кейс был зелёным в обоих
  * состояниях. Механика падения «Database is closed» у ранних красных
- * прогонов — двойник opener'а, а не продукт: прод-opener создаёт свежий
- * репозиторий на каждый open(), тест теперь повторяет это.
+ * прогонов — двойник opener'а, а не продукт; после фикса M6 (экран не
+ * закрывает общий репозиторий, opener — AccountPlantGate) двойник
+ * повторяет прод-семантику кэша, и закрытая БД в createFlow недостижима.
  */
 @OptIn(ExperimentalTestApi::class)
 class LocaleNavigationParityTest {
@@ -245,23 +247,24 @@ class LocaleNavigationParityTest {
         val client = ApiClient(MockEngine(server.handler), InMemoryRecoveryProvider(secure, settings))
         val api = GreenThumbApi(client)
         val session = SessionManager(secure, settings, NoHandoff(), api)
-        // Прод-семантика opener'а (PlantDatabases.openerFor): СВЕЖИЙ
-        // репозиторий (новое Room-соединение) на каждый open(userId).
-        // DisposableEffect экрана закрывает репозиторий при выходе из
-        // композиции; key(locale) пересоздаёт поддерево экрана, следующий
-        // open() обязан отдать живой экземпляр — иначе закрытая БД падает
-        // в createFlow. Это и есть механика бага VAL-I18N-006: старый
-        // AppEnvironment{key} ронял приложение в такой же точке.
+        // Прод-семантика opener'а — AccountPlantGate (GreenThumbApplication /
+        // desktop main.kt, с bcc7adf): ОДИН кэшированный репозиторий на
+        // пользователя на процесс; закрытие соединения и удаление базы —
+        // только при выходе/смене аккаунта (closeAndDelete). Экран базу под
+        // живым наблюдением не закрывает (фикс M6 FATAL «Database is
+        // closed»), поэтому двойник обязан кэшировать инстанс: повторный
+        // open() после ухода с вкладки отдаёт живой репозиторий, второй Room
+        // на тот же файл не открывается.
+        val gate = AccountPlantGate(
+            openDatabase = { userId -> databases.open(userId) },
+            deleteDatabase = { userId -> databases.delete(userId) },
+            api = api,
+            session = AccountSession(),
+        )
         val repos = mutableListOf<PlantRepository>()
         val opener = PlantRepositoryOpener { userId ->
-            PlantRepository(
-                userId = userId,
-                db = databases.open(userId),
-                api = api,
-                deleteFiles = { id -> databases.delete(id) },
-                session = AccountSession(),
-            ).also { repo ->
-                synchronized(repos) { repos.add(repo) }
+            gate.open(userId).also { repo ->
+                synchronized(repos) { if (repos.none { it === repo }) repos.add(repo) }
             }
         }
         val connectivity = Connectivity(Any())

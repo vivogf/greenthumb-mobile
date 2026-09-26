@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -93,10 +96,10 @@ public class PlantRepository(
     private var closed = false
 
     public fun observePlants(): Flow<List<PlantDto>> =
-        db.plants().observeAll().map { rows -> rows.map { it.toDto() } }
+        observeWhileOpen { db.plants().observeAll().map { rows -> rows.map { it.toDto() } } }
 
     public fun observePending(): Flow<List<PendingMutationEntity>> =
-        db.pendingMutations().observeAll()
+        observeWhileOpen { db.pendingMutations().observeAll() }
 
     /**
      * Id растений с открытым журналом. Экраны рисуют [UnsavedMutation.LABEL]
@@ -117,6 +120,23 @@ public class PlantRepository(
     /** Баннер от строки `sync_meta`. [nowMillis] — инжектированные часы. */
     public suspend fun syncBanner(nowMillis: Long = clocks.nowMillis()): SyncBanner =
         syncBanner(lastSyncedAtMillis(), nowMillis, clocks.zone)
+
+    /**
+     * Наблюдение с учётом жизненного цикла владельца (фикс M6 FATAL
+     * «Database is closed», прод-трасса user-testing раунда 1): обращение к
+     * Room — при КОЛЛЕКЦИИ, а не при создании Flow. Room проверяет закрытие
+     * жадно (`InvalidationTracker.createFlow` → `throwIfClosed`), поэтому
+     * прежнее создание наблюдения в теле комозабла падало при поздней
+     * рекомпозиции по уже закрытому репозиторию; `catch` на Flow от ошибки
+     * создания не спасает.
+     *
+     * Ошибка при закрытом репозитории ([closed] — владелец закрыл его при
+     * выходе/смене аккаунта) тихо завершает Flow: это не сбой данных, а конец
+     * наблюдения. Ошибка живой базы доходит до коллекционера — пустым
+     * списком не маскируется (architecture §7).
+     */
+    private fun <T> observeWhileOpen(create: () -> Flow<T>): Flow<T> =
+        flow { emitAll(create()) }.catch { if (!closed) throw it }
 
     /**
      * GET → транзакция → sync_meta. Бросает [ApiError] (и транспорт), не
