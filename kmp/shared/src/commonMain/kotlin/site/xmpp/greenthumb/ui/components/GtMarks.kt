@@ -135,3 +135,78 @@ fun GtPersonMark(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * Капля полива — Ionicons `water` (слайд 2 welcome). Контур капли (скруглённый
+ * клин от острия внизу к широкой дуге наверху) тем же простым стилем.
+ */
+@Composable
+fun GtWaterDropMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawArc(
+            color = tint,
+            startAngle = 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.2f, size.height * 0.2f),
+            size = Size(size.width * 0.6f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.2f, size.height * 0.45f),
+            end = Offset(size.width * 0.5f, size.height * 0.88f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.8f, size.height * 0.45f),
+            end = Offset(size.width * 0.5f, size.height * 0.88f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Колокольчик напоминаний — Ionicons `notifications` (слайд 3 welcome). */
+@Composable
+fun GtBellMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Купол колокола: верхняя половина окружности + расширяющиеся стенки.
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.24f, size.height * 0.2f),
+            size = Size(size.width * 0.52f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.24f, size.height * 0.45f),
+            end = Offset(size.width * 0.16f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.76f, size.height * 0.45f),
+            end = Offset(size.width * 0.84f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.16f, size.height * 0.68f),
+            end = Offset(size.width * 0.84f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        // Язычок.
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.06f,
+            center = Offset(size.width * 0.5f, size.height * 0.82f),
+            style = stroke,
+        )
+    }
+}

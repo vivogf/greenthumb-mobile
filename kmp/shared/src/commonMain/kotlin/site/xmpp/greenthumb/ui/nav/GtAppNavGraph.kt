@@ -38,6 +38,7 @@ import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
+import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -91,7 +92,19 @@ public fun GtAppNavGraph(
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
         composable(NavRoutes.WELCOME) {
-            AppLocalizedContent { PlaceholderScreen(title = NavRoutes.WELCOME, note = "карусель интро — Stage 7") }
+            AppLocalizedContent {
+                WelcomeScreen(
+                    settings = settings,
+                    onFinish = {
+                        navController.navigate(NavRoutes.LOGIN) {
+                            // Единственное законное завершение карусели — вход:
+                            // интро не возвращается по Back после завершения
+                            // (RN router.replace — не push).
+                            popUpTo(NavRoutes.WELCOME) { inclusive = true }
+                        }
+                    },
+                )
+            }
         }
         composable(NavRoutes.LOGIN) {
             AppLocalizedContent { InterimLoginScreen(session = session) }
