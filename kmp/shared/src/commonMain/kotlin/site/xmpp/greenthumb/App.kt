@@ -1,337 +1,81 @@
 package site.xmpp.greenthumb
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import kotlin.time.Clock
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.launch
-import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
-import site.xmpp.greenthumb.data.PlantEffect
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
-import site.xmpp.greenthumb.data.RefreshCoordinator
-import site.xmpp.greenthumb.data.UnsavedMutation
-import site.xmpp.greenthumb.data.RefreshOutcome
-import site.xmpp.greenthumb.data.SyncBanner
-import site.xmpp.greenthumb.data.SyncMetaSource
-import site.xmpp.greenthumb.ui.components.SecondaryButton
-import site.xmpp.greenthumb.ui.screens.gallery.ComponentGalleryScreen
+import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
+import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
+import site.xmpp.greenthumb.ui.nav.GtKeyNotFoundScreen
+import site.xmpp.greenthumb.ui.nav.GtSplash
+import site.xmpp.greenthumb.ui.nav.NavRoutes
+import site.xmpp.greenthumb.ui.nav.StartRoute
+import site.xmpp.greenthumb.ui.nav.resolveStartRoute
+import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
-import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
- * Стартовая поверхность сессии (Stage 3 п.4): крутит [SessionManager.startup]
- * в remember-корутине и показывает итог (SignedIn/Offline/SignedOut/ошибка
- * handoff) с кнопкой выхода. Заменяется реальной оболочкой приложения в
- * Stage 6; поведенческая сессия — в [SessionManager] (jvmTest), здесь только
- * маппинг на экраны.
+ * Корень приложения (Stage 6 п.1–2): тема + стартовая маршрутизация + граф
+ * навигации. Заменяет скелет Stage 3/4: статус-строки сессии и dev-форма
+ * входа переехали в маршруты ([site.xmpp.greenthumb.ui.nav.GtAppNavGraph]),
+ * временная строка «Offline…» НЕ перенесена (наблюдение M4 user-testing —
+ * полоса офлайна и replay живут на вкладке дашборда и обновляются без
+ * рестарта).
  *
- * Полоса «нет сети» питается от [connectivity] (Stage 4 п.8) — она отдельна
- * от «данные несвежие». Баннер «обновлено в HH:mm» считается от
- * `sync_meta` ([SyncBanner], часы системные на этой поверхности).
- * Список — [PlantRepository.observePlants]: ошибка refresh не заменяет его
- * полноэкранной ошибкой. Здесь же видно, что android-actual
- * ([android.net.ConnectivityManager]) реально отдаёт переходы.
+ * Стартовая маршрутизация — [resolveStartRoute] (порт RN `app/index.tsx`):
+ * гейт готовности → индикатор без редиректа; пользователь → дашборд;
+ * иначе интро; иначе логин. Поверхности [SessionState.KeyNotFound] и
+ * [SessionState.HandoffImportFailed] — вне графа (KMP-состояния Stage 3,
+ * кнопки — Stage 7). Тема light/dark/auto — фича kmp-theme-runtime (п.3);
+ * до неё светлая.
  */
 @Composable
-fun App(session: SessionManager, connectivity: Connectivity, plants: PlantRepositoryOpener) {
-    // Тема галереи живёт здесь, чтобы переключатель менял весь GreenThumbTheme.
-    // Вне галереи остаётся светлая — как дефолт скелета до Stage 6.
-    var showGallery by remember { mutableStateOf(false) }
-    var darkTheme by remember { mutableStateOf(false) }
-    GreenThumbTheme(darkTheme = darkTheme) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Surface(modifier = Modifier.fillMaxSize()) {
-        val state by session.state.collectAsState()
-        val online by connectivity.isOnline.collectAsState()
-        // Единственный запуск стартовой последовательности при появлении App:
-        // без него state навсегда остаётся null («Session: starting…»).
-        LaunchedEffect(Unit) { session.startup() }
-        val scope = rememberCoroutineScope()
-        var recoveryInput by remember { mutableStateOf("") }
-        var signInError by remember { mutableStateOf("") }
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-            SecondaryButton(
-                text = "Component gallery",
-                onClick = { showGallery = true },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(text = "GreenThumb", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (!online) {
-                Text(
-                    text = "Нет подключения к интернету",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            when (val current = state) {
-                null -> Text(text = "Session: starting…")
-                is SessionState.SignedIn ->
-                    Text(
-                        text = "Signed in: ${current.user.name ?: "anonymous"} " +
-                            "(id=${current.user.id}, key=***********************************…)",
-                    )
-                is SessionState.Offline ->
-                    Text(
-                        text = "Offline: ${current.user.name ?: "anonymous"} " +
-                            "(id=${current.user.id}) — cached_user; no network",
-                    )
-                is SessionState.SignedOut -> Text(text = "Signed out: recovery key absent or session invalid")
-                is SessionState.KeyNotFound ->
-                    // Экран «ключ не найден» (Stage 3 п.6): строка — заголовок
-                    // из строк i18n (RU-локаль, полный экран и локализация — Stage 6).
-                    Text(
-                        text = "Аккаунт не найден на устройстве. " +
-                            "Ваш аккаунт хранится на сервере — введите ключ восстановления вручную " +
-                            "или создайте новый аккаунт (старый ключ восстановить нельзя).",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                is SessionState.HandoffImportFailed ->
-                    Text(
-                        text = "Handoff import failed. Recovery key to copy:\n${current.recoveryKey}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-            }
-
-            val sessionUserId = when (val current = state) {
-                is SessionState.SignedIn -> current.user.id
-                is SessionState.Offline -> current.user.id
-                else -> null
-            }
-            if (sessionUserId != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                SessionPlants(
-                    userId = sessionUserId,
-                    onlineSession = state is SessionState.SignedIn,
-                    online = online,
-                    isOnline = connectivity.isOnline,
-                    opener = plants,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            if (state is SessionState.SignedOut || state is SessionState.KeyNotFound) {
-                OutlinedTextField(
-                    value = recoveryInput,
-                    onValueChange = {
-                        recoveryInput = it
-                        signInError = ""
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(text = "Recovery key") },
-                    singleLine = true,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = {
-                    val key = recoveryInput.trim()
-                    if (key.isEmpty()) return@Button
-                    scope.launch {
-                        signInError = ""
-                        try {
-                            session.signInWithRecoveryKey(key)
-                            recoveryInput = ""
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: ApiError) {
-                            signInError = "Sign-in failed"
-                        }
-                    }
-                }) {
-                    Text(text = "Sign in")
-                }
-                if (signInError.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = signInError)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(onClick = { session.retryStartup() }) {
-                    Text(text = "Retry session")
-                }
-            }
-            if (state != null && state !is SessionState.HandoffImportFailed) {
-                Spacer(modifier = Modifier.height(8.dp))
-                // Выход — suspend (сеть + DataStore + файл базы).
-                Button(onClick = { scope.launch { session.signOut() } }) {
-                    Text(text = "Sign out")
-                }
-            }
-        }
-            }
-            if (showGallery) {
-                ComponentGalleryScreen(
-                    darkTheme = darkTheme,
-                    onDarkThemeChange = { darkTheme = it },
-                    onClose = {
-                        darkTheme = false
-                        showGallery = false
-                    },
-                )
-            }
-        }
-    }
-}
-
-/**
- * Список из Room для скелета (VAL-OFF-001 / VAL-DATA-011). Оболочка Stage 6
- * заменит это экраном. «Другой экран» — смена вкладки: данные уже новые,
- * анимация их не держит.
- */
-@Composable
-private fun SessionPlants(
-    userId: String,
-    onlineSession: Boolean,
-    online: Boolean,
-    isOnline: Flow<Boolean>,
-    opener: PlantRepositoryOpener,
+fun App(
+    session: SessionManager,
+    connectivity: Connectivity,
+    plants: PlantRepositoryOpener,
+    settings: AppPreferencesStore,
 ) {
-    val repo = remember(userId) { opener.open(userId) }
-    DisposableEffect(repo) {
-        onDispose { repo.close() }
-    }
-    // Закрытие базы на выходе завершает Flow ошибкой — не роняем композицию.
-    val plants by repo.observePlants().catch { emit(emptyList()) }.collectAsState(emptyList())
-    val unsavedIds by repo.observeUnsavedPlantIds().catch { emit(emptySet()) }.collectAsState(emptySet())
-    var refreshFailed by remember(userId) { mutableStateOf(false) }
-    var banner by remember(userId) { mutableStateOf<SyncBanner?>(null) }
-    var effectLabel by remember(userId) { mutableStateOf("") }
-    var actionNote by remember(userId) { mutableStateOf("") }
-    var otherScreen by remember(userId) { mutableStateOf(false) }
-    var sawOffline by remember(userId) { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(repo) {
-        repo.effects.collect { effect ->
-            effectLabel = when (effect) {
-                is PlantEffect.WaterAll -> "Эффект: полив всех (${effect.plantIds.size})"
-                is PlantEffect.Water -> "Эффект: полив"
-                is PlantEffect.Added -> "Эффект: добавление"
-                is PlantEffect.Updated -> "Эффект: изменение"
-                is PlantEffect.Deleted -> "Эффект: удаление"
-            }
+    GreenThumbTheme(darkTheme = false) {
+        val state by session.state.collectAsState()
+        val introSeen by settings.introSeen.collectAsState(initial = null)
+        // Единственный запуск стартовой последовательности при появлении App:
+        // без него state навсегда остаётся null («гейт загрузки»).
+        LaunchedEffect(Unit) { session.startup() }
+        when (val route = resolveStartRoute(state, introSeen)) {
+            StartRoute.Loading -> GtSplash()
+            is StartRoute.HandoffImportFailed ->
+                GtHandoffImportFailedScreen(recoveryKey = route.recoveryKey)
+            StartRoute.KeyNotFound -> GtKeyNotFoundScreen()
+            StartRoute.Dashboard -> GtAppNavGraph(
+                startDestination = NavRoutes.TABS_DASHBOARD,
+                sessionUserId = state.sessionUserIdOrNull(),
+                onlineSession = state is SessionState.SignedIn,
+                session = session,
+                connectivity = connectivity,
+                plants = plants,
+            )
+            StartRoute.Welcome -> GtAppNavGraph(
+                startDestination = NavRoutes.WELCOME,
+                sessionUserId = null,
+                onlineSession = false,
+                session = session,
+                connectivity = connectivity,
+                plants = plants,
+            )
+            StartRoute.Login -> GtAppNavGraph(
+                startDestination = NavRoutes.LOGIN,
+                sessionUserId = null,
+                onlineSession = false,
+                session = session,
+                connectivity = connectivity,
+                plants = plants,
+            )
         }
     }
-    LaunchedEffect(repo, onlineSession) {
-        if (!onlineSession) {
-            banner = repo.syncBanner()
-            return@LaunchedEffect
-        }
-        if (online) {
-            val replay = runCatching { repo.replayPending() }
-            if (replay.isFailure) refreshFailed = true
-        }
-        val coordinator = RefreshCoordinator(
-            syncMeta = SyncMetaSource { repo.lastSyncedAtMillis() },
-            nowMillis = { Clock.System.now().toEpochMilliseconds() },
-            refresh = { repo.refresh() },
-        )
-        if (coordinator.onFirstShow() is RefreshOutcome.Failed) refreshFailed = true
-        banner = repo.syncBanner()
-        coordinator.attachConnectivity(this, isOnline)
-    }
-    LaunchedEffect(online) {
-        if (!online) {
-            sawOffline = true
-            return@LaunchedEffect
-        }
-        if (!sawOffline) return@LaunchedEffect
-        val replay = runCatching { repo.replayPending() }
-        if (replay.isFailure) refreshFailed = true
-        banner = repo.syncBanner()
-    }
-
-    val shown = banner
-    if (shown != null && shown.visible && shown.syncedAtLabel != null) {
-        val prefix = if (shown.showOfflineIcon) "офлайн · " else ""
-        Text(text = "${prefix}Обновлено в ${shown.syncedAtLabel}")
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-    if (refreshFailed) {
-        Text(text = "Не удалось обновить")
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-    if (effectLabel.isNotEmpty()) {
-        Text(text = effectLabel)
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-    if (actionNote.isNotEmpty()) {
-        Text(text = actionNote)
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-    if (otherScreen) {
-        Text(text = "Другой экран")
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = { otherScreen = false }) {
-            Text(text = "К списку")
-        }
-    } else {
-        if (plants.isEmpty()) {
-            Text(text = "Список пуст")
-        } else {
-            plants.forEach { plant ->
-                val mark = if (plant.id in unsavedIds) " · ${UnsavedMutation.LABEL}" else ""
-                Text(text = "Plant: ${plant.name} · ${plant.lastWateredDate}$mark")
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(onClick = {
-                    scope.launch {
-                        actionNote = confirmedSaveError(runCatching { repo.water(plant.id) }.exceptionOrNull())
-                    }
-                }) {
-                    Text(text = "Полить")
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        if (onlineSession) {
-            Button(onClick = {
-                scope.launch {
-                    actionNote = confirmedSaveError(runCatching { repo.waterAll() }.exceptionOrNull())
-                }
-            }) {
-                Text(text = "Полить все")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        OutlinedButton(onClick = { otherScreen = true }) {
-            Text(text = "Другой экран")
-        }
-    }
-}
-
-/** Сеть и отмена — не ошибка сохранения: карточка уже помечена «не сохранено». */
-private fun confirmedSaveError(error: Throwable?): String = when (error) {
-    null, is ApiError.Network, is ApiError.Timeout, is CancellationException -> ""
-    else -> "Ошибка сохранения"
 }

@@ -39,6 +39,8 @@ kotlin {
             implementation(libs.sqliteBundled)
             // Даты полива и баннер «обновлено в HH:mm» (локальный день, не UTC).
             implementation(libs.kotlinxDatetime)
+            // Навигация Stage 6 (architecture.md §9): org.jetbrains.androidx.navigation 2.9.2.
+            implementation(libs.navigationCompose)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)
