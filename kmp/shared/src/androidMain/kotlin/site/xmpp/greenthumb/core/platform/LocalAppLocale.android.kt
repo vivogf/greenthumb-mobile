@@ -3,28 +3,32 @@ package site.xmpp.greenthumb.core.platform
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ProvidedValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
 /**
- * Android-актуал по рецепту документации CMP «Manage local resource environment»:
- * локаль пишется в конфигурацию активити (`Configuration.setLocale`) и в ресурсы
- * контекста (`resources.updateConfiguration`) — именно их читают
- * `stringResource`/`pluralStringResource` на Android.
+ * Android-актуал локали приложения (Stage 6 п.4 + M6b VAL-I18N-007).
  *
  * Наблюдаемость (исправление VAL-I18N-004/006, Android-поверхность — красные
- * доказательства user-testing m6 раунд 1): локаль публикуется ещё и
- * CompositionLocal'ом [LocalAppLocale] — как на jvm. Первый вариант актуала
- * возвращал `LocalConfiguration.provides(configuration)` — тот же экземпляр,
- * что уже предоставлен платформенной обвязкой: равные значения CompositionLocal
- * инвалидаций не дают, а `current` читал глобальный `Locale.getDefault()`, не
- * наблюдаемый Compose. Итог: `AppLocalizedContent` не перекомпоновывался,
- * `key(locale)` не пересчитывался, подписи вкладок оставались на старом языке
- * до перемонтирования вкладки (кнопка языка при этом менялась — она под
- * другим recompose-скоупом). Теперь смена значения локали инвалидирует
- * читателей `current`; перечитывание строк обеспечивают мутации конфигурации
- * выше + свежая композиция под ключом.
+ * доказательства user-testing m6 раунд 1): локаль публикуется
+ * CompositionLocal'ом [LocalAppLocale]; смена значения инвалидирует читателей
+ * `current` (AppLocalizedContent и его key(locale)).
+ *
+ * Платформенная синхронизация — СИНХРОННО, вне Compose-прохода (M6b): мутация
+ * `Configuration.setLocale` + `resources.updateConfiguration` ВНУТРИ
+ * `provides` удалена — она не наблюдаема Compose и стирается каждой доставкой
+ * конфигурации (uiMode-переключения), а remembered-окружение строк Compose
+ * Resources пересобирается от глобального LocaleList: свежая композиция
+ * (ремаунт вкладки) могла прочитать системный EN при сохранённом ru
+ * (интермиттент 2/5, evidence r2-anomaly-en-tabs-analysis.txt; тот же класс
+ * дефекта, против которого architecture.md §9 предупреждает «не полагаться
+ * только на одноразовую мутацию Resources в Compose-проходе»). С M6b:
+ *  - [AppLocale.remember]/[AppLocale.applyToConfiguration] вписывают выбранную
+ *    локаль в конфигурацию КАЖДОЙ доставки (MainActivity.onCreate/
+ *    onConfigurationChanged, до dispatch в Compose);
+ *  - здесь — только синхронный `Locale.setDefault` (путь переключения языка
+ *    в рантайме без доставки конфигурации: свежая композиция после смены
+ *    значения читает глобальную локаль детерминированно);
+ *  - мутаций Configuration/Resources из композиции нет вовсе.
  */
 public actual object LocalAppLocale {
     private var default: Locale? = null
@@ -44,12 +48,13 @@ public actual object LocalAppLocale {
             null -> default!!
             else -> Locale.forLanguageTag(value)
         }
+        // Детерминированный слой M6b: remember — фиксация выбора для будущих
+        // доставок конфигурации; setDefault — немедленная видимость выбранного
+        // языка в свежих композициях после смены языка (конфигурация каждой
+        // доставки уже несёт этот выбор — MainActivity).
+        AppLocale.remember(new)
         Locale.setDefault(new)
-        val configuration = LocalConfiguration.current
-        configuration.setLocale(new)
-        val resources = LocalContext.current.resources
 
-        resources.updateConfiguration(configuration, resources.displayMetrics)
         return LocalAppLocale.provides(new.toString())
     }
 }
