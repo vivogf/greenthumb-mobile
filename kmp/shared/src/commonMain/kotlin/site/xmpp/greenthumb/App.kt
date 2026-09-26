@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import site.xmpp.greenthumb.core.platform.AppEnvironment
+import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
@@ -47,6 +48,10 @@ import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
  *
  * Язык (Stage 6 п.4–5): [AppEnvironment] вокруг всего контента — preference из
  * AppSettings (`greenthumb_language`; null = системная) + CompositionLocal.
+ * Платформенная синхронизация языка — вне Compose (M6b VAL-I18N-007):
+ * androidMain вписывает выбор в Configuration/LocaleList каждой доставки
+ * конфигурации (MainActivity/AppLocale), поэтому uiMode-переключения при
+ * невидимом Profile не возвращают подписи к системному языку (r2-anomaly).
  * key() на смену языка НЕ здесь, а в [AppLocalizedContent] вокруг локализованного
  * UI ([site.xmpp.greenthumb.ui.nav.GtAppNavGraph]): NavHost и back stack живут
  * вне ключа, смена языка не сбрасывает выбранную вкладку и не перезапускает
@@ -60,6 +65,12 @@ fun App(
     plants: PlantRepositoryOpener,
     settings: AppPreferencesStore,
 ) {
+    // M6b (VAL-I18N-007): синхронизация выбранной локали с платформой в корне
+    // тела — до детей. Android: чтение LocalConfiguration делает корень
+    // реактивным к каждой доставке конфигурации (в т.ч. display-ступеням
+    // мимо activity-колбэка) и переприменяет выбор ДО композиции подписей;
+    // desktop — no-op. Детали — [AppLocaleSyncRoot].
+    AppLocaleSyncRoot()
     val themePreference by settings.theme.collectAsState(initial = null)
     val systemDark = isSystemDarkTheme()
     // Локаль (Stage 6 п.4): preference из AppSettings (greenthumb_language) или

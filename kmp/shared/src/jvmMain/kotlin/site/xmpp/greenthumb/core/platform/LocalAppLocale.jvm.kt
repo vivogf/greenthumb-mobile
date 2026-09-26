@@ -6,9 +6,19 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import java.util.Locale
 
 /**
- * Desktop-актуал по рецепту документации CMP «Manage local resource environment»:
- * `Locale.setDefault` — дефолтную локаль JVM читают stringResource/pluralStringResource
- * на desktop (харнесс и UI-тесты).
+ * Desktop-актуал локали приложения (Stage 6 п.4 + M6b VAL-I18N-007).
+ *
+ * Ресурсы desktop (харнесс и UI-тесты) читают дефолтную локаль JVM:
+ * remembered ResourceEnvironment собирается от Locale.current →
+ * Locale.getDefault(). Синхронный `Locale.setDefault` в [provides] — источник
+ * языка строк desktop, как и в M6: переключение языка сразу видно свежим
+ * композициям, глобального состояния конфигураций (доставок) на desktop нет —
+ * аномалии Android здесь не бывает.
+ *
+ * Наблюдаемость (исправление VAL-I18N-004/006): локаль публикуется
+ * CompositionLocal'ом [LocalAppLocale]; смена значения инвалидирует читателей
+ * `current` (AppLocalizedContent и его key(locale)) — перекомпоновка подписей
+ * при смене языка не опирается на глобальные мутации.
  */
 public actual object LocalAppLocale {
     private var default: Locale? = null
