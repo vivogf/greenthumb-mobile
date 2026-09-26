@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
@@ -43,6 +44,11 @@ import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
  * смена uimode обновляет LocalConfiguration без пересоздания Activity
  * (`android:configChanges="uiMode"` в манифесте androidApp), на desktop
  * LocalSystemTheme обновляется опросом.
+ *
+ * Язык (Stage 6 п.4): [AppEnvironment] вокруг всего контента — preference из
+ * AppSettings (`greenthumb_language`; null = системная) + key() на смену:
+ * строки ресурсов (values/strings.xml en + values-ru) перекомпоновываются
+ * без рестарта.
  */
 @Composable
 fun App(
@@ -53,44 +59,50 @@ fun App(
 ) {
     val themePreference by settings.theme.collectAsState(initial = null)
     val systemDark = isSystemDarkTheme()
-    GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
-        val state by session.state.collectAsState()
-        val introSeen by settings.introSeen.collectAsState(initial = null)
-        // Единственный запуск стартовой последовательности при появлении App:
-        // без него state навсегда остаётся null («гейт загрузки»).
-        LaunchedEffect(Unit) { session.startup() }
-        when (val route = resolveStartRoute(state, introSeen)) {
-            StartRoute.Loading -> GtSplash()
-            is StartRoute.HandoffImportFailed ->
-                GtHandoffImportFailedScreen(recoveryKey = route.recoveryKey)
-            StartRoute.KeyNotFound -> GtKeyNotFoundScreen()
-            StartRoute.Dashboard -> GtAppNavGraph(
-                startDestination = NavRoutes.TABS_DASHBOARD,
-                sessionUserId = state.sessionUserIdOrNull(),
-                onlineSession = state is SessionState.SignedIn,
-                session = session,
-                connectivity = connectivity,
-                plants = plants,
-                settings = settings,
-            )
-            StartRoute.Welcome -> GtAppNavGraph(
-                startDestination = NavRoutes.WELCOME,
-                sessionUserId = null,
-                onlineSession = false,
-                session = session,
-                connectivity = connectivity,
-                plants = plants,
-                settings = settings,
-            )
-            StartRoute.Login -> GtAppNavGraph(
-                startDestination = NavRoutes.LOGIN,
-                sessionUserId = null,
-                onlineSession = false,
-                session = session,
-                connectivity = connectivity,
-                plants = plants,
-                settings = settings,
-            )
+    // Локаль (Stage 6 п.4): preference из AppSettings (greenthumb_language) или
+    // null = системная (RN-дефолт: язык устройства вне en/ru → фолбэк ресурсов en).
+    // key(customAppLocale) внутри — перекомпоновка всех подписей при смене языка.
+    val languagePreference by settings.language.collectAsState(initial = null)
+    AppEnvironment(customAppLocale = languagePreference?.wire) {
+        GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
+            val state by session.state.collectAsState()
+            val introSeen by settings.introSeen.collectAsState(initial = null)
+            // Единственный запуск стартовой последовательности при появлении App:
+            // без него state навсегда остаётся null («гейт загрузки»).
+            LaunchedEffect(Unit) { session.startup() }
+            when (val route = resolveStartRoute(state, introSeen)) {
+                StartRoute.Loading -> GtSplash()
+                is StartRoute.HandoffImportFailed ->
+                    GtHandoffImportFailedScreen(recoveryKey = route.recoveryKey)
+                StartRoute.KeyNotFound -> GtKeyNotFoundScreen()
+                StartRoute.Dashboard -> GtAppNavGraph(
+                    startDestination = NavRoutes.TABS_DASHBOARD,
+                    sessionUserId = state.sessionUserIdOrNull(),
+                    onlineSession = state is SessionState.SignedIn,
+                    session = session,
+                    connectivity = connectivity,
+                    plants = plants,
+                    settings = settings,
+                )
+                StartRoute.Welcome -> GtAppNavGraph(
+                    startDestination = NavRoutes.WELCOME,
+                    sessionUserId = null,
+                    onlineSession = false,
+                    session = session,
+                    connectivity = connectivity,
+                    plants = plants,
+                    settings = settings,
+                )
+                StartRoute.Login -> GtAppNavGraph(
+                    startDestination = NavRoutes.LOGIN,
+                    sessionUserId = null,
+                    onlineSession = false,
+                    session = session,
+                    connectivity = connectivity,
+                    plants = plants,
+                    settings = settings,
+                )
+            }
         }
     }
 }

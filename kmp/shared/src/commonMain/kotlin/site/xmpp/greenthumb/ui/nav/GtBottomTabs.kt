@@ -20,7 +20,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtPersonMark
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.nav_plants
+import site.xmpp.greenthumb.ui.res.nav_profile
 import site.xmpp.greenthumb.ui.theme.Spacing
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Высота панели вкладок — RN `app/(tabs)/_layout.tsx` (`height: 60`). В шкале
@@ -43,14 +47,21 @@ private val TabIconSize = 24.dp
  * `colors.primary`, неактивный `colors.mutedForeground` (слот
  * onSurfaceVariant), подпись 11/500 (typography.labelSmall).
  *
- * Подписи — EN-литералы до фичи kmp-i18n-resources (та же фича перенесёт
- * `nav.plants`/`nav.profile` в Compose Resources; RN `t('nav.plants')`).
+ * Подписи — Compose Resources `nav.plants`/`nav.profile` (RN `t('nav.plants')`;
+ * Stage 6 п.4, фича kmp-i18n-resources): рантайм-локаль задаёт [AppEnvironment].
  * Материал-icons в пинах миссии нет — метки рисуются ([GtLeafMark]/[GtPersonMark]),
  * tint приходит из темы, здесь цвет не собирается.
  */
-public enum class GtTab(public val route: String, public val title: String) {
-    Plants(NavRoutes.TABS_DASHBOARD, "Plants"),
-    Profile(NavRoutes.TABS_PROFILE, "Profile"),
+public enum class GtTab(public val route: String) {
+    Plants(NavRoutes.TABS_DASHBOARD),
+    Profile(NavRoutes.TABS_PROFILE),
+}
+
+/** Подпись вкладки из ресурсов (значение зависит от текущей локали). */
+@Composable
+private fun GtTab.label(): String = when (this) {
+    GtTab.Plants -> stringResource(Res.string.nav_plants)
+    GtTab.Profile -> stringResource(Res.string.nav_profile)
 }
 
 @Composable
@@ -88,7 +99,7 @@ public fun GtBottomTabs(
                     }
                     Spacer(modifier = Modifier.height(LabelGap))
                     Text(
-                        text = tab.title,
+                        text = tab.label(),
                         style = MaterialTheme.typography.labelSmall,
                         color = tint,
                     )
