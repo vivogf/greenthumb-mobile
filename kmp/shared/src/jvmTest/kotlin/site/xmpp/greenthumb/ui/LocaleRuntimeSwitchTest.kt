@@ -87,7 +87,8 @@ class LocaleRuntimeSwitchTest {
             onNodeWithText("My Profile").assertExists()
             onNodeWithText("1 day left").assertExists()
             onNodeWithText("3 days left").assertExists()
-            // Старые строки исчезли: key(customAppLocale) пересоздал дерево.
+            // Старые строки исчезли (перекомпоновка, а не наложение): локаль
+            // входит в ключ stringResource-состояния, старые строки уходят.
             onNodeWithText("Растения").assertDoesNotExist()
             onNodeWithText("Мой профиль").assertDoesNotExist()
             onNodeWithText("Остался 1 день").assertDoesNotExist()
@@ -113,7 +114,7 @@ class LocaleRuntimeSwitchTest {
             }
             onNodeWithText("Мой профиль").assertExists()
 
-            // null = «системная» (дефолт RN): key(null) пересоздаёт дерево, ресурсы
+            // null = «системная» (дефолт RN): CompositionLocal меняется, ресурсы
             // отдают системную локаль (en — фолбэк values/).
             locale = null
             waitForIdle()

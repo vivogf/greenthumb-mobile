@@ -27,6 +27,7 @@ import androidx.savedstate.read
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.network.ApiError
+import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppLanguage
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
@@ -67,6 +68,15 @@ public object NavRoutes {
  * VAL-INTRO-003 недостижима из логина напрямую — только из show-key, Stage 7).
  * Старт — [resolveStartRoute]; смена состояния сессии (вход/выход) пересоздаёт
  * граф с новым стартовым маршрутом — как RN-редирект с index-экрана.
+ *
+ * Локализованное поддерево — [AppLocalizedContent] вокруг контента маршрутов и
+ * панели вкладок (исправление VAL-I18N-006, архитектура §9): key(locale)
+ * пересоздаёт только экраны, подписи перечитываются немедленно (VAL-I18N-004),
+ * а rememberNavController + back stack живут СНАРУЖИ ключа — смена языка на
+ * выбранной вкладке сохраняет маршрут (RN-паритет: редиректа на дашборд нет).
+ * Плейсхолдерные заголовки и подписи вкладок читают [AppEnvironment]'овскую
+ * локаль на каждом проходе — им ключ не нужен, но экраны Stage 7 с локальным
+ * remember-состоянием обязаны быть под одним ключом с вкладками.
  */
 @Composable
 public fun GtAppNavGraph(
@@ -81,48 +91,56 @@ public fun GtAppNavGraph(
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
         composable(NavRoutes.WELCOME) {
-            PlaceholderScreen(title = NavRoutes.WELCOME, note = "карусель интро — Stage 7")
+            AppLocalizedContent { PlaceholderScreen(title = NavRoutes.WELCOME, note = "карусель интро — Stage 7") }
         }
         composable(NavRoutes.LOGIN) {
-            InterimLoginScreen(session = session)
+            AppLocalizedContent { InterimLoginScreen(session = session) }
         }
         composable(NavRoutes.ENABLE_NOTIFICATIONS) {
-            PlaceholderScreen(
-                title = NavRoutes.ENABLE_NOTIFICATIONS,
-                note = "запрос разрешения — Stage 7 (достижим только после show-key)",
-            )
+            AppLocalizedContent {
+                PlaceholderScreen(
+                    title = NavRoutes.ENABLE_NOTIFICATIONS,
+                    note = "запрос разрешения — Stage 7 (достижим только после show-key)",
+                )
+            }
         }
         composable(NavRoutes.TABS_DASHBOARD) {
-            TabShell(selected = GtTab.Plants, onSelect = { navController.navigateTab(it.route) }) {
-                if (sessionUserId != null) {
-                    DashboardScreen(
-                        userId = sessionUserId,
-                        onlineSession = onlineSession,
-                        connectivity = connectivity,
-                        opener = plants,
-                        onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
-                        onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
-                    )
+            AppLocalizedContent {
+                TabShell(selected = GtTab.Plants, onSelect = { navController.navigateTab(it.route) }) {
+                    if (sessionUserId != null) {
+                        DashboardScreen(
+                            userId = sessionUserId,
+                            onlineSession = onlineSession,
+                            connectivity = connectivity,
+                            opener = plants,
+                            onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
+                            onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
+                        )
+                    }
                 }
             }
         }
         composable(NavRoutes.TABS_PROFILE) {
-            TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
-                InterimProfileScreen(session = session, settings = settings)
+            AppLocalizedContent {
+                TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
+                    InterimProfileScreen(session = session, settings = settings)
+                }
             }
         }
         composable(NavRoutes.ADD_PLANT) {
-            PlaceholderScreen(title = NavRoutes.ADD_PLANT, note = "форма растения — Stage 7")
+            AppLocalizedContent { PlaceholderScreen(title = NavRoutes.ADD_PLANT, note = "форма растения — Stage 7") }
         }
         composable(NavRoutes.PLANT) { entry ->
             // SavedState в navigation 2.9.2 мультиплатформенный: строковые
             // аргументы читаются SavedStateReader'ом (на Android SavedState —
             // Bundle, читатель тот же API).
             val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }
-            PlaceholderScreen(
-                title = "plant/$plantId",
-                note = "детали растения — Stage 7",
-            )
+            AppLocalizedContent {
+                PlaceholderScreen(
+                    title = "plant/$plantId",
+                    note = "детали растения — Stage 7",
+                )
+            }
         }
     }
 }
@@ -301,9 +319,11 @@ private fun InterimProfileScreen(session: SessionManager, settings: AppPreferenc
         SecondaryButton(
             // null (= язык не задан) = системная локаль: фолбэк ресурсов en —
             // дефолт RN. Цикл system → ru → en → ru; выбор пишется в AppSettings
-            // (greenthumb_language), AppEnvironment{key(customAppLocale)} сразу
-            // перекомпоновывает все подписи (VAL-I18N-004) и переживает рестарт
-            // (VAL-I18N-005). Значение wire ('ru'/'en') читает подписка пушей (M9).
+            // (greenthumb_language), локальный key(customAppLocale) в
+            // [AppLocalizedContent] перекомпоновывает подписи немедленно
+            // (VAL-I18N-004), выбранный маршрут/стек сохраняется (VAL-I18N-006)
+            // и переживает рестарт (VAL-I18N-005). Значение wire ('ru'/'en')
+            // читает подписка пушей (M9).
             text = "Language: ${languagePreference?.wire ?: "system"} (dev)",
             onClick = {
                 scope.launch {

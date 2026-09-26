@@ -48,7 +48,8 @@ private val TabIconSize = 24.dp
  * onSurfaceVariant), подпись 11/500 (typography.labelSmall).
  *
  * Подписи — Compose Resources `nav.plants`/`nav.profile` (RN `t('nav.plants')`;
- * Stage 6 п.4, фича kmp-i18n-resources): рантайм-локаль задаёт [AppEnvironment].
+ * Stage 6 п.4, фича kmp-i18n-resources): рантайм-локаль задаёт [AppEnvironment],
+ * локальный key() — [AppLocalizedContent] вокруг таб-экранов (VAL-I18N-006).
  * Материал-icons в пинах миссии нет — метки рисуются ([GtLeafMark]/[GtPersonMark]),
  * tint приходит из темы, здесь цвет не собирается.
  */
