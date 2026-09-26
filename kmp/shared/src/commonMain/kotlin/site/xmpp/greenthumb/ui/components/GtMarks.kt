@@ -112,3 +112,26 @@ fun GtLeafMark(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Метка вкладки «Профиль» — Ionicons `person` тем же простым стилем (голова + плечи). */
+@Composable
+fun GtPersonMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.18f,
+            center = Offset(size.width * 0.5f, size.height * 0.3f),
+            style = stroke,
+        )
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.2f, size.height * 0.48f),
+            size = Size(size.width * 0.6f, size.height * 0.56f),
+            style = stroke,
+        )
+    }
+}

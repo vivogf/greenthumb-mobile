@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         plants = PlantDatabases(appContext).accountGate(graph.api, graph.accountSession)
         connectivity = Connectivity(appContext)
         setContent {
-            App(graph.manager, connectivity, plants)
+            App(graph.manager, connectivity, plants, graph.settings)
         }
     }
 
