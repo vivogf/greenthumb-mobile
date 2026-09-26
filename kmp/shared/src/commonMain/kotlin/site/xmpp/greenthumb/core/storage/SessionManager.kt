@@ -194,14 +194,48 @@ public class SessionManager(
     // ------------------------------------------------------------------
 
     /**
+     * Единственный прогон стартовой последовательности на процесс
+     * (architecture.md §9): Android пересоздаёт Activity при повороте и
+     * смене масштаба шрифта, и новый состав UI запускает свой
+     * `LaunchedEffect` поверх того же [SessionManager]. Повторный [startup]
+     * сбрасывал бы [state] в null и крутил последовательность заново
+     * (сплеш-вспышка, повторный me-запрос, риск выкинуть сессию на
+     * транзиентном сбое) — здесь инициализированная сессия возвращается
+     * как есть. Ещё не выполненный старт ([state] == null) — полный прогон
+     * [startup]; параллельный вызов дожидается текущего, а не стартует
+     * второй (mutex). Отменённый посреди прогона вызов (уничтожение первой
+     * Activity во время сети) флаг не ставит — следующий вызов начинает
+     * заново. Принудительный перезапуск — [retryStartup].
+     */
+    public suspend fun startupIfNeeded(): SessionState {
+        val current = mutableState.value
+        if (startupCompleted && current != null) return current
+        return startupOnceMutex.withLock {
+            val settled = mutableState.value
+            if (startupCompleted && settled != null) return@withLock settled
+            startup()
+        }
+    }
+
+    /** Флаг «стартовая последовательность процесса уже выполнена» ([startupIfNeeded]). */
+    private var startupCompleted = false
+
+    /** Сериализация единственного прогона (гонка двух составов UI). */
+    private val startupOnceMutex = Mutex()
+
+    /**
      * Полный старт приложения (импорт handoff, если ключа нет, + initSession).
      * Вызывать один раз при запуске (Stage 6: корутина на IO/Default);
-     * обновляет [state].
+     * обновляет [state]. Успешное завершение помечает старт процесса
+     * выполненным ([startupIfNeeded] больше не повторяет его); отменённый
+     * посреди прогона вызов флаг не ставит. Форс-перезапуск поверх живого
+     * процесса — [retryStartup].
      */
     public suspend fun startup(): SessionState {
         mutableState.value = null
         val state = runStartup()
         mutableState.value = state
+        startupCompleted = true
         return state
     }
 

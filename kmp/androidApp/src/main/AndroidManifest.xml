@@ -12,19 +12,19 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".GreenThumbApplication"
         android:label="GreenThumb"
         android:supportsRtl="true"
         android:fullBackupContent="@xml/full_backup_content"
         android:dataExtractionRules="@xml/data_extraction_rules">
 
         <!-- configChanges uiMode (Stage 6 п.3): смена системной темы НЕ
-             пересоздаёт Activity (как у Expo-активности RN). Дефолтное
-             пересоздание строило бы второй SessionGraph в том же процессе
-             поверх живых DataStore-инстансов (один активный DataStore на
-             файл на процесс — IllegalStateException на первом чтении).
-             Реактивность даёт Compose: onConfigurationChanged обновляет
-             MutableState-configuration, и LocalConfiguration (а с ней
-             GreenThumbTheme в auto) перечитывается без рестарта. -->
+             пересоздаёт Activity (как у Expo-активности RN), и Compose
+             обновляет LocalConfiguration на месте — автотема перечитывается
+             без рестарта. Это поведение-паритет, НЕ обход корректности:
+             пересоздание Activity при повороте/масштабе шрифта безопасно —
+             SessionGraph и opener баз живут на процесс в GreenThumbApplication
+             (фикс M6 VAL-SHELL-003), Connectivity — ресурс Activity. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
