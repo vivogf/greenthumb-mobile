@@ -293,7 +293,7 @@ class LocaleNavigationParityTest {
         graph.settings.presetRussian()
         runDesktopComposeUiTest {
             setContent {
-                App(graph.session, graph.connectivity, graph.opener, graph.settings)
+                App(graph.session, graph.connectivity, graph.opener, graph.settings, site.xmpp.greenthumb.core.platform.PushTokens())
             }
 
             // Старт: сессия решена (me → 200), дашборд с вкладками на ru.
@@ -347,7 +347,7 @@ class LocaleNavigationParityTest {
         graph.settings.presetRussian()
         runDesktopComposeUiTest {
             setContent {
-                App(graph.session, graph.connectivity, graph.opener, graph.settings)
+                App(graph.session, graph.connectivity, graph.opener, graph.settings, site.xmpp.greenthumb.core.platform.PushTokens())
             }
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.meCount == 1 }
             waitUntilAtLeastOneExists(hasText("Растения"), TIMEOUT)

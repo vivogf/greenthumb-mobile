@@ -32,6 +32,7 @@ import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppLanguage
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
+import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.core.storage.ThemePreference
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.GtTextField
@@ -44,11 +45,20 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 /**
  * Маршруты графа — 1:1 с expo-router `app/` (RN): имена фичи kmp-navigation
  * (Stage 6 п.1). Аргумент — `plant/{id}` (RN `plant/[id]`).
+ *
+ * `auth/enable-notifications` (RN-маршрут `app/(auth)/enable-notifications.tsx`)
+ * в графе НЕТ: KMP восстанавливает NavHost при каждом изменении состояния входа
+ * (вход = SignedIn → граф вкладок), поэтому после входа на дашборде старый
+ * стек не доживает до чтения маршрута. RN-эквивалент шлюза — окно после входа
+ * [PostSignInHost] в App(): RN тоже вёл на enable-notifications не маршрутом
+ * вкладок, а `router.replace('/(auth)/enable-notifications')` из show-key
+ * (`login.tsx:88`) при подавленном автопереходе на вкладки (`login.tsx:41-45`).
+ * Экран достижим ТОЛЬКО из этого окна — VAL-INTRO-003 (из choose/login напрямую
+ * не открыть; глубокая ссылка на неизвестный маршрут — стартовый экран графа).
  */
 public object NavRoutes {
     public const val WELCOME: String = "intro/welcome"
     public const val LOGIN: String = "auth/login"
-    public const val ENABLE_NOTIFICATIONS: String = "auth/enable-notifications"
     public const val TABS_DASHBOARD: String = "tabs/dashboard"
     public const val TABS_PROFILE: String = "tabs/profile"
     public const val ADD_PLANT: String = "add-plant"
@@ -64,11 +74,15 @@ public object NavRoutes {
  * группы (tabs) — панель на них не показывается).
  *
  * Экраны — плейсхолдеры до Stage 7 (фичи screen-*): интерим-поверхность
- * дашборда несёт данные и триггеры навигации; welcome/enable-notifications/
- * add-plant/plant/{id} — маршрутные заглушки (enable-notifications по контракту
- * VAL-INTRO-003 недостижима из логина напрямую — только из show-key, Stage 7).
- * Старт — [resolveStartRoute]; смена состояния сессии (вход/выход) пересоздаёт
- * граф с новым стартовым маршрутом — как RN-редирект с index-экрана.
+ * дашборда несёт данные и триггеры навигации; welcome/add-plant/plant/{id} —
+ * маршрутные заглушки. Экран enable-notifications — Stage 7 п.2 (фича
+ * screen-enable-notifications): живёт в окне после входа ([PostSignInHost],
+ * RN-шлюз show-key login.tsx:41-45/88), НЕ в этом графе — VAL-INTRO-003.
+ * Логин — интерим (4 режима приезжают фичей screen-login): режим create
+ * открывает шлюз показа ключа ([InterimLoginScreen] → onShowKey), который
+ * ведёт в то же окно. Старт — [resolveStartRoute]; смена состояния сессии
+ * (вход/выход) пересоздаёт граф с новым стартовым маршрутом — как RN-редирект
+ * с index-экрана.
  *
  * Локализованное поддерево — [AppLocalizedContent] вокруг контента маршрутов и
  * панели вкладок (исправление VAL-I18N-006, архитектура §9): key(locale)
@@ -88,6 +102,15 @@ public fun GtAppNavGraph(
     connectivity: Connectivity,
     plants: PlantRepositoryOpener,
     settings: AppPreferencesStore,
+    /**
+     * Шов интерим-логина (M7): создание аккаунта из режима create сообщает
+     * свежий recovery key наверх — App() открывает окно после входа (RN-шлюз
+     * show-key → enable-notifications, login.tsx:41-45/88). С screen-login
+     * этот колбэк заменит полноценный режим show-key в самом экране. Ветка
+     * графа Welcome/Login передаёт его, вкладки — нет (создание аккаунта там
+     * не бывает).
+     */
+    onAccountCreated: (recoveryKey: String) -> Unit = {},
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -107,15 +130,7 @@ public fun GtAppNavGraph(
             }
         }
         composable(NavRoutes.LOGIN) {
-            AppLocalizedContent { InterimLoginScreen(session = session) }
-        }
-        composable(NavRoutes.ENABLE_NOTIFICATIONS) {
-            AppLocalizedContent {
-                PlaceholderScreen(
-                    title = NavRoutes.ENABLE_NOTIFICATIONS,
-                    note = "запрос разрешения — Stage 7 (достижим только после show-key)",
-                )
-            }
+            AppLocalizedContent { InterimLoginScreen(session = session, onAccountCreated = onAccountCreated) }
         }
         composable(NavRoutes.TABS_DASHBOARD) {
             AppLocalizedContent {
@@ -234,12 +249,17 @@ private fun PlaceholderHeader(
 }
 
 /**
- * Промежуточный логин: dev-форма входа ключом из скелета Stage 3/4 — держит
- * вход достижимости харнесса до Stage 7 (screen-login: 4 режима + шлюз
- * show-key). Заменяется целиком фичей screen-login.
+ * Промежуточный логин: dev-форма входа ключом из скелета Stage 3/4 + минимум
+ * режима create (M7): создание аккаунта сообщает ключ наверх — App() открывает
+ * окно после входа (шлюз show-key → enable-notifications). Полные 4 режима и
+ * шлюз в самом экране — фича screen-login, которая заменит это целиком.
  */
 @Composable
-private fun InterimLoginScreen(session: SessionManager) {
+private fun InterimLoginScreen(
+    session: SessionManager,
+    onAccountCreated: (recoveryKey: String) -> Unit,
+) {
+    var creating by remember { mutableStateOf(false) }
     var key by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -250,6 +270,31 @@ private fun InterimLoginScreen(session: SessionManager) {
     ) {
         Spacer(modifier = Modifier.height(Spacing.xxl))
         PlaceholderHeader(title = NavRoutes.LOGIN, note = "вход — Stage 7 (4 режима)")
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        PrimaryButton(
+            text = if (creating) "Creating..." else "Create New Account",
+            enabled = !creating,
+            onClick = {
+                if (creating) return@PrimaryButton
+                creating = true
+                scope.launch {
+                    error = ""
+                    try {
+                        // RN create-режим: имя опционально, ключ приходит в ответе
+                        // (user.recovery_key) — наверх идёт он, не пустая строка.
+                        val state = session.createAnonymousAccount() as SessionState.SignedIn
+                        onAccountCreated(state.user.recoveryKey)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: ApiError) {
+                        error = "Create failed"
+                    } finally {
+                        creating = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(modifier = Modifier.height(Spacing.lg))
         GtTextField(
             value = key,

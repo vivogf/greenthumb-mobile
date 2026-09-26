@@ -9,3 +9,6 @@ import io.ktor.client.engine.okhttp.OkHttp
  * плагином HttpTimeout на уровне Ktor.
  */
 internal actual fun platformEngineFactory(): HttpClientEngineFactory<*> = OkHttp
+
+/** Android: прод-RN-значение, без override (env-override — desktop-механика). */
+public actual val API_BASE_URL: String = "https://greenthumb.xmpp.site"

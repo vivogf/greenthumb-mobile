@@ -7,6 +7,7 @@ import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PlatformEngine
 import site.xmpp.greenthumb.core.network.SessionRecoveryProvider
+import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.SecureStore
@@ -45,6 +46,14 @@ public class SessionGraph private constructor(
     /** Создан в [create] до первого запроса (сессия не живёт до startup). */
     public lateinit var manager: SessionManager
         private set
+
+    /**
+     * Push-подсистема (M7 screen-enable-notifications — первое объявление
+     * expect; активная реализация M9). Один инстанс на процесс — та же
+     * дисциплина, что у [api]/[manager]: экраны берут её отсюда, тесты
+     * подменяют весь объект ([PushTokens] открыт).
+     */
+    public val push: PushTokens = PushTokens()
 
     public companion object {
         /**
