@@ -317,13 +317,22 @@ class PostSignInFlowTest {
     private fun androidx.compose.ui.test.ComposeUiTest.goToLoginFromWelcome() {
         waitUntilAtLeastOneExists(hasText("Skip"), TIMEOUT)
         onNodeWithText("Skip").performClick()
+        // choose-режим login (screen-login): кнопка создания аккаунта.
         waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
     }
 
-    /** Create-кнопка интерим-логина → шлюз show-key. */
+    /** Create-кнопка choose → create → шлюз show-key. */
     private fun androidx.compose.ui.test.ComposeUiTest.createAccountToShowKey() {
         val h = harness!!
+        // RN handleCreateAccount: кнопка create отправляет форму (имя пустое —
+        // опционально). Кнопка та же («Create Account»), вызов один. Матчер по
+        // роли Button: «Create Account» совпадает и с placeholder'ом имени.
         onNodeWithText("Create New Account").performClick()
+        waitUntilAtLeastOneExists(hasText("Create Account"), TIMEOUT)
+        onNode(hasText("Create Account") and androidx.compose.ui.test.hasAnyDescendant(androidx.compose.ui.test.isEditable())).assertDoesNotExist()
+        onNode(
+            androidx.compose.ui.test.hasClickAction() and hasText("Create Account"),
+        ).performClick()
         waitUntil(timeoutMillis = TIMEOUT) { h.server.createCount == 1 }
         // Шлюз: ключ показан, дашборд с вкладками ПОДАВЛЁН (RN login.tsx:41-45).
         waitUntilAtLeastOneExists(hasText("Account Created!"), TIMEOUT)
@@ -463,11 +472,15 @@ class PostSignInFlowTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             assertWelcomeShown()
             goToLoginFromWelcome()
-            // Интерим-вход ключом (не create): окно после входа не открывается —
-            // RN-эквивалент signInWithRecoveryKey → useEffect → /(tabs).
-            // Поле GtTextField — OutlinedTextField с SetText-действием (editable).
+            // Вход ключом (не create) из choose-режима: окно после входа не
+            // открывается — RN-эквивалент signInWithRecoveryKey → useEffect →
+            // /(tabs). Поле GtTextField — OutlinedTextField с SetText-действием
+            // (editable). Полный порт login (screen-login): «I Have a Key»
+            // открывает режим ввода ключа (RN setMode('login')).
+            onNodeWithText("I Have a Key").performClick()
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
             onNode(hasSetTextAction()).performTextInput(graph.server.fixtureKey)
-            onNodeWithText("Sign in").performClick()
+            onNodeWithText("Sign In").performClick()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.plantsCount >= 1 }
             waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Profile"), TIMEOUT)

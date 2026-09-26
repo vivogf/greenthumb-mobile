@@ -42,6 +42,15 @@ object GreenThumbColors {
      */
     val modalScrim: Color = Color(red = 0f, green = 0f, blue = 0f, alpha = 0.5f)
 
+    /**
+     * `#22c55e` — успех показа ключа (RN `app/(auth)/login.tsx`: иконка
+     * checkmark-circle и её фон `#22c55e22`). Не токен constants.ts —
+     * литерал RN-экрана; портирован дословно как роль темы, чтобы экран не
+     * собирал `Color(` в обход K5 (тот же приём, что [modalScrim]).
+     * В light и dark один и тот же.
+     */
+    val success: Color = Color(red = 0x22 / 255f, green = 0xC5 / 255f, blue = 0x5E / 255f)
+
     val light: ColorScheme = scheme(LightPalette, DarkPalette, isLight = true)
     val dark: ColorScheme = scheme(DarkPalette, LightPalette, isLight = false)
 }

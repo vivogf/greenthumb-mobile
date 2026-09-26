@@ -3,6 +3,7 @@ package site.xmpp.greenthumb.core.storage
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import site.xmpp.greenthumb.core.platform.AppContextHolder
 
 /**
  * Android-actual маркера обновления (план Stage 3 п.6): «обновление» =
@@ -30,12 +31,9 @@ public actual fun isUpdateInstall(): Boolean {
     }.getOrDefault(false)
 }
 
-/** Контекст процесса (Application): androidApp-точка входа пишет его на onCreate. */
-private var cachedAppContext: Context? = null
-
 /** Регистрация контекста приложения (androidApp MainActivity/Application, onCreate). */
 public fun registerAppContext(context: Context) {
-    cachedAppContext = context.applicationContext
+    AppContextHolder.context = context.applicationContext
 }
 
-private fun appContextOrNull(): Context? = cachedAppContext
+private fun appContextOrNull(): Context? = AppContextHolder.context

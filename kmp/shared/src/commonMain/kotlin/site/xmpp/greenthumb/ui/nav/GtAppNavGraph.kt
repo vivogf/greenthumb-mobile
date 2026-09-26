@@ -24,9 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppLanguage
@@ -35,10 +33,11 @@ import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.core.storage.ThemePreference
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
-import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
+import site.xmpp.greenthumb.ui.screens.login.LoginMode
+import site.xmpp.greenthumb.ui.screens.login.LoginScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -78,9 +77,11 @@ public object NavRoutes {
  * маршрутные заглушки. Экран enable-notifications — Stage 7 п.2 (фича
  * screen-enable-notifications): живёт в окне после входа ([PostSignInHost],
  * RN-шлюз show-key login.tsx:41-45/88), НЕ в этом графе — VAL-INTRO-003.
- * Логин — интерим (4 режима приезжают фичей screen-login): режим create
- * открывает шлюз показа ключа ([InterimLoginScreen] → onShowKey), который
- * ведёт в то же окно. Старт — [resolveStartRoute]; смена состояния сессии
+ * Логин — полноценный порт Stage 7 п.3 (фича screen-login, [LoginScreen]):
+ * режимы choose/create/login; create открывает шлюз показа ключа
+ * (onAccountCreated → окно после входа, где
+ * [site.xmpp.greenthumb.ui.screens.login.ShowKeySurface]). Старт —
+ * [resolveStartRoute]; смена состояния сессии
  * (вход/выход) пересоздаёт граф с новым стартовым маршрутом — как RN-редирект
  * с index-экрана.
  *
@@ -103,14 +104,19 @@ public fun GtAppNavGraph(
     plants: PlantRepositoryOpener,
     settings: AppPreferencesStore,
     /**
-     * Шов интерим-логина (M7): создание аккаунта из режима create сообщает
-     * свежий recovery key наверх — App() открывает окно после входа (RN-шлюз
-     * show-key → enable-notifications, login.tsx:41-45/88). С screen-login
-     * этот колбэк заменит полноценный режим show-key в самом экране. Ветка
+     * Шов логина (M7 screen-login): создание аккаунта из режима create
+     * сообщает свежий recovery key наверх — App() открывает окно после входа
+     * (RN-шлюз show-key → enable-notifications, login.tsx:41-45/88). Ветка
      * графа Welcome/Login передаёт его, вкладки — нет (создание аккаунта там
      * не бывает).
      */
     onAccountCreated: (recoveryKey: String) -> Unit = {},
+    /**
+     * Стартовый режим логина (screen-login, VAL-HANDOFF-IMP-002): из экрана
+     * «ключ не найден» кнопки ведут СРАЗУ в режимы login/create (RN setMode
+     * login.tsx:82-85/89-90 — мимо choose). Ветка welcome — default.
+     */
+    initialLoginMode: LoginMode = LoginMode.Choose,
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -130,7 +136,13 @@ public fun GtAppNavGraph(
             }
         }
         composable(NavRoutes.LOGIN) {
-            AppLocalizedContent { InterimLoginScreen(session = session, onAccountCreated = onAccountCreated) }
+            AppLocalizedContent {
+                LoginScreen(
+                    session = session,
+                    onAccountCreated = onAccountCreated,
+                    initialMode = initialLoginMode,
+                )
+            }
         }
         composable(NavRoutes.TABS_DASHBOARD) {
             AppLocalizedContent {
@@ -245,93 +257,6 @@ private fun PlaceholderHeader(
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurfaceVariant,
         )
-    }
-}
-
-/**
- * Промежуточный логин: dev-форма входа ключом из скелета Stage 3/4 + минимум
- * режима create (M7): создание аккаунта сообщает ключ наверх — App() открывает
- * окно после входа (шлюз show-key → enable-notifications). Полные 4 режима и
- * шлюз в самом экране — фича screen-login, которая заменит это целиком.
- */
-@Composable
-private fun InterimLoginScreen(
-    session: SessionManager,
-    onAccountCreated: (recoveryKey: String) -> Unit,
-) {
-    var creating by remember { mutableStateOf(false) }
-    var key by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Spacing.lg),
-    ) {
-        Spacer(modifier = Modifier.height(Spacing.xxl))
-        PlaceholderHeader(title = NavRoutes.LOGIN, note = "вход — Stage 7 (4 режима)")
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        PrimaryButton(
-            text = if (creating) "Creating..." else "Create New Account",
-            enabled = !creating,
-            onClick = {
-                if (creating) return@PrimaryButton
-                creating = true
-                scope.launch {
-                    error = ""
-                    try {
-                        // RN create-режим: имя опционально, ключ приходит в ответе
-                        // (user.recovery_key) — наверх идёт он, не пустая строка.
-                        val state = session.createAnonymousAccount() as SessionState.SignedIn
-                        onAccountCreated(state.user.recoveryKey)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: ApiError) {
-                        error = "Create failed"
-                    } finally {
-                        creating = false
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        GtTextField(
-            value = key,
-            onValueChange = {
-                key = it
-                error = ""
-            },
-            label = "Recovery key",
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        PrimaryButton(
-            text = "Sign in",
-            onClick = {
-                val entered = key.trim()
-                if (entered.isEmpty()) return@PrimaryButton
-                scope.launch {
-                    error = ""
-                    try {
-                        session.signInWithRecoveryKey(entered)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: ApiError) {
-                        error = "Sign-in failed"
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (error.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
     }
 }
 
