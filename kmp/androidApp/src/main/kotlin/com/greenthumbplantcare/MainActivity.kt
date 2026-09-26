@@ -32,7 +32,13 @@ class MainActivity : ComponentActivity() {
         // provides() зафиксирует выбор — AppLocale.remember).
         AppLocale.applyToConfiguration(resources.configuration)
         setContent {
-            App(app.sessionGraph.manager, connectivity, app.plantGate, app.sessionGraph.settings)
+            App(
+                app.sessionGraph.manager,
+                connectivity,
+                app.plantGate,
+                app.sessionGraph.settings,
+                app.sessionGraph.push,
+            )
         }
     }
 

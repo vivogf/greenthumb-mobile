@@ -36,8 +36,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/** Базовый URL API; значение из RN `lib/constants.ts:1`. */
-const val API_BASE_URL: String = "https://greenthumb.xmpp.site"
+/**
+ * Базовый URL API; значение из RN `lib/constants.ts:1`.
+ * Override для desktop-харнесса/тестовых прогонов: env `GT_BASE_URL`
+ * (читается в jvmMain-инициализаторе; common-дефолт — прод-RN-значение).
+ */
+expect val API_BASE_URL: String
 
 /**
  * Дедлайн запроса, мс; дефолт `baseFetch` (`lib/api.ts:40`),
