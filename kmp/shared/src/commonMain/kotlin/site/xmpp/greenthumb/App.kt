@@ -45,10 +45,12 @@ import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
  * (`android:configChanges="uiMode"` в манифесте androidApp), на desktop
  * LocalSystemTheme обновляется опросом.
  *
- * Язык (Stage 6 п.4): [AppEnvironment] вокруг всего контента — preference из
+ * Язык (Stage 6 п.4–5): [AppEnvironment] вокруг всего контента — preference из
  * AppSettings (`greenthumb_language`; null = системная) + key() на смену:
  * строки ресурсов (values/strings.xml en + values-ru) перекомпоновываются
- * без рестарта.
+ * без рестарта. Старт сессии — вне key()-поддерева: смена языка не
+ * перезапускает [SessionManager.startup] (VAL-I18N-004 — подписи меняются
+ * немедленно, без сплеша и повторного me-запроса).
  */
 @Composable
 fun App(
@@ -63,13 +65,16 @@ fun App(
     // null = системная (RN-дефолт: язык устройства вне en/ru → фолбэк ресурсов en).
     // key(customAppLocale) внутри — перекомпоновка всех подписей при смене языка.
     val languagePreference by settings.language.collectAsState(initial = null)
+    // Единственный запуск стартовой последовательности на жизнь процесса —
+    // ВНЕ [AppEnvironment]: её key(customAppLocale) пересоздаёт поддерево при
+    // смене языка, и LaunchedEffect внутри перезапустил бы startup() (сплеш-
+    // вспышка + повторный me-запрос; транзиентный сбой выкинул бы на логин).
+    // Перекомпоновка подписей сессию не трогает (Stage 6 п.5, VAL-I18N-004).
+    LaunchedEffect(Unit) { session.startup() }
     AppEnvironment(customAppLocale = languagePreference?.wire) {
         GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
             val state by session.state.collectAsState()
             val introSeen by settings.introSeen.collectAsState(initial = null)
-            // Единственный запуск стартовой последовательности при появлении App:
-            // без него state навсегда остаётся null («гейт загрузки»).
-            LaunchedEffect(Unit) { session.startup() }
             when (val route = resolveStartRoute(state, introSeen)) {
                 StartRoute.Loading -> GtSplash()
                 is StartRoute.HandoffImportFailed ->
