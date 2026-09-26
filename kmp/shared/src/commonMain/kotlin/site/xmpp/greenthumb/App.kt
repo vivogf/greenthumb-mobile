@@ -26,6 +26,7 @@ import site.xmpp.greenthumb.ui.nav.PostSignInSurface
 import site.xmpp.greenthumb.ui.nav.StartRoute
 import site.xmpp.greenthumb.ui.nav.resolveStartRoute
 import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
+import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
 
@@ -40,15 +41,19 @@ import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
  * Стартовая маршрутизация — [resolveStartRoute] (порт RN `app/index.tsx`):
  * гейт готовности → индикатор без редиректа; пользователь → дашборд;
  * иначе интро; иначе логин. Поверхности [SessionState.KeyNotFound] и
- * [SessionState.HandoffImportFailed] — вне графа (KMP-состояния Stage 3,
- * кнопки — Stage 7).
+ * [SessionState.HandoffImportFailed] — вне графа (KMP-состояния Stage 3):
+ * «ключ не найден» — screen-login ([site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface]
+ * с кнопками «ввести ключ»/«создать аккаунт», переход в Login-ветку СРАЗУ в
+ * выбранный режим — RN setMode login.tsx:82-90),
+ * провал handoff — экран ошибки.
  *
  * Окно ПОСЛЕ входа (Stage 7 п.2–3): RN подавлял автопереход на вкладки в
  * режиме show-key (`login.tsx:41-45`) и после подтверждения вёл на
  * enable-notifications (`login.tsx:88`). KMP-эквивалент: [postSignIn] —
  * remember-состояние корня, переживает пересоздание графа при смене состояния
- * сессии (вход/выход); поверхности — [PostSignInSurface] (show-key — интерим
- * до screen-login, enable-notifications — Stage 7 п.2). Окно активно, только
+ * сессии (вход/выход); поверхности — [PostSignInSurface] (show-key — полный
+ * порт screen-login [site.xmpp.greenthumb.ui.screens.login.ShowKeySurface],
+ * enable-notifications — Stage 7 п.2). Окно активно, только
  * пока сессия жива (SignedIn): выход/401 закрывает его. Вне окна
  * enable-notifications недостижима — VAL-INTRO-003 (маршрут `auth/
  * enable-notifications` включается только в этой ветке, из логина напрямую
@@ -103,6 +108,16 @@ fun App(
     // remember (не rememberSaveable): после смерти процесса RN-эквивалент тоже
     // потерян (mode в useState) — пользователь повторяет вход.
     var postSignIn by remember { mutableStateOf<PostSignInSurface?>(null) }
+    // Экран «ключ не найден» (screen-login, VAL-HANDOFF-IMP-002): кнопки ведут
+    // СРАЗУ в выбранный РЕЖИМ логина (RN setMode('login')/'create',
+    // login.tsx:82-90 — мимо choose). Два флага: один remember-состояние
+    // переживает рекомпозиции графа; тап «создать аккаунт» сбрасывает
+    // «ввести ключ» (порядок ветвления ниже). Состояние сессии решает
+    // маршрутизацию дальше (SignedIn пересоздаёт граф на вкладки), а SessionManager
+    // сохранил признак «сессия жила» (signedOutOrKeyNotFound) — экран «не
+    // найден» после действия пользователя больше не показывается.
+    var keyNotFoundToLoginMode by remember { mutableStateOf(false) }
+    var keyNotFoundToCreateMode by remember { mutableStateOf(false) }
     // Потеря сессии (выход/явный 401) закрывает окно и сбрасывает поверхность:
     // ключ нового входа (если пользователь войдёт снова) обязан быть свежим —
     // stale-ключ старого аккаунта не показывается. RN-паритет: после потери
@@ -129,6 +144,13 @@ fun App(
             val state by session.state.collectAsState()
             val introSeen by settings.introSeen.collectAsState(initial = null)
             val route = resolveStartRoute(state, introSeen)
+            if (state is SessionState.SignedIn) {
+                // Вход состоялся — флаги режимов «ключ не найден» больше не
+                // нужны (fresh remember при следующем KeyNotFound после потери
+                // сессии: RN mode тоже терялся).
+                keyNotFoundToLoginMode = false
+                keyNotFoundToCreateMode = false
+            }
             // Окно после входа активно, только пока пользователь действительно
             // вошёл и маршрутизация ведёт на вкладки (RN: user && mode ==
             // 'show-key' — подавление; выход/401 закрывают окно).
@@ -144,11 +166,36 @@ fun App(
                     onDone = { postSignIn = null },
                 )
             } else {
-                when (route) {
+                // KeyNotFound после тапа кнопки показывается как ветка логина с
+                // СРАЗУ выбранным режимом (RN setMode — мимо choose); тап
+                // «создать аккаунт» сбрасывает «ввести ключ» (если оба — пользователь
+                // жмёт последнюю кнопку).
+                val effectiveRoute =
+                    if (route == StartRoute.KeyNotFound && (keyNotFoundToLoginMode || keyNotFoundToCreateMode)) {
+                        StartRoute.Login
+                    } else {
+                        route
+                    }
+                when (effectiveRoute) {
                     StartRoute.Loading -> GtSplash()
                     is StartRoute.HandoffImportFailed ->
-                        GtHandoffImportFailedScreen(recoveryKey = route.recoveryKey)
-                    StartRoute.KeyNotFound -> GtKeyNotFoundScreen()
+                        GtHandoffImportFailedScreen(recoveryKey = effectiveRoute.recoveryKey)
+                    StartRoute.KeyNotFound ->
+                        // Кнопки экрана (screen-login): «ввести ключ» → режим
+                        // login, «создать аккаунт» → режим create (RN setMode,
+                        // login.tsx:82-90). Граф пересоздаётся со стартом в
+                        // выбранном режиме; смена состояния на SignedIn сама
+                        // сменяет маршрутизацию.
+                        GtKeyNotFoundScreen(
+                            onEnterLogin = {
+                                keyNotFoundToCreateMode = false
+                                keyNotFoundToLoginMode = true
+                            },
+                            onEnterCreate = {
+                                keyNotFoundToLoginMode = false
+                                keyNotFoundToCreateMode = true
+                            },
+                        )
                     StartRoute.Dashboard -> GtAppNavGraph(
                         startDestination = NavRoutes.TABS_DASHBOARD,
                         sessionUserId = state.sessionUserIdOrNull(),
@@ -169,7 +216,9 @@ fun App(
                     )
                     // Ветка логина — единственный производитель ключа (RN
                     // handleCreateAccount → setMode('show-key')); колбэк открывает
-                    // окно после входа, подавляя автопереход на вкладки.
+                    // окно после входа, подавляя автопереход на вкладки. Стартовый
+                    // режим: из экрана «ключ не найден» — выбранный кнопкой
+                    // (RN setMode login.tsx:82-90), иначе choose.
                     StartRoute.Login -> GtAppNavGraph(
                         startDestination = NavRoutes.LOGIN,
                         sessionUserId = null,
@@ -178,6 +227,11 @@ fun App(
                         connectivity = connectivity,
                         plants = plants,
                         settings = settings,
+                        initialLoginMode = when {
+                            keyNotFoundToLoginMode -> LoginMode.Login
+                            keyNotFoundToCreateMode -> LoginMode.Create
+                            else -> LoginMode.Choose
+                        },
                         onAccountCreated = { recoveryKey ->
                             postSignIn = PostSignInSurface.ShowKey(recoveryKey)
                         },

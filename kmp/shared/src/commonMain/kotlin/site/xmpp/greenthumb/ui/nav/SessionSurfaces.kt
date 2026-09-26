@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -15,18 +13,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
-import site.xmpp.greenthumb.ui.res.Res
-import site.xmpp.greenthumb.ui.res.session_keyNotFoundBody
-import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
+import site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
  * Поверхности сессии ВНЕ графа маршрутов (Stage 6 п.1–2): гейт загрузки и
  * KMP-состояния Stage 3, у которых нет RN-маршрута. Тексты — Compose Resources
  * (Stage 6 п.4); ключи «ключ не найден» — KMP-специфичные (в RN этого экрана
- * нет). Кнопки экрана («ввести ключ» / «создать аккаунт», ресурсы
- * `session_keyNotFound*` уже готовы) — Stage 7 (screen-login).
+ * нет). Кнопки экрана («ввести ключ» / «создать аккаунт») — screen-login
+ * (Stage 7 п.3): делегирует [KeyNotFoundSurface].
  */
 
 /**
@@ -46,26 +41,20 @@ public fun GtSplash() {
 }
 
 /**
- * Экран «ключ не найден» (Stage 3 п.6, VAL-HANDOFF-IMP-002): ключа нет нигде,
- * установка — обновление поверх предыдущей. Заголовок и текст — ресурсы
- * `session_keyNotFound*` (обе локали); объяснение: аккаунт на сервере / ключ
- * ввести руками / восстановить нельзя → создать новый. Кнопки — Stage 7.
+ * Экран «ключ не найден» (Stage 3 п.6 → Stage 7 п.3 screen-login,
+ * VAL-HANDOFF-IMP-002): ключа нет нигде, установка — обновление поверх
+ * предыдущей. Локализованный текст + КНОПКИ (RU-заглушка App.kt заменена
+ * фичей screen-login): «ввести ключ» → режим login, «создать аккаунт» →
+ * режим create. Точки решения — [site.xmpp.greenthumb.App] (KeyNotFound →
+ * Login-ветка графа); SessionManager сохраняет признак «сессия жила» (см.
+ * signedOutOrKeyNotFound), так что после тапа экран больше не возвращается.
  */
 @Composable
-public fun GtKeyNotFoundScreen() {
-    SessionSurface {
-        Text(
-            text = stringResource(Res.string.session_keyNotFoundTitle),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(
-            text = stringResource(Res.string.session_keyNotFoundBody),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+public fun GtKeyNotFoundScreen(
+    onEnterLogin: () -> Unit,
+    onEnterCreate: () -> Unit,
+) {
+    KeyNotFoundSurface(onEnterLogin = onEnterLogin, onEnterCreate = onEnterCreate)
 }
 
 /**
