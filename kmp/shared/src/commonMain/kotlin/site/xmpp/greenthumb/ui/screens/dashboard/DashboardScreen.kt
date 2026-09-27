@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +62,7 @@ import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.PlantDto
+import site.xmpp.greenthumb.core.platform.AppForeground
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.LayoutMode
@@ -206,6 +208,10 @@ public fun DashboardScreen(
     onAddPlant: () -> Unit,
 ) {
     val repo = remember(userId) { opener.open(userId) }
+    // Источник ON_RESUME (VAL-DASH-010): подписка живёт, пока открыт дашборд.
+    // Android подписывается на lifecycle Activity; закрытие снимает колбэк.
+    val foreground = remember(repo) { AppForeground() }
+    DisposableEffect(foreground) { onDispose { foreground.close() } }
     val scheme = MaterialTheme.colorScheme
     val extended = greenThumbExtendedColors()
     val scope = rememberCoroutineScope()
@@ -288,6 +294,22 @@ public fun DashboardScreen(
         firstLoadSettled = true
         banner = repo.syncBanner()
         coordinator.attachConnectivity(this, connectivity.isOnline)
+        // ON_RESUME (VAL-DASH-010): возврат на открытый дашборд после >60 с
+        // на фоне refresh принимает серверную правду — удалённые на сервере
+        // растения уходят из Room без перезапуска и без смены аккаунта.
+        // Дедуп соседних триггеров (первый показ, восстановление сети, полёт
+        // запроса) — внутри координатора; здесь гасим полоску ошибки при
+        // неуспехе и перечитываем баннер при успехе.
+        coordinator.attachForeground(this, foreground.isResumed) { outcome ->
+            when (outcome) {
+                is RefreshOutcome.Failed -> refreshFailed = true
+                is RefreshOutcome.Refreshed -> {
+                    everSynced = true
+                    banner = repo.syncBanner()
+                }
+                else -> {}
+            }
+        }
     }
     LaunchedEffect(online) {
         if (!online) {
