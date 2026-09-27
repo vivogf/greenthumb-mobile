@@ -420,11 +420,16 @@ public class SessionManager(
         }
     }
 
-    /** Создание анонимного аккаунта (логин-экран, режим create). Бросает [ApiError]. */
-    public suspend fun createAnonymousAccount(): SessionState {
+    /**
+     * Создание анонимного аккаунта (логин-экран, режим create). [name] —
+     * уже тримнутое имя экрана или null (опционально; RN `name.trim() ||
+     * undefined` — login.tsx:104): null не пишется в провод, непустое едет
+     * в POST create-anonymous. Бросает [ApiError].
+     */
+    public suspend fun createAnonymousAccount(name: String? = null): SessionState {
         val previous = closingUserId()
         endActiveAccount()
-        return finishSignIn(previous, applyUser(api.createAnonymous()))
+        return finishSignIn(previous, applyUser(api.createAnonymous(name)))
     }
 
     // ------------------------------------------------------------------

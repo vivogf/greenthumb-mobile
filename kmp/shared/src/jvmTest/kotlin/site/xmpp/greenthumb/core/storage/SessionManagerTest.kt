@@ -4,6 +4,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -178,6 +179,9 @@ class SessionManagerTest {
         var meCount = 0
         var loginCount = 0
         var logoutCount = 0
+
+        /** Тело POST create-anonymous (провод) — pin имени VAL-LOGIN-002. */
+        var createBody: String? = null
         var meStatus: HttpStatusCode = HttpStatusCode.OK
         var loginStatus: HttpStatusCode = HttpStatusCode.OK
         var failMeTransport = false
@@ -207,6 +211,7 @@ class SessionManagerTest {
                     respond(userJson(), loginStatus, JSON_HEADERS)
                 }
                 "/api/auth/create-anonymous" -> {
+                    createBody = (request.body as? TextContent)?.text
                     respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
                 }
                 "/api/auth/logout" -> {
@@ -743,6 +748,31 @@ class SessionManagerTest {
         assertSignedIn(state)
         assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY))
         assertEquals("key-55", settings.getCachedUser()!!.recoveryKey)
+    }
+
+    @Test
+    fun `createAnonymousAccount passes name to the wire`() = runBlocking {
+        val server = FakeServer()
+        val manager = newManager(server = server)
+
+        // Имя тримит ЭКРАН (RN login.tsx:104); менеджер — провод без потерь.
+        val state = manager.createAnonymousAccount("Fern")
+
+        assertSignedIn(state)
+        assertEquals("""{"name":"Fern"}""", server.createBody, "имя доезжает до POST create-anonymous (VAL-LOGIN-002)")
+        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "SignedIn: серверный ключ сохранён")
+    }
+
+    @Test
+    fun `createAnonymousAccount without name omits field`() = runBlocking {
+        val server = FakeServer()
+        val manager = newManager(server = server)
+
+        val state = manager.createAnonymousAccount()
+
+        assertSignedIn(state)
+        assertEquals("{}", server.createBody, "null-имя опционально: поле name не пишется (explicitNulls)")
+        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY))
     }
 
     @Test

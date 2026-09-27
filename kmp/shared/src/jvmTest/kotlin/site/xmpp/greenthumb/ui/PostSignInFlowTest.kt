@@ -198,6 +198,9 @@ class PostSignInFlowTest {
         var createCount = 0
         var loginCount = 0
 
+        /** Тело POST create-anonymous (провод) — red→green тест имени VAL-LOGIN-002. */
+        var createBody: String? = null
+
         private val JSON_HEADERS = io.ktor.http.headersOf("Content-Type", "application/json")
 
         /**
@@ -224,6 +227,8 @@ class PostSignInFlowTest {
                 }
                 "/api/auth/create-anonymous" -> {
                     createCount++
+                    // Тело запроса как текст (TextContent — паттерн ProfileScreenTest).
+                    createBody = (request.body as? io.ktor.http.content.TextContent)?.text
                     respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
                 }
                 "/api/auth/login-recovery" -> {
@@ -488,6 +493,73 @@ class PostSignInFlowTest {
             onNodeWithText("Turn on notifications").assertDoesNotExist()
             onNodeWithText("Enable reminders?").assertDoesNotExist()
             assertEquals(0, graph.push.subscribeCalls)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // VAL-LOGIN-002: create передаёт введённое имя (RN login.tsx:104)
+    // ------------------------------------------------------------------
+
+    /**
+     * Режим create: ввод имени (null = поле оставить пустым) → submit →
+     * ожидание ровно одного POST create-anonymous (тело в [FakeServer.createBody]).
+     */
+    private fun androidx.compose.ui.test.ComposeUiTest.submitCreateAccount(name: String?) {
+        val h = harness!!
+        onNodeWithText("Create New Account").performClick()
+        waitUntilAtLeastOneExists(hasText("Create Account"), TIMEOUT)
+        // Поле имени — единственный editable на поверхности create.
+        if (name != null) onNode(hasSetTextAction()).performTextInput(name)
+        onNode(
+            androidx.compose.ui.test.hasClickAction() and hasText("Create Account"),
+        ).performClick()
+        waitUntil(timeoutMillis = TIMEOUT) { h.server.createCount == 1 }
+    }
+
+    @Test
+    fun createAccount_sendsTrimmedName_andSignsIn() {
+        val graph = newHarness()
+        presetEnglishWithIntroNotSeen()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            assertWelcomeShown()
+            goToLoginFromWelcome()
+            // Имя с внешними пробелами — пример VAL-LOGIN-002 (`  Fern  `).
+            submitCreateAccount("  Fern  ")
+            // Провод: имя тримится НА КЛИЕНТЕ (RN name.trim() || undefined).
+            assertEquals(
+                """{"name":"Fern"}""",
+                graph.server.createBody,
+                "введённое имя trim'ится и доезжает до create-anonymous",
+            )
+            // Сессия: шлюз show-key открыт, дашборд подавлен (RN-гейт),
+            // серверный ключ сохранён (SignedIn-путь applyUser).
+            waitUntilAtLeastOneExists(hasText("Account Created!"), TIMEOUT)
+            onNodeWithText("Plants").assertDoesNotExist()
+            assertEquals(
+                graph.server.fixtureKey,
+                graph.secure.map[SecureStoreKeys.RECOVERY_KEY],
+                "ключ сервера сохранён после создания аккаунта",
+            )
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun createAccount_blankName_omitsNameField() {
+        val graph = newHarness()
+        presetEnglishWithIntroNotSeen()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            assertWelcomeShown()
+            goToLoginFromWelcome()
+            // Пустое имя остаётся опциональным: поле name не пишется в провод
+            // (RN `undefined` → серверный дефолт; тело {} как в GreenThumbApiTest).
+            submitCreateAccount(null)
+            assertEquals("{}", graph.server.createBody, "пустое имя → поле name отсутствует")
 
             runOnIdle { graph.close() }
         }
