@@ -10,6 +10,7 @@ import java.io.File
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
+import javax.imageio.stream.MemoryCacheImageInputStream
 import javax.imageio.stream.MemoryCacheImageOutputStream
 import kotlin.math.PI
 
@@ -37,7 +38,27 @@ actual suspend fun pickImage(source: PickSource): PickResult {
     if (path == null) return PickResult.Cancelled
     val bytes = withContext(Dispatchers.IO) { File(path).readBytes() }
     if (bytes.isEmpty()) return PickResult.Cancelled
+    // Недекодируемый файл (HEIC у imageio, мусор): обработанная ошибка ДО
+    // экрана кропа — иначе у пользователя «пустой» превью и disabled Done.
+    if (!canDecodeImage(bytes)) throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
     return PickResult.Picked(bytes)
+}
+
+/**
+ * Есть ли imageio-ридер для байтов: проба спи без полного декодирования.
+ * HEIC-ридер в JDK нет → false (тот же контракт ошибки, что на Android
+ * API 24–25, где нет системного декодера).
+ */
+internal fun canDecodeImage(bytes: ByteArray): Boolean = try {
+    ByteArrayInputStream(bytes).use { input ->
+        MemoryCacheImageInputStream(input).use { stream ->
+            stream.seek(0)
+            ImageIO.getImageReaders(stream).hasNext()
+        }
+    }
+} catch (_: Exception) {
+    // Любой сбой пробы спи = «не декодируется» — та же обработанная ошибка.
+    false
 }
 
 /**
@@ -48,7 +69,7 @@ actual suspend fun pickImage(source: PickSource): PickResult {
  */
 actual fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray {
     val source = ImageIO.read(ByteArrayInputStream(bytes))
-        ?: throw IllegalArgumentException("cannot decode image")
+        ?: throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
     val normalized = applyJpegOrientation(source, jpegExifOrientation(bytes))
     val region = rect.pixelRect(normalized.width, normalized.height)
     val cropped = normalized.getSubimage(region.x, region.y, region.width, region.height)
@@ -58,19 +79,48 @@ actual fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray {
     graphics.drawImage(cropped, 0, 0, 800, 800, null)
     graphics.dispose()
 
+    return writeJpeg(output, 0.8f)
+}
+
+/**
+ * Stage 8 п.2 (VAL-PHOTO-004): уменьшение без кропа — пропорции сохраняются,
+ * большая сторона ≤ [maxSide] (маленькие фото не увеличиваются), EXIF
+ * нормализуется [applyJpegOrientation], JPEG-качество [quality] (imageio).
+ */
+actual fun resizeJpeg(bytes: ByteArray, maxSide: Int, quality: Double): ByteArray {
+    require(maxSide >= 1) { "maxSide must be >= 1, got $maxSide" }
+    val source = ImageIO.read(ByteArrayInputStream(bytes))
+        ?: throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    val normalized = applyJpegOrientation(source, jpegExifOrientation(bytes))
+    val target = fitWithin(normalized.width, normalized.height, maxSide)
+
+    val output = if (target.width == normalized.width && target.height == normalized.height) {
+        normalized
+    } else {
+        BufferedImage(target.width, target.height, BufferedImage.TYPE_INT_RGB).also { canvas ->
+            val graphics = canvas.createGraphics()
+            graphics.drawImage(normalized, 0, 0, target.width, target.height, null)
+            graphics.dispose()
+        }
+    }
+    return writeJpeg(output, quality.coerceIn(0.0, 1.0).toFloat())
+}
+
+/** Кодирование в JPEG с заданным качеством (imageio writer, как RN `compress`). */
+private fun writeJpeg(image: BufferedImage, quality: Float): ByteArray {
     val out = ByteArrayOutputStream()
     val writer = ImageIO.getImageWritersByFormatName("jpg").let { readers ->
         if (readers.hasNext()) readers.next() else null
     }
     if (writer == null) {
-        ImageIO.write(output, "jpg", out)
+        ImageIO.write(image, "jpg", out)
     } else {
         val stream = MemoryCacheImageOutputStream(out)
         writer.output = stream
         val params: ImageWriteParam = writer.defaultWriteParam
         params.compressionMode = ImageWriteParam.MODE_EXPLICIT
-        params.compressionQuality = 0.8f
-        writer.write(null, IIOImage(output, null, null), params)
+        params.compressionQuality = quality
+        writer.write(null, IIOImage(image, null, null), params)
         writer.dispose()
         stream.close()
     }

@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.coroutines.resume
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Android-actual пикера (Stage 8 п.1):
@@ -50,11 +51,44 @@ actual suspend fun pickImage(source: PickSource): PickResult {
         requestPermission(activity, permission)
     if (!granted) return PickResult.PermissionDenied(source)
 
-    return when (source) {
+    val result = when (source) {
         PickSource.Gallery -> launchGallery(activity)
         PickSource.Camera -> launchCamera(activity)
     }
+    // HEIC на API 24–25 (системного HEIF-декодера нет), мусор или обрезанный
+    // файл: падаем ЗДЕСЬ обработанной ошибкой (controller → алерт
+    // common.error), а не «пустым» экраном кропа. Bounds-only — без аллокации
+    // пикселей. На API 26+ HEIC декодируется платформой и идёт дальше.
+    if (result is PickResult.Picked) requireDecodable(result.bytes)
+    return result
 }
+
+/**
+ * Проверка, что байты вообще декодируются платформой (`inJustDecodeBounds`,
+ * пиксели не аллоцируются). Нет — [UnsupportedImageException].
+ */
+private fun requireDecodable(bytes: ByteArray) {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    }
+}
+
+/**
+ * Медиатип запроса к пикеру. API 24–25 (Android 7.x) — системного
+ * HEIF-декодера нет, поэтому просим JPEG как ФИЛЬТР доступного входа
+ * (`SingleMimeType` фильтрует выбор, но НЕ транскодирует HEIC → JPEG;
+ * факты и ссылки — `research/android-heic-m8.md`). На API 26+ HEIF-декодер
+ * платформы есть (supported-formats: HEIF decoder Android 8.0+), фильтр
+ * не нужен — HEIC принимается и перекодируется в JPEG приложением.
+ */
+private fun mediaTypeForRequest(): ActivityResultContracts.PickVisualMedia.VisualMediaType =
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        ActivityResultContracts.PickVisualMedia.SingleMimeType("image/jpeg")
+    } else {
+        ActivityResultContracts.PickVisualMedia.ImageOnly
+    }
 
 /** Запрос runtime-разрешения через registry текущей Activity. */
 private suspend fun requestPermission(activity: ComponentActivity, permission: String): Boolean =
@@ -93,7 +127,7 @@ private suspend fun launchGallery(activity: ComponentActivity): PickResult =
         }
         continuation.invokeOnCancellation { launcher.unregister() }
         if (continuation.isActive) {
-            launcher.launch(PickVisualMediaRequest())
+            launcher.launch(PickVisualMediaRequest(mediaTypeForRequest()))
         }
     }
 
@@ -152,7 +186,7 @@ actual fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-        throw IllegalArgumentException("cannot decode image")
+        throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
     }
     val orientation = jpegExifOrientation(bytes)
     val swaps = orientation in 5..8
@@ -166,7 +200,7 @@ actual fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray {
         0,
         bytes.size,
         BitmapFactory.Options().apply { inSampleSize = sample },
-    ) ?: throw IllegalArgumentException("cannot decode image")
+    ) ?: throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
     decoded = applyOrientation(decoded, orientation)
 
     // Регион считался в дисплейных размерах; декодированный может отличаться
@@ -188,9 +222,53 @@ actual fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray {
     return output.toByteArray()
 }
 
+/**
+ * Stage 8 п.2 (VAL-PHOTO-004): уменьшение без кропа с сохранением пропорций.
+ * Тот же конвейер, что и кроп, только без вырезания региона:
+ * 1) bounds + EXIF → дисплейные размеры (поворот 90/270 меняет пропорции);
+ * 2) даунсэмпл `BitmapFactory.Options.inSampleSize` ДО декодирования —
+ *    большой исходник не аллоцируется целиком;
+ * 3) поворот по EXIF ([applyOrientation]) — BitmapFactory EXIF не применяет;
+ * 4) подгонка под [maxSide] (маленькие фото НЕ увеличиваются),
+ * 5) JPEG-компрессия [quality] (0.8 → 80).
+ */
+actual fun resizeJpeg(bytes: ByteArray, maxSide: Int, quality: Double): ByteArray {
+    require(maxSide >= 1) { "maxSide must be >= 1, got $maxSide" }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    }
+    val orientation = jpegExifOrientation(bytes)
+    // inSampleSize считаем по большей стороне: max(сырые) == max(дисплейные),
+    // поворот размеры не меняет. Остаток масштабирования добирает createScaledBitmap.
+    val sample = (maxOf(bounds.outWidth, bounds.outHeight) / maxSide).coerceAtLeast(1)
+    var decoded = BitmapFactory.decodeByteArray(
+        bytes,
+        0,
+        bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sample },
+    ) ?: throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    decoded = applyOrientation(decoded, orientation)
+
+    val target = fitWithin(decoded.width, decoded.height, maxSide)
+    var output = decoded
+    if (target.width != decoded.width || target.height != decoded.height) {
+        output = Bitmap.createScaledBitmap(decoded, target.width, target.height, true)
+        if (output !== decoded) decoded.recycle()
+    }
+    val stream = ByteArrayOutputStream()
+    output.compress(
+        Bitmap.CompressFormat.JPEG,
+        (quality * 100).roundToInt().coerceIn(1, 100),
+        stream,
+    )
+    output.recycle()
+    return stream.toByteArray()
+}
+
 /** Android не участвует в файловом диалоге (jvm-харнесс). */
 actual fun listDirectory(path: String): List<PickDirEntry> = emptyList()
-
 /**
  * EXIF-ориентация → поворот/отражение растра. Последовательность операций
  * согласована с jvm-actual (`applyJpegOrientation`): post-вызовы применяются
