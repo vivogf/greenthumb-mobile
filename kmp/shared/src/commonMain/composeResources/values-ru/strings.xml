@@ -212,6 +212,7 @@
     <string name="profile_hide">Скрыть</string>
     <string name="profile_generateNewKey">Сгенерировать новый ключ</string>
     <string name="profile_generating">Генерация...</string>
+    <string name="profile_regenerateWarning">Текущий ключ восстановления будет заменён. Обязательно сохраните новый.</string>
     <string name="profile_language">Язык</string>
     <string name="profile_signOut">Выйти</string>
     <string name="profile_signOutConfirm">Выйти из аккаунта?</string>

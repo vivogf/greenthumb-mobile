@@ -208,6 +208,7 @@
     <string name="profile_hide">Hide</string>
     <string name="profile_generateNewKey">Generate New Key</string>
     <string name="profile_generating">Generating...</string>
+    <string name="profile_regenerateWarning">This will replace your current recovery key. Make sure to save the new one.</string>
     <string name="profile_language">Language</string>
     <string name="profile_signOut">Sign Out</string>
     <string name="profile_signOutConfirm">Sign out?</string>

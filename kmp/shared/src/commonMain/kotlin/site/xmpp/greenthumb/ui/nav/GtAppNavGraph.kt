@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,20 +22,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
-import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
-import site.xmpp.greenthumb.core.storage.AppLanguage
+import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
-import site.xmpp.greenthumb.core.storage.ThemePreference
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
-import site.xmpp.greenthumb.ui.components.PrimaryButton
-import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
+import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -90,9 +85,9 @@ public object NavRoutes {
  * пересоздаёт только экраны, подписи перечитываются немедленно (VAL-I18N-004),
  * а rememberNavController + back stack живут СНАРУЖИ ключа — смена языка на
  * выбранной вкладке сохраняет маршрут (RN-паритет: редиректа на дашборд нет).
- * Плейсхолдерные заголовки и подписи вкладок читают [AppEnvironment]'овскую
- * локаль на каждом проходе — им ключ не нужен, но экраны Stage 7 с локальным
- * remember-состоянием обязаны быть под одним ключом с вкладками.
+ * Плейсхолдерные заголовки читают [AppEnvironment]'овскую локаль на каждом
+ * проходе — им ключ не нужен, но экраны Stage 7 с локальным remember-состоянием
+ * обязаны быть под одним ключом с вкладками.
  */
 @Composable
 public fun GtAppNavGraph(
@@ -117,6 +112,17 @@ public fun GtAppNavGraph(
      * login.tsx:82-85/89-90 — мимо choose). Ветка welcome — default.
      */
     initialLoginMode: LoginMode = LoginMode.Choose,
+    /**
+     * Push-подсистема (Stage 7 п.4, экран профиля; каркас — тумблер/тест
+     * активной реализации ждут M9). Ветка welcome/login — dev-заглушка.
+     */
+    push: PushTokens = PushTokens(),
+    /**
+     * Язык подписки пушей (RN `i18n.language`, 'ru'/'en'): wire-значение
+     * AppLanguage, при системной локали — RN-фолбэк 'ru'
+     * (subscribeToExpoNotifications). Лямбда: значение на момент действия.
+     */
+    pushLanguage: () -> String = { "ru" },
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -163,7 +169,13 @@ public fun GtAppNavGraph(
         composable(NavRoutes.TABS_PROFILE) {
             AppLocalizedContent {
                 TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
-                    InterimProfileScreen(session = session, settings = settings)
+                    ProfileScreen(
+                        session = session,
+                        settings = settings,
+                        push = push,
+                        pushLanguage = { pushLanguage() },
+                        onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
+                    )
                 }
             }
         }
@@ -261,67 +273,7 @@ private fun PlaceholderHeader(
 }
 
 /**
- * Промежуточный профиль: выход из скелета — единственный UI-триггер выхода
- * до Stage 7 (screen-profile портит все настройки). Держит матрицу выхода
- * (VAL-DATA-008) доступной из UI. Дев-переключатели темы (Stage 6 п.3,
- * VAL-THEME-002) и языка (Stage 6 п.5, VAL-I18N-004/005) — поверхности
- * верификации рантайм-настроек; заменяются пикерами Stage 7 (screen-profile).
+ * Промежуточный профиль (Stage 6) заменён полноценным экраном
+ * [ProfileScreen] (Stage 7 п.4, фича screen-profile): пикеры языка/темы,
+ * recovery key, время уведомления, пуши-секция, выход.
  */
-@Composable
-private fun InterimProfileScreen(session: SessionManager, settings: AppPreferencesStore) {
-    val scope = rememberCoroutineScope()
-    val themePreference by settings.theme.collectAsState(initial = null)
-    val languagePreference by settings.language.collectAsState(initial = null)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Spacing.lg),
-    ) {
-        Spacer(modifier = Modifier.height(Spacing.xxl))
-        PlaceholderHeader(title = NavRoutes.TABS_PROFILE, note = "настройки профиля — Stage 7")
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        SecondaryButton(
-            // null (= ключ ещё не прочитан) показывается и циклится как auto —
-            // дефолт RN. Цикл auto → light → dark → auto; выбор пишется в
-            // AppSettings (greenthumb_theme) и переживает рестарт (VAL-STOR-002).
-            text = "Theme: ${themePreference?.wire ?: ThemePreference.Auto.wire} (dev)",
-            onClick = {
-                scope.launch {
-                    settings.setTheme(
-                        when (themePreference) {
-                            ThemePreference.Light -> ThemePreference.Dark
-                            ThemePreference.Dark -> ThemePreference.Auto
-                            ThemePreference.Auto, null -> ThemePreference.Light
-                        }
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        SecondaryButton(
-            // null (= язык не задан) = системная локаль: фолбэк ресурсов en —
-            // дефолт RN. Цикл system → ru → en → ru; выбор пишется в AppSettings
-            // (greenthumb_language), локальный key(customAppLocale) в
-            // [AppLocalizedContent] перекомпоновывает подписи немедленно
-            // (VAL-I18N-004), выбранный маршрут/стек сохраняется (VAL-I18N-006)
-            // и переживает рестарт (VAL-I18N-005). Значение wire ('ru'/'en')
-            // читает подписка пушей (M9).
-            text = "Language: ${languagePreference?.wire ?: "system"} (dev)",
-            onClick = {
-                scope.launch {
-                    settings.setLanguage(
-                        if (languagePreference == AppLanguage.Ru) AppLanguage.En else AppLanguage.Ru
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        SecondaryButton(
-            text = "Sign out",
-            onClick = { scope.launch { session.signOut() } },
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}

@@ -32,6 +32,27 @@ public expect open class PushTokens() {
      * подсказку, parity RN showAlert(pushPermissionDenied)).
      */
     public open suspend fun requestSubscribe(language: String): PushOutcome
+
+    /**
+     * Текущее состояние подписки пушей (экран профиля, Stage 7 п.4;
+     * RN `checkExpoSubscription` + mount-эффект `app/(tabs)/profile.tsx:60-73`).
+     * Сетевой вызов статуса — деталь реализации (M9: GET fcm-subscription;
+     * 404/недоступно → false); тумблер отражает результат. До M9 — false.
+     */
+    public open suspend fun subscriptionStatus(): Boolean
+
+    /**
+     * Отписка устройства (выключение тумблера профиля; RN
+     * `unsubscribeFromExpoNotifications`). До M9 — no-op (подписки не было).
+     */
+    public open suspend fun unsubscribe()
+
+    /**
+     * Локальное тестовое уведомление (кнопка профиля; RN
+     * `sendLocalTestNotification` — `lib/notifications.ts:122-137`, канал
+     * HIGH). Активная реализация — M9; до неё не поддерживается (no-op).
+     */
+    public open suspend fun sendLocalTestNotification()
 }
 
 /** Исход «включить уведомления» (порт веток RN enable-notifications.tsx). */

@@ -60,7 +60,8 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  * перезагружается при смене языка (дашборд не перемонтируется).
  *
  * RED-прогон фиксировался временной правкой AppEnvironment (key(customAppLocale)
- * вернулся на место) — профиль-кейс падал на assertExists("tabs/profile")
+ * вернулся на место) — профиль-кейс падал на assertExists-маркере профиля
+ * (раньше текст-маркер «tabs/profile», с m7 — заголовок «My Profile»)
  * (маршрут сбрасывался на дашборд); дашборд-кейс был зелёным в обоих
  * состояниях. Механика падения «Database is closed» у ранних красных
  * прогонов — двойник opener'а, а не продукт; после фикса M6 (экран не
@@ -307,17 +308,18 @@ class LocaleNavigationParityTest {
             // ждём его завершения.
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.plantsCount >= 1 }
             onNodeWithText("Профиль").performClick()
-            waitUntilAtLeastOneExists(hasText("tabs/profile"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Мой профиль"), TIMEOUT)
             onNodeWithText("tabs/dashboard").assertDoesNotExist()
             assertEquals(1, graph.server.meCount, "один me-запрос на старте")
 
             // Смена языка — тот же триггер, что у переключателя в профиле.
             runBlocking { graph.settings.setLanguage(AppLanguage.En) }
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
             waitUntilDoesNotExist(hasText("Растения"), TIMEOUT)
 
             // Профиль остаётся выбранным: редиректа на дашборд нет.
-            onNodeWithText("tabs/profile").assertExists()
+            onNodeWithText("My Profile").assertExists()
             onNodeWithText("tabs/dashboard").assertDoesNotExist()
             // Сессия не переигрывается, данные не перезагружаются.
             assertEquals(1, graph.server.meCount, "перезапуска сессии нет")
@@ -326,7 +328,7 @@ class LocaleNavigationParityTest {
             // Цикл обратно (ru) — профиль по-прежнему выбран, подписи переведены.
             runBlocking { graph.settings.setLanguage(AppLanguage.Ru) }
             waitUntilAtLeastOneExists(hasText("Растения"), TIMEOUT)
-            onNodeWithText("tabs/profile").assertExists()
+            onNodeWithText("Мой профиль").assertExists()
             onNodeWithText("tabs/dashboard").assertDoesNotExist()
             assertEquals(1, graph.server.meCount, "перезапуска сессии нет и в обратную сторону")
 

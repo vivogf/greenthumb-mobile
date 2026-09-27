@@ -45,6 +45,10 @@ KMP_ONLY_KEYS = {
     "session.keyNotFoundBody",
     "session.keyNotFoundEnterKey",
     "session.keyNotFoundCreateAccount",
+    # profile.regenerateWarning — RN profile.tsx:192-193 держит текст диалога
+    # регенерации захардкоженным по-английски (пробел i18n RN); KMP заводит
+    # ключ в обеих локалях (ru-текст собственный).
+    "profile.regenerateWarning",
 }
 
 PLURAL_SUFFIX_QUANTITY_RU = {"_0": "one", "_1": "few", "_2": "many"}

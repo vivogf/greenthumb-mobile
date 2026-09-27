@@ -432,6 +432,27 @@ public class SessionManager(
     // ------------------------------------------------------------------
 
     /**
+     * Смена времени уведомлений (Stage 7 п.4, экран профиля; RN `updateUser`
+     * + PATCH update-notification-time — `app/(tabs)/profile.tsx:146-166`):
+     * запрос и обновление пользователя ([applyUser] — state + cached_user).
+     * Тело — `HH:00` (целые часы); no-op на тот же час решает экран, не
+     * менеджер. Бросает [ApiError] — профиль показывает message.
+     */
+    public suspend fun updateNotificationTime(notificationTime: String): UserDto =
+        applyUser(api.updateNotificationTime(notificationTime)).user
+
+    /**
+     * Регенерация recovery key (Stage 7 п.4, экран профиля; RN
+     * `regenerateRecoveryKey` — `contexts/AuthContext.tsx:231-249`): запрос,
+     * НОВЫЙ ключ сервера записывается в SecureStore ([applyUser] — паритет RN
+     * saveRecoveryKey(data.user.recovery_key)), cached_user обновлён.
+     * Бросает [ApiError] — профиль показывает message; 401-дисциплина чистки
+     * ключа живёт в шве клиента, не здесь.
+     */
+    public suspend fun regenerateRecoveryKey(): UserDto =
+        applyUser(api.regenerateRecoveryKey()).user
+
+    /**
      * Восстановление сессии сохранённым ключом (шов M2; вызывается
      * ApiClient-провайдером и тестами). Пишет cached_user; Бросает [ApiError].
      */
@@ -537,7 +558,14 @@ public class SessionManager(
         return applyUser(user)
     }
 
-    /** Успешный вход: cached_user + ключ сервера (если отличается) → SignedIn. */
+    /**
+     * Успешный вход/рантайм-обновление пользователя: cached_user + ключ
+     * сервера (если отличается) → SignedIn. Публикует [SessionState.SignedIn]
+     * в [state]: рантайм-обновления (PATCH времени, регенерация ключа —
+     * Stage 7 п.4) должны доехать до экранов (RN-паритет `updateUser` в
+     * AuthContext: cached_user + setUser(data.user)); вход-пути публикуют
+     * то же значение повторно в [finishSignIn]/[startup] — безвредно.
+     */
     private suspend fun applyUser(user: UserDto): SessionState.SignedIn {
         // Признак «в этом процессе уже был успешный вход» (см.
         // [signedOutOrKeyNotFound]): пустота после такого шага — не стартовая.
@@ -549,7 +577,9 @@ public class SessionManager(
             // в сессии (cookie в памяти клиента) и придёт с следующим me.
             secure.set(SecureStoreKeys.RECOVERY_KEY, user.recoveryKey)
         }
-        return SessionState.SignedIn(user)
+        val state = SessionState.SignedIn(user)
+        mutableState.value = state
+        return state
     }
 
     /**
