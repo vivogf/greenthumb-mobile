@@ -35,6 +35,10 @@ fun GtTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     /** Действия клавиатуры (RN onSubmitEditing — Done у поля имени шапки). */
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    /** Слот слева от ввода (лупа поиска — RN Ionicons внутри строки поиска). */
+    leadingIcon: (@Composable () -> Unit)? = null,
+    /** Слот справа (кнопка очистки поиска). */
+    trailingIcon: (@Composable () -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val hasError = !error.isNullOrEmpty()
@@ -54,6 +58,8 @@ fun GtTextField(
             singleLine = singleLine,
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
+            leadingIcon = leadingIcon,
+            trailingIcon = trailingIcon,
             placeholder = if (placeholder.isEmpty()) {
                 null
             } else {

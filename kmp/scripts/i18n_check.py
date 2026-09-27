@@ -57,6 +57,12 @@ KMP_ONLY_KEYS = {
     "addPlant.validation.frequencyInvalidNumber",
     "addPlant.validation.frequencyMinimum",
     "addPlant.validation.dateRequired",
+    # dashboard.refreshFailed / dashboard.databaseError — полоса ошибки
+    # refresh при живом кэше и строка ошибки чтения локальной базы (KMP:
+    # Room-источник истины; полноэкранная ошибка RN поверх данных — баг,
+    # не переносится — VAL-DASH-009/VAL-DATA-001). В RN полосы нет.
+    "dashboard.refreshFailed",
+    "dashboard.databaseError",
 }
 
 PLURAL_SUFFIX_QUANTITY_RU = {"_0": "one", "_1": "few", "_2": "many"}

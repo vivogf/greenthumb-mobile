@@ -325,13 +325,14 @@ class AddPlantScreenTest {
         waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
     }
 
-    /** Тап «Add Plant» (кнопка интерим-дашборда) → экран формы. */
+    /** Тап «Add Plant» (empty-state дашборда: GET отдаёт []) → экран формы. */
     private fun androidx.compose.ui.test.ComposeUiTest.openAddPlantForm() {
         val h = harness!!
-        // Интерим-дашборд держит RU-кнопку «Добавить растение» (заглушка
-        // Stage 6, перевод — фича screen-dashboard); OnClick напрямую
-        // (clickAt-паттерн ProfileScreenTest, без требований вьюпорта).
-        clickAt(hasClickAction() and hasText("Добавить растение"))
+        // Дашборд (screen-dashboard) показывает empty-state с кнопкой
+        // «Add Plant» (a11y-лейбл FAB не виден — растений нет); OnClick
+        // напрямую (clickAt-паттерн ProfileScreenTest, без требований
+        // вьюпорта).
+        clickAt(hasClickAction() and hasText("Add Plant"))
         waitUntilAtLeastOneExists(hasText("Add New Plant"), TIMEOUT)
         waitUntilAtLeastOneExists(hasSubText("Plant Name"), TIMEOUT)
         assertEquals(0, h.server.lastAddBody?.let { 1 } ?: 0, "POST ещё не отправлялся")
