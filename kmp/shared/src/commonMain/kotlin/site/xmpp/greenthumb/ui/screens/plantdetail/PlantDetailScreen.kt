@@ -64,6 +64,8 @@ import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
+import site.xmpp.greenthumb.core.platform.PickSource
+import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.WateringStatus
 import site.xmpp.greenthumb.data.daysUntilWatering
@@ -85,11 +87,13 @@ import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTextField
+import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.formatPickerDate
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
+import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.a11y_back
 import site.xmpp.greenthumb.ui.res.a11y_changePhoto
@@ -202,8 +206,8 @@ public class PlantDeleteErrorState {
  *   (литералы RN-экрана `#fff`/rgba — свойство-константа, K5 не матчит);
  * - фото: data-URI через Coil [AsyncImage] (Coil запинен миссией; Keyer —
  *   m8-coil-keyer); без фото — контур листа (Ionicons leaf RN);
- * - смена фото: модалка камера/галерея есть, активный пикер — m8-image-pickers
- *   (колбэки каркаса не исполняют — как GtImagePickerField add-plant);
+ * - смена фото: модалка камера/галерея → [photoPicker] (Stage 8 п.1:
+ *   platform-пикер + свой квадратный кроп + алерт отказа, молчание отмены);
  * - дата последнего полива — [formatPickerDate] (числовой en/ru-формат);
    локализованные месячные имена («d MMM yyyy» RN) — поверхность фичи
    screen-dashboard;
@@ -321,6 +325,12 @@ public fun PlantDetailScreen(
                 }
             }
 
+            // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → PATCH
+            // photo_url data-URI (контракт RN processPhoto, plant/[id].tsx).
+            val photoPicker = rememberPhotoPicker { bytes ->
+                update(PatchPlantDto(photoUrl = Patch.Value(photoDataUri(bytes))))
+            }
+
             fun performDelete() {
                 if (deleting) return
                 deleting = true
@@ -372,336 +382,340 @@ public fun PlantDetailScreen(
                 is WateredAgoLabel.DaysAgo -> stringResource(Res.string.plantDetails_daysAgo, label.days)
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .imePadding(),
-            ) {
-                // ── Фото-шапка (RN photoHeight = round(width * 0.75)) ──
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f / 0.75f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    if (plant.photoUrl.isBlank()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            GtLeafMark(
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(Spacing.xxl * 2),
-                            )
-                        }
-                    } else {
-                        AsyncImage(
-                            model = plant.photoUrl,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
-                    // Затемнение (LinearGradient RN: 0.35 black → transparent → 0.7 black).
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    0f to Color.Black.copy(alpha = 0.35f),
-                                    0.5f to Color.Transparent,
-                                    1f to Color.Black.copy(alpha = 0.7f),
-                                ),
-                            ),
-                    )
-
-                    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.lg),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            HeaderIconButton(label = backLabel, onClick = onBack) {
-                                GtChevronMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
-                            }
-                            HeaderIconButton(label = changePhotoLabel, onClick = { showPhotoSheet = true }) {
-                                GtCameraMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
-                            }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.xl)
-                                .padding(bottom = Spacing.lg),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-                        ) {
-                            if (editingName) {
-                                NameEditField(
-                                    value = editedName,
-                                    onValueChange = { editedName = it },
-                                    onSave = {
-                                        editingName = false
-                                        val trimmed = editedName.trim()
-                                        if (trimmed.isNotEmpty() && trimmed != plant.name) {
-                                            update(PatchPlantDto(name = Patch.Value(trimmed)))
-                                        }
-                                    },
-                                )
-                            } else {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            role = Role.Button,
-                                        ) {
-                                            editedName = plant.name
-                                            editingName = true
-                                        },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                ) {
-                                    Text(
-                                        text = plant.name,
-                                        style = MaterialTheme.typography.headlineSmall
-                                            .copy(fontWeight = FontWeight.Bold),
-                                        color = Color.White,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    GtPencilMark(
-                                        tint = Color.White.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(Spacing.lg),
-                                    )
-                                }
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
-                            ) {
-                                GtLocationMark(
-                                    tint = Color.White.copy(alpha = 0.75f),
-                                    modifier = Modifier.size(Spacing.sm),
-                                )
-                                Text(
-                                    text = plant.location,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.75f),
-                                )
-                            }
-                        }
-                    }
-                }
-
+            Box(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(Spacing.xl),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xl),
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .imePadding(),
                 ) {
-                    // ── Статус полива ──
-                    GtCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                                Text(
-                                    text = lastWateredLabel.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text =
-                                        "$wateredLabel · ${formatPickerDate(plant.lastWateredDate, locale)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                            WaterBadge(text = waterBadgeText, color = waterColor)
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        PrimaryButton(
-                            text = waterPlantLabel,
-                            onClick = { update(PatchPlantDto(lastWateredDate = Patch.Value(today.toString()))) },
-                            modifier = Modifier
-                                .gtButtonWidth()
-                                .semantics {
-                                    // a11y_waterPlant: «Полить растение %1$s» —
-                                    // имя подставляется stringResource'ом.
-                                    contentDescription = waterPlantA11yLabel
-                                },
-                        )
-                    }
-
-                    // ── Продвинутый уход 2×N (только настроенные частоты) ──
-                    if (plant.fertilizeFrequencyDays != null ||
-                        plant.repotFrequencyMonths != null ||
-                        plant.pruneFrequencyMonths != null
+                    // ── Фото-шапка (RN photoHeight = round(width * 0.75)) ──
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f / 0.75f)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                            Text(
-                                text = advancedCareLabel,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            val cards = buildList {
-                                plant.fertilizeFrequencyDays?.let { freq ->
-                                    add(
-                                        CareCardData(
-                                            title = fertilizingLabel,
-                                            a11yLabel = fertilizeAction,
-                                            days = daysUntilCare(plant.lastFertilizedDate, freq, today),
-                                            mark = { tint -> GtLeafMark(tint = tint) },
-                                            onAction = {
-                                                update(
-                                                    PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())),
-                                                )
-                                            },
-                                        ),
-                                    )
-                                }
-                                plant.repotFrequencyMonths?.let { freq ->
-                                    add(
-                                        CareCardData(
-                                            title = repottingLabel,
-                                            a11yLabel = repotAction,
-                                            days = daysUntilMonthCare(plant.lastRepottedDate, freq, today),
-                                            mark = { tint -> GtPotMark(tint = tint) },
-                                            onAction = {
-                                                update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
-                                            },
-                                        ),
-                                    )
-                                }
-                                plant.pruneFrequencyMonths?.let { freq ->
-                                    add(
-                                        CareCardData(
-                                            title = pruningLabel,
-                                            a11yLabel = pruneAction,
-                                            days = daysUntilMonthCare(plant.lastPrunedDate, freq, today),
-                                            mark = { tint -> GtScissorsMark(tint = tint) },
-                                            onAction = {
-                                                update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
-                                            },
-                                        ),
-                                    )
-                                }
-                            }
-                            cards.chunked(2).forEach { rowCards ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                                ) {
-                                    rowCards.forEach { card ->
-                                        CareCard(card = card, modifier = Modifier.weight(1f))
-                                    }
-                                    if (rowCards.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── Кнопка настроек ухода ──
-                    SettingsRow(
-                        label = careSettingsLabel,
-                        onClick = {
-                            settingsForm = CareSettingsForm.of(plant)
-                            showSettings = true
-                        },
-                    )
-
-                    // ── Заметки ──
-                    GtCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = notesLabel,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            if (!editingNotes) {
-                                Text(
-                                    text = editLabel,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.clickableNoIndication {
-                                        editedNotes = plant.notes
-                                        editingNotes = true
-                                    },
+                        if (plant.photoUrl.isBlank()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                GtLeafMark(
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(Spacing.xxl * 2),
                                 )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        if (editingNotes) {
-                            GtTextField(
-                                value = editedNotes,
-                                onValueChange = { editedNotes = it },
-                                label = "",
-                                placeholder = notesPlaceholder,
-                                singleLine = false,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
-                            ) {
-                                Button(
-                                    onClick = { editingNotes = false },
-                                    shape = MaterialTheme.shapes.small,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    ),
-                                ) {
-                                    Text(text = cancelText, style = MaterialTheme.typography.labelLarge)
-                                }
-                                Button(
-                                    onClick = {
-                                        editingNotes = false
-                                        if (editedNotes != plant.notes) {
-                                            update(PatchPlantDto(notes = Patch.Value(editedNotes)))
-                                        }
-                                    },
-                                    shape = MaterialTheme.shapes.small,
-                                ) {
-                                    Text(text = saveText, style = MaterialTheme.typography.labelLarge)
-                                }
                             }
                         } else {
-                            Text(
-                                text = plant.notes.ifEmpty { noNotesText },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (plant.notes.isEmpty()) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
+                            AsyncImage(
+                                model = plant.photoUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
                             )
+                        }
+                        // Затемнение (LinearGradient RN: 0.35 black → transparent → 0.7 black).
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        0f to Color.Black.copy(alpha = 0.35f),
+                                        0.5f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.7f),
+                                    ),
+                                ),
+                        )
+
+                        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.lg),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                HeaderIconButton(label = backLabel, onClick = onBack) {
+                                    GtChevronMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
+                                }
+                                HeaderIconButton(label = changePhotoLabel, onClick = { showPhotoSheet = true }) {
+                                    GtCameraMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
+                                }
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.xl)
+                                    .padding(bottom = Spacing.lg),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                            ) {
+                                if (editingName) {
+                                    NameEditField(
+                                        value = editedName,
+                                        onValueChange = { editedName = it },
+                                        onSave = {
+                                            editingName = false
+                                            val trimmed = editedName.trim()
+                                            if (trimmed.isNotEmpty() && trimmed != plant.name) {
+                                                update(PatchPlantDto(name = Patch.Value(trimmed)))
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                role = Role.Button,
+                                            ) {
+                                                editedName = plant.name
+                                                editingName = true
+                                            },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                    ) {
+                                        Text(
+                                            text = plant.name,
+                                            style = MaterialTheme.typography.headlineSmall
+                                                .copy(fontWeight = FontWeight.Bold),
+                                            color = Color.White,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        GtPencilMark(
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(Spacing.lg),
+                                        )
+                                    }
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                                ) {
+                                    GtLocationMark(
+                                        tint = Color.White.copy(alpha = 0.75f),
+                                        modifier = Modifier.size(Spacing.sm),
+                                    )
+                                    Text(
+                                        text = plant.location,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White.copy(alpha = 0.75f),
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // ── Удаление ──
-                    DestructiveButton(
-                        text = plantDelete,
-                        onClick = { deleteConfirmOpen = true },
-                        enabled = !deleting,
+                    Column(
                         modifier = Modifier
-                            .gtButtonWidth()
-                            .semantics { contentDescription = deleteA11yLabel },
-                    )
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .navigationBarsPadding()
+                            .padding(Spacing.xl),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xl),
+                    ) {
+                        // ── Статус полива ──
+                        GtCard {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                                    Text(
+                                        text = lastWateredLabel.uppercase(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        text =
+                                            "$wateredLabel · ${formatPickerDate(plant.lastWateredDate, locale)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                                WaterBadge(text = waterBadgeText, color = waterColor)
+                            }
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            PrimaryButton(
+                                text = waterPlantLabel,
+                                onClick = { update(PatchPlantDto(lastWateredDate = Patch.Value(today.toString()))) },
+                                modifier = Modifier
+                                    .gtButtonWidth()
+                                    .semantics {
+                                        // a11y_waterPlant: «Полить растение %1$s» —
+                                        // имя подставляется stringResource'ом.
+                                        contentDescription = waterPlantA11yLabel
+                                    },
+                            )
+                        }
+
+                        // ── Продвинутый уход 2×N (только настроенные частоты) ──
+                        if (plant.fertilizeFrequencyDays != null ||
+                            plant.repotFrequencyMonths != null ||
+                            plant.pruneFrequencyMonths != null
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                Text(
+                                    text = advancedCareLabel,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                val cards = buildList {
+                                    plant.fertilizeFrequencyDays?.let { freq ->
+                                        add(
+                                            CareCardData(
+                                                title = fertilizingLabel,
+                                                a11yLabel = fertilizeAction,
+                                                days = daysUntilCare(plant.lastFertilizedDate, freq, today),
+                                                mark = { tint -> GtLeafMark(tint = tint) },
+                                                onAction = {
+                                                    update(
+                                                        PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())),
+                                                    )
+                                                },
+                                            ),
+                                        )
+                                    }
+                                    plant.repotFrequencyMonths?.let { freq ->
+                                        add(
+                                            CareCardData(
+                                                title = repottingLabel,
+                                                a11yLabel = repotAction,
+                                                days = daysUntilMonthCare(plant.lastRepottedDate, freq, today),
+                                                mark = { tint -> GtPotMark(tint = tint) },
+                                                onAction = {
+                                                    update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
+                                                },
+                                            ),
+                                        )
+                                    }
+                                    plant.pruneFrequencyMonths?.let { freq ->
+                                        add(
+                                            CareCardData(
+                                                title = pruningLabel,
+                                                a11yLabel = pruneAction,
+                                                days = daysUntilMonthCare(plant.lastPrunedDate, freq, today),
+                                                mark = { tint -> GtScissorsMark(tint = tint) },
+                                                onAction = {
+                                                    update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
+                                                },
+                                            ),
+                                        )
+                                    }
+                                }
+                                cards.chunked(2).forEach { rowCards ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                    ) {
+                                        rowCards.forEach { card ->
+                                            CareCard(card = card, modifier = Modifier.weight(1f))
+                                        }
+                                        if (rowCards.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Кнопка настроек ухода ──
+                        SettingsRow(
+                            label = careSettingsLabel,
+                            onClick = {
+                                settingsForm = CareSettingsForm.of(plant)
+                                showSettings = true
+                            },
+                        )
+
+                        // ── Заметки ──
+                        GtCard {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    text = notesLabel,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                if (!editingNotes) {
+                                    Text(
+                                        text = editLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickableNoIndication {
+                                            editedNotes = plant.notes
+                                            editingNotes = true
+                                        },
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            if (editingNotes) {
+                                GtTextField(
+                                    value = editedNotes,
+                                    onValueChange = { editedNotes = it },
+                                    label = "",
+                                    placeholder = notesPlaceholder,
+                                    singleLine = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End),
+                                ) {
+                                    Button(
+                                        onClick = { editingNotes = false },
+                                        shape = MaterialTheme.shapes.small,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        ),
+                                    ) {
+                                        Text(text = cancelText, style = MaterialTheme.typography.labelLarge)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            editingNotes = false
+                                            if (editedNotes != plant.notes) {
+                                                update(PatchPlantDto(notes = Patch.Value(editedNotes)))
+                                            }
+                                        },
+                                        shape = MaterialTheme.shapes.small,
+                                    ) {
+                                        Text(text = saveText, style = MaterialTheme.typography.labelLarge)
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = plant.notes.ifEmpty { noNotesText },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (plant.notes.isEmpty()) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                )
+                            }
+                        }
+
+                        // ── Удаление ──
+                        DestructiveButton(
+                            text = plantDelete,
+                            onClick = { deleteConfirmOpen = true },
+                            enabled = !deleting,
+                            modifier = Modifier
+                                .gtButtonWidth()
+                                .semantics { contentDescription = deleteA11yLabel },
+                        )
+                    }
                 }
+                // Пикер фото поверх экрана (Stage 8 п.1).
+                PhotoPickerHost(photoPicker)
             }
 
             // ── Подтверждение удаления (RN confirmDelete showAlert) ──
@@ -766,8 +780,22 @@ public fun PlantDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    PhotoSheetRow(label = cameraText, icon = { GtCameraMark(it) }, onClick = { showPhotoSheet = false })
-                    PhotoSheetRow(label = galleryText, icon = { GtGalleryMark(it) }, onClick = { showPhotoSheet = false })
+                    PhotoSheetRow(
+                        label = cameraText,
+                        icon = { GtCameraMark(it) },
+                        onClick = {
+                            showPhotoSheet = false
+                            photoPicker.launch(scope, PickSource.Camera)
+                        },
+                    )
+                    PhotoSheetRow(
+                        label = galleryText,
+                        icon = { GtGalleryMark(it) },
+                        onClick = {
+                            showPhotoSheet = false
+                            photoPicker.launch(scope, PickSource.Gallery)
+                        },
+                    )
                     PhotoSheetRow(
                         label = cancelText,
                         icon = null,

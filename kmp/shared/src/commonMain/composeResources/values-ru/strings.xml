@@ -275,6 +275,12 @@
     <string name="common_permissionDeniedTitle">Нет доступа</string>
     <string name="common_cameraPermissionDenied">Разрешите доступ к камере в настройках телефона.</string>
     <string name="common_galleryPermissionDenied">Разрешите доступ к галерее в настройках телефона.</string>
+    <!-- Stage 8 п.1: свой экран квадратного кропа + файловый диалог десктопа.
+         В RN этих ключей нет (нативный allowsEditing локализуется системой) —
+         KMP_ONLY_KEYS в scripts/i18n_check.py. -->
+    <string name="photoCrop_title">Кадрировать фото</string>
+    <string name="photoCrop_hint">Щипком масштабируйте, перетаскиванием двигайте</string>
+    <string name="photoPick_fileTitle">Выберите фото</string>
     <string name="handoffModal_title">Сохраните ключ восстановления</string>
     <string name="handoffModal_subtitle">Держите его в надёжном месте — например, в менеджере паролей или заметке, которую найдёте только вы.</string>
     <string name="handoffModal_keyLabel">Ключ восстановления</string>

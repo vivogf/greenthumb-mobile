@@ -11,6 +11,15 @@
          «нет сети» с третьим триггером обновления работать не будут. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Пикер фото (Stage 8 п.1): камера (TakePicture) и медиатека —
+         RN-паритет requestCameraPermissionsAsync/requestMediaLibraryPermissionsAsync
+         (запрос ДО пикера, отказ → локализованный алерт). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:name=".GreenThumbApplication"
         android:label="GreenThumb"
@@ -35,5 +44,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- content:// для EXTRA_OUTPUT камеры (Stage 8 п.1): кадр пишется в
+             cacheDir/gt-pick-*.jpg и читается приложением же; пути —
+             res/xml/file_paths.xml (cache-path gt-pick). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
