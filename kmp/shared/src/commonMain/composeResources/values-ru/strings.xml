@@ -67,7 +67,12 @@
     <string name="dashboard_tryDifferentFilter">Попробуйте другой фильтр</string>
     <string name="dashboard_waterAll">Полить все</string>
     <string name="dashboard_wateringNow">Поливаем...</string>
-    <string name="dashboard_wateringAllPending">Поливаем %1$d растений...</string>
+    <plurals name="dashboard_wateringAllPending">
+        <item quantity="one">Поливаем %1$d растение...</item>
+        <item quantity="few">Поливаем %1$d растения...</item>
+        <item quantity="many">Поливаем %1$d растений...</item>
+        <item quantity="other">Поливаем %1$d растений...</item>
+    </plurals>
     <string name="dashboard_postponeAll">Отложить все</string>
     <string name="dashboard_lastSynced">Обновлено в %1$s</string>
     <plurals name="dashboard_plantsWatered">

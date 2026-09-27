@@ -11,17 +11,20 @@ import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
 /**
- * Регрессия VAL-DASH-006: success-баннер массового полива склоняется по числу
- * политых растений. До фикса баннер собирал строку из плоского
+ * Регрессия VAL-DASH-006: success- и pending-баннеры массового полива склоняются
+ * по числу растений. До первого фикса success-баннер собирал строку из плоского
  * `dashboard.plantsWatered` («растений полито») — на 2 выводил
- * «2 растений полито» вместо «2 растения полито».
+ * «2 растений полито» вместо «2 растения полито»; pending-баннер строился из
+ * плоского `dashboard.wateringAllPending` («Поливаем N растений...») — на 2
+ * выводил «Поливаем 2 растений...» вместо «Поливаем 2 растения...».
  *
  * Эталонные числа 1/2/5/21/22/25 (план Stage 6 п.4, как в I18nResourcesTest):
  * 1/21 → one «растение», 2/22 → few «растения», 5/25 → many «растений».
  *
  * en НЕ меняется (осознанное решение — RN-паритет): во всех количествах
- * «N plants watered», включая грамматически неидеальное «1 plants watered»,
- * как в RN `"{count} {t('dashboard.plantsWatered')}"`.
+ * «N plants watered» / «Watering N plants...», включая грамматически неидеальное
+ * «1 plants watered», как в RN
+ * `"{count} {t('dashboard.plantsWatered')}"` / `t('dashboard.wateringAllPending', {count})`.
  */
 @OptIn(ExperimentalTestApi::class)
 class BulkWaterBannerPluralTest {
@@ -88,6 +91,59 @@ class BulkWaterBannerPluralTest {
             onNodeWithText("2 plants watered").assertExists()
             onNodeWithText("5 plants watered").assertExists()
             onNodeWithText("21 plants watered").assertExists()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun ru_pending_banner_declines_at_reference_counts() = try {
+        rememberLocale()
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "ru") {
+                    GreenThumbTheme(darkTheme = false) {
+                        Column {
+                            listOf(1, 2, 5, 21, 22, 25).forEach { n ->
+                                BulkWaterBanner(pendingCount = n, successCount = null)
+                            }
+                        }
+                    }
+                }
+            }
+
+            onNodeWithText("Поливаем 1 растение...").assertExists()
+            onNodeWithText("Поливаем 2 растения...").assertExists()
+            onNodeWithText("Поливаем 5 растений...").assertExists()
+            onNodeWithText("Поливаем 21 растение...").assertExists()
+            onNodeWithText("Поливаем 22 растения...").assertExists()
+            onNodeWithText("Поливаем 25 растений...").assertExists()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun en_pending_banner_unchanged_at_reference_counts() = try {
+        rememberLocale()
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "en") {
+                    GreenThumbTheme(darkTheme = false) {
+                        Column {
+                            listOf(1, 2, 5, 21).forEach { n ->
+                                BulkWaterBanner(pendingCount = n, successCount = null)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // en-текст не менялся фиксом (во всех числах «plants»).
+            onNodeWithText("Watering 1 plants...").assertExists()
+            onNodeWithText("Watering 2 plants...").assertExists()
+            onNodeWithText("Watering 5 plants...").assertExists()
+            onNodeWithText("Watering 21 plants...").assertExists()
         }
     } finally {
         restoreLocale()

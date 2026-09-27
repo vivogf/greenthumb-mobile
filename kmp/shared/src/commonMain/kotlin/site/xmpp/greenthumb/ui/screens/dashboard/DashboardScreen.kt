@@ -831,11 +831,12 @@ private fun BulkActionButton(
 }
 
 /**
- * Баннер массового полива: pending «Поливаем N растений…» / success
- * «N полито» (RN dashboard.wateringAllPending / plantsWatered).
+ * Баннер массового полива: pending «Поливаем N растений/растения/растение…» /
+ * success «N полито» (RN dashboard.wateringAllPending / plantsWatered).
  *
- * Success-фраза склоняется по числу политых (см. текст в ветке successCount);
- * сам счётчик всегда отдельным числом перед фразой — структура строки
+ * Success-фраза склоняется по числу политых, pending-глагольная — тоже
+ * (VAL-DASH-006; см. тексты в ветках ниже); сам счётчик всегда отдельным
+ * числом перед фразой в success — структура строки
  * RN `"{count} {plantsWatered}"`. internal — для регрессионного jvmTest
  * плюрализма (BulkWaterBannerPluralTest).
  */
@@ -871,7 +872,14 @@ internal fun BulkWaterBanner(
             GtCheckMark(tint = scheme.primary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
         }
         val text = if (pending && pendingCount != null) {
-            stringResource(Res.string.dashboard_wateringAllPending, pendingCount)
+            // Плюрализм pending-баннера (VAL-DASH-006): ru 1/21 → «растение»,
+            // 2/22 → «растения», 5/25 → «растений»; en во всех количествах —
+            // «plants», как было.
+            pluralStringResource(
+                Res.plurals.dashboard_wateringAllPending,
+                pendingCount,
+                pendingCount,
+            )
         } else if (successCount != null) {
             // Плюрализм существительного по числу политых (VAL-DASH-006):
             // ru 1/21 → «растение», 2/22 → «растения», 5/25 → «растений»;

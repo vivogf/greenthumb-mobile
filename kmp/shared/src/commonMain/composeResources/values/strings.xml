@@ -67,7 +67,10 @@
     <string name="dashboard_tryDifferentFilter">Try a different filter</string>
     <string name="dashboard_waterAll">Water All</string>
     <string name="dashboard_wateringNow">Watering...</string>
-    <string name="dashboard_wateringAllPending">Watering %1$d plants...</string>
+    <plurals name="dashboard_wateringAllPending">
+        <item quantity="one">Watering %1$d plants...</item>
+        <item quantity="other">Watering %1$d plants...</item>
+    </plurals>
     <string name="dashboard_postponeAll">Postpone All</string>
     <string name="dashboard_lastSynced">Updated at %1$s</string>
     <plurals name="dashboard_plantsWatered">
