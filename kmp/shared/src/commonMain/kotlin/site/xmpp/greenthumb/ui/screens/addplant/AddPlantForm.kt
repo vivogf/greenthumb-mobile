@@ -95,9 +95,11 @@ public object AddPlantForm {
     }
 
     /**
-     * Тело POST — RN `onSubmit` (`app/add-plant.tsx:81-110`): trim имени/локации,
-     * частота только если заполнена (гейт `if (data.fertilize_frequency_days)`),
-     * дата уходит только в паре с частотой. Пустые notes/photo_url — серверный
+     * Тело POST — RN `onSubmit` (`app/add-plant.tsx:81-110`): trim имени/локации;
+     * ШЕСТЬ независимых гейтов (`if (data.fertilize_frequency_days)`,
+     * `if (data.last_fertilized_date)`, … — scrutiny m7, VAL-ADDPLANT-003):
+     * каждая дата уходит без своей частоты, как repot/prune с самого начала.
+     * Пустые notes/photo_url — серверный
      * дефолт `''` (encodeDefaults=false: ключи `""`-дефолтов в провод не пишутся).
      */
     public fun toInsertPlantDto(fields: AddPlantFields): InsertPlantDto {
@@ -110,7 +112,7 @@ public object AddPlantForm {
             lastWateredDate = fields.lastWateredDate.orEmpty(),
             notes = fields.notes,
             fertilizeFrequencyDays = fertilizer,
-            lastFertilizedDate = fertilizer?.let { fields.lastFertilizedDate?.trim()?.takeIf { d -> d.isNotEmpty() } },
+            lastFertilizedDate = parseOptionalDate(fields.lastFertilizedDate),
             repotFrequencyMonths = parseFrequency(fields.repotFrequencyText),
             lastRepottedDate = parseOptionalDate(fields.lastRepottedDate),
             pruneFrequencyMonths = parseFrequency(fields.pruneFrequencyText),

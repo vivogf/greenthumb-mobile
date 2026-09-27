@@ -22,7 +22,8 @@ import site.xmpp.greenthumb.core.network.ApiClient
  * локация/заметки опциональны.
  * VAL-ADDPLANT-003: незаполненный расширенный уход НЕ попадает в тело POST;
  * заполненный — попадает с датами (encodeDefaults=false: null-дефолты
- * сериализатором не пишутся).
+ * сериализатором не пишутся); каждая дата уезжает НЕЗАВИСИМО от своей
+ * частоты (RN add-plant.tsx:118-124 — шесть независимых if-ов).
  */
 class AddPlantFormTest {
 
@@ -295,11 +296,12 @@ class AddPlantFormTest {
     }
 
     @Test
-    fun body_dateWithoutFrequency_isNotSent() {
-        // RN: if (data.fertilize_frequency_days) — частота обязательна, чтобы
-        // пара уехала; дата без частоты в тело не попадает (в zod-объекте она
-        // optional и просто осталась бы, но экран собирает тело полями частот:
-        // паритет решения — частота гейтит всю пару).
+    fun body_dateWithoutFrequency_isSent() {
+        // RN add-plant.tsx:118-124 — ШЕСТЬ независимых if-ов: дата удобрения
+        // гейтится собственным `if (data.last_fertilized_date)`, а не частотой.
+        // Прежний комментарий здесь («частота обязательна, чтобы пара уехала»)
+        // неверно описывал RN — scrutiny m7 (VAL-ADDPLANT-003): заполненная
+        // дата без частоты уезжает в POST и сохраняется сервером.
         val dto = AddPlantForm.toInsertPlantDto(
             AddPlantFields(
                 name = "Fern",
@@ -309,9 +311,15 @@ class AddPlantFormTest {
                 lastFertilizedDate = "2026-09-20",
             ),
         )
-        assertEquals(null, dto.fertilizeFrequencyDays)
-        assertEquals(null, dto.lastFertilizedDate, "дата без частоты не уезжает (RN-гейт частоты)")
-        assertFalse(dtoJson(dto).containsKey("last_fertilized_date"))
+        assertEquals(null, dto.fertilizeFrequencyDays, "пустая частота — ключа нет в DTO")
+        assertEquals("2026-09-20", dto.lastFertilizedDate, "дата уезжает БЕЗ частоты (RN: независимые if-ы)")
+        val body = dtoJson(dto)
+        assertFalse(body.containsKey("fertilize_frequency_days"), "пустая частота не попадает в POST")
+        assertEquals(
+            "2026-09-20",
+            (body["last_fertilized_date"] as kotlinx.serialization.json.JsonPrimitive).content,
+            "last_fertilized_date сериализуется независимо от частоты",
+        )
     }
 
     @Test
