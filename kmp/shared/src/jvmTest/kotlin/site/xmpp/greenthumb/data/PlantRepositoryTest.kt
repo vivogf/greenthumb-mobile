@@ -431,6 +431,54 @@ class PlantRepositoryTest {
         }
     }
 
+    /**
+     * VAL-DETAIL-004, ветка Network/Timeout: удаление НЕ откатывается — строка
+     * журнала M4 остаётся (keepForReplay), оптимистично удалённая карточка не
+     * воскресает, ошибка наверх — ApiError.Network (экран показывает честный
+     * статус «выполнится после подключения», не «ошибку»).
+     */
+    @Test
+    fun delete_network_error_keeps_journal_and_stays_removed_for_replay() = runBlocking<Unit> {
+        val harness = openHarness { request ->
+            if (request.method == HttpMethod.Get) {
+                ok(plantsJson(listOf(healthyPlant())))
+            } else {
+                throw IllegalStateException("Connection reset")
+            }
+        }
+        harness.use { box ->
+            box.repo.refresh()
+            val error = assertFailsWith<ApiError.Network> { box.repo.delete("healthy") }
+            assertEquals(ApiError.Network, error)
+            assertTrue(box.repo.currentPlants().isEmpty(), "оптимистичное удаление остаётся локально")
+            val journal = box.repo.pendingJournal().single()
+            assertEquals(MutationType.DELETE, journal.type)
+            assertEquals("healthy", journal.plantId, "строка ждёт досылки после подключения")
+        }
+    }
+
+    /**
+     * VAL-DETAIL-004, ветка определительного 500: откат снимком (карточка
+     * вернулась) + журнал пуст. Детерминированный jvmTest вместо продовых
+     * fault-контролов (MockEngine, не живой бэкенд).
+     */
+    @Test
+    fun delete_server500_rolls_back_snapshot_and_clears_journal() = runBlocking<Unit> {
+        val harness = openHarness { request ->
+            if (request.method == HttpMethod.Get) {
+                ok(plantsJson(listOf(healthyPlant())))
+            } else {
+                serverError()
+            }
+        }
+        harness.use { box ->
+            box.repo.refresh()
+            assertFailsWith<ApiError.Server> { box.repo.delete("healthy") }
+            assertEquals(listOf("healthy"), box.repo.currentPlants().map { it.id })
+            assertTrue(box.repo.pendingJournal().isEmpty(), "журнал пуст после подтверждённого отказа")
+        }
+    }
+
     @Test
     fun delete_database_for_user_removes_own_files_and_leaves_other() = runBlocking<Unit> {
         val harness = openHarness { _ -> ok(plantsJson(listOf(healthyPlant()))) }

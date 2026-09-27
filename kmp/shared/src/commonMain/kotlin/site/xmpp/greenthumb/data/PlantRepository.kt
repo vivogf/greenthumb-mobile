@@ -564,9 +564,20 @@ public class PlantRepository(
     }
 
     /** Сеть/таймаут — ответ не подтверждён. HTTP-отказ — подтверждённый провал. */
-    private fun keepForReplay(error: Throwable): Boolean =
-        error is ApiError.Network || error is ApiError.Timeout
+    private fun keepForReplay(error: Throwable): Boolean = isHeldForReplay(error)
 }
+
+/**
+ * Правило очереди M4: Network/Timeout — ответ не подтверждён, строка журнала
+ * остаётся и досылается после подключения; HTTP-отказ (4xx/5xx) —
+ * подтверждённый провал, снимок откатывается и журнал снимается.
+ *
+ * Единый источник для репозитория (`keepForReplay`) и UI (ветка
+ * `deleteFailureBranch`, VAL-DETAIL-004): экран обязан говорить об очереди
+ * ровно тогда, когда очередь действительно хранит мутацию.
+ */
+public fun isHeldForReplay(error: Throwable): Boolean =
+    error is ApiError.Network || error is ApiError.Timeout
 
 /** Шаг разбора одной журнальной строки. Снаружи репозитория не виден. */
 private sealed class DrainStep {

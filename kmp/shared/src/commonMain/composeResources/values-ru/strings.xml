@@ -179,6 +179,8 @@
     <string name="plantDetails_deleteDescription">Это действие нельзя отменить. Растение %1$s будет навсегда удалено из вашей коллекции.</string>
     <string name="plantDetails_cancel">Отмена</string>
     <string name="plantDetails_delete">Удалить</string>
+    <string name="plantDetails_deleteQueuedTitle">Удаление отложено</string>
+    <string name="plantDetails_deleteQueuedMessage">Нет соединения. Удаление выполнится после подключения.</string>
     <string name="plantDetails_careSettings">Настройки ухода</string>
     <string name="plantDetails_careSettingsDescription">Настройте расписание ухода за %1$s</string>
     <string name="plantDetails_wateringFrequency">Частота полива (дней)</string>

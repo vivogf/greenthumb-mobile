@@ -6,12 +6,37 @@ import kotlinx.datetime.plus
 import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
+import site.xmpp.greenthumb.data.isHeldForReplay
 
 /**
  * Чистая логика экрана деталей растения (Stage 7 п.6, фича screen-plant-detail)
  * — порт хелперов `app/plant/[id].tsx:37-67` и `saveSettings` ( RN
  * `app/plant/[id].tsx:262-331`). Без Compose: проверяется напрямую в jvmTest.
  */
+
+/**
+ * Ветка отказа удаления (VAL-DETAIL-004, решение пользователя 2026-09-27):
+ *
+ * - [Queued] — Network/Timeout: репозиторий НЕ откатывает (журнал M4 хранит
+ *   удаление и досылает при восстановлении сети), UI обязан честно сказать
+ *   «удаление выполнится после подключения», а не «ошибка»;
+ * - [Rejected] — определённый 4xx/5xx: репозиторий уже откатил снимок и снял
+ *   журнал, UI показывает сообщение об ошибке (RN onError-паритет).
+ *
+ * Отделение веток обязано совпадать с `keepForReplay` репозитория — иначе
+ * экран солжёт о судьбе очереди. Проверяется jvmTest-классификацией.
+ */
+public enum class DeleteFailureBranch {
+    /** Сеть/таймаут: удаление в очереди, досылается после подключения. */
+    Queued,
+
+    /** Определённый отказ сервера: откат снимка, журнал пуст. */
+    Rejected,
+}
+
+/** Какую ветку UI показывать для [error] из `repo.delete` (VAL-DETAIL-004). */
+public fun deleteFailureBranch(error: Throwable): DeleteFailureBranch =
+    if (isHeldForReplay(error)) DeleteFailureBranch.Queued else DeleteFailureBranch.Rejected
 
 /**
  * Состояние экрана от наблюдения репозитория: RN `isLoading` (первый кадр

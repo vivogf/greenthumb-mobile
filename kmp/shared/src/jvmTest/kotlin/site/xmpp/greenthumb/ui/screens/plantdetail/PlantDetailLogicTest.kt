@@ -9,6 +9,7 @@ import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.ApiError
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -138,6 +139,44 @@ class PlantDetailLogicTest {
         // Будущая дата (кривые часы) — RN isToday false, daysAgo<0 → не yesterday,
         // но и не «дн. назад»; паритет решения — трактуем как сегодня.
         assertIs<WateredAgoLabel.Today>(wateredAgoLabel("2026-09-26", today))
+    }
+
+    // ------------------------------------------------------------------
+    // deleteFailureBranch — две ветки отказа удаления (VAL-DETAIL-004)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun deleteFailureBranch_networkAndTimeout_areQueued() {
+        // Network/Timeout: журнал M4 хранит удаление и досошлёт его после
+        // подключения — UI обязан показывать честный статус, не «ошибку».
+        assertEquals(DeleteFailureBranch.Queued, deleteFailureBranch(ApiError.Network))
+        assertEquals(DeleteFailureBranch.Queued, deleteFailureBranch(ApiError.Timeout))
+    }
+
+    @Test
+    fun deleteFailureBranch_definitiveRejection_isRejected() {
+        // Определённый 4xx/5xx: репозиторий откатил снимок и снял журнал —
+        // UI показывает сообщение об ошибке (RN onError-паритет).
+        assertEquals(DeleteFailureBranch.Rejected, deleteFailureBranch(ApiError.Server(500, "boom")))
+        assertEquals(DeleteFailureBranch.Rejected, deleteFailureBranch(ApiError.Client(404, "gone")))
+        assertEquals(DeleteFailureBranch.Rejected, deleteFailureBranch(ApiError.Unauthorized))
+    }
+
+    @Test
+    fun deleteFailureBranch_matchesRepositoryReplayRule() {
+        // Ветка UI обязана совпадать с keepForReplay репозитория: всё, что
+        // остаётся в очереди, — Queued; всё, что откатывается, — Rejected.
+        listOf(ApiError.Network, ApiError.Timeout).forEach { error ->
+            assertEquals(DeleteFailureBranch.Queued, deleteFailureBranch(error), "$error")
+        }
+        listOf(
+            ApiError.Server(500, "x"),
+            ApiError.Client(400, "x"),
+            ApiError.Unauthorized,
+            IllegalStateException("boom"),
+        ).forEach { error ->
+            assertEquals(DeleteFailureBranch.Rejected, deleteFailureBranch(error), "$error")
+        }
     }
 
     // ------------------------------------------------------------------

@@ -200,6 +200,7 @@ class PlantDetailScreenTest {
         var lastPatchPath: String? = null
         var deleteCount = 0
         var deleteStatus: HttpStatusCode = HttpStatusCode.OK
+        var deleteThrows: Throwable? = null
         var lastDeletePath: String? = null
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
@@ -240,6 +241,9 @@ class PlantDetailScreenTest {
                 path.startsWith("/api/plants/") && request.method == HttpMethod.Delete -> {
                     deleteCount++
                     lastDeletePath = path
+                    // Транспортный сбой до ответа (ApiError.Network через
+                    // ApiClient.mapException) — ветка очереди VAL-DETAIL-004.
+                    deleteThrows?.let { throw it }
                     respond("""{"success":true}""", deleteStatus, JSON_HEADERS)
                 }
                 path == "/api/auth/create-anonymous" -> {
@@ -505,6 +509,49 @@ class PlantDetailScreenTest {
             waitUntilAtLeastOneExists(hasText("Error"), TIMEOUT)
             // Растение восстановлено откатом снимка (репозиторий).
             waitUntilAtLeastOneExists(hasSubText("Ficus"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /**
+     * VAL-DETAIL-004, ветка Network/Timeout: карточка исчезла оптимистично,
+     * удаление стоит в очереди M4, глобальный алерт говорит ЧЕСТНЫЙ статус
+     * «удаление выполнится после подключения», а не «ошибка» (misleading
+     * сообщение round-1 user-testing). Detерминированно: MockEngine бросает
+     * транспортный сбой вместо продовых fault-контролов.
+     */
+    @Test
+    fun delete_networkError_showsQueuedStatusOverDashboard_notError() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        graph.server.deleteThrows = IllegalStateException("Connection reset")
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            openDeleteConfirm()
+            clickLast(hasClickAction() and hasText("Delete", substring = false))
+
+            // Экран ушёл на дашборд сразу (RN onMutate), DELETE упал в сети.
+            waitUntilDoesNotExist(hasText("Delete this plant?"), TIMEOUT)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.deleteCount >= 1 }
+
+            // Честный локализованный статус очереди (не «Error»).
+            waitUntilAtLeastOneExists(hasText("Delete postponed"), TIMEOUT)
+            waitUntilAtLeastOneExists(
+                hasSubText("deletion will run after you reconnect"),
+                TIMEOUT,
+            )
+            assertTrue(
+                onAllNodes(hasText("Error"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "Network/Timeout — не ошибка: заголовок «Error» не показывается",
+            )
+            // Карточка исчезла оптимистично (не воскресла от отката).
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodesWithText("No plants yet", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
 
             runOnIdle { graph.close() }
         }

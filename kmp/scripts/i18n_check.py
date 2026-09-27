@@ -64,6 +64,12 @@ KMP_ONLY_KEYS = {
     # не переносится — VAL-DASH-009/VAL-DATA-001). В RN полосы нет.
     "dashboard.refreshFailed",
     "dashboard.databaseError",
+    # plantDetails.deleteQueued* — честный статус отложенного удаления при
+    # Network/Timeout (VAL-DETAIL-004, решение пользователя 2026-09-27): M4
+    # досылает удаление после подключения, RN-алерта на такую ситуацию нет
+    # (RN откатывал при любой сетевой ошибке — осознанное отличие).
+    "plantDetails.deleteQueuedTitle",
+    "plantDetails.deleteQueuedMessage",
 }
 
 # RN держит эти ключи-строки как KMP <plurals> (не <string>): плюрализации
