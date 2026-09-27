@@ -2,6 +2,8 @@
 
 package site.xmpp.greenthumb.core.network
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
@@ -87,7 +89,14 @@ data class FcmSubscriptionRequest(
 data class InsertPlantDto(
     val name: String,
     val location: String,
+    /**
+     * RN всегда шлёт photo_url ("" без фото, `app/add-plant.tsx:96-101`), серверный
+     * zod требует поле (400 `photo_url: Required` проверено live 2026-09-27) —
+     * поэтому ALWAYS: ключ пишется и для дефолта "" (encodeDefaults=false
+     * выбрасывал бы его как равный дефолту).
+     */
     @SerialName("photo_url")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val photoUrl: String = "",
     @SerialName("water_frequency_days")
     val waterFrequencyDays: Int,
