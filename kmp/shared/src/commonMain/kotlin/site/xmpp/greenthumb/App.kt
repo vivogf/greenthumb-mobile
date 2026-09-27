@@ -7,9 +7,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.platform.DataUriKeyer
 import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
@@ -88,6 +91,16 @@ fun App(
     settings: AppPreferencesStore,
     push: PushTokens,
 ) {
+    // Stage 8 п.4 (VAL-PHOTO-005): singleton-лоадер Coil с Keyer'ом, делающим
+    // ключом кэша SHA-256 от data-URI фото, а не саму строку в сотни килобайт.
+    // Вызов — в теле корня ДО первой композиции AsyncImage (любой вложенный
+    // AsyncImage резолвит лоадер через SingletonImageLoader.get; вызов setSafe
+    // после создания дефолтного лоадера бросает IllegalStateException).
+    setSingletonImageLoaderFactory { context ->
+        ImageLoader.Builder(context)
+            .components { add(DataUriKeyer()) }
+            .build()
+    }
     // M6b (VAL-I18N-007): синхронизация выбранной локали с платформой в корне
     // тела — до детей. Android: чтение LocalConfiguration делает корень
     // реактивным к каждой доставке конфигурации (в т.ч. display-ступеням
