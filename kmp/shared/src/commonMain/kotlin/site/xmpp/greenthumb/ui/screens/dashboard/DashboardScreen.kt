@@ -833,9 +833,14 @@ private fun BulkActionButton(
 /**
  * Баннер массового полива: pending «Поливаем N растений…» / success
  * «N полито» (RN dashboard.wateringAllPending / plantsWatered).
+ *
+ * Success-фраза склоняется по числу политых (см. текст в ветке successCount);
+ * сам счётчик всегда отдельным числом перед фразой — структура строки
+ * RN `"{count} {plantsWatered}"`. internal — для регрессионного jvmTest
+ * плюрализма (BulkWaterBannerPluralTest).
  */
 @Composable
-private fun BulkWaterBanner(
+internal fun BulkWaterBanner(
     pendingCount: Int?,
     successCount: Int?,
     modifier: Modifier = Modifier,
@@ -868,7 +873,13 @@ private fun BulkWaterBanner(
         val text = if (pending && pendingCount != null) {
             stringResource(Res.string.dashboard_wateringAllPending, pendingCount)
         } else if (successCount != null) {
-            "$successCount " + stringResource(Res.string.dashboard_plantsWatered)
+            // Плюрализм существительного по числу политых (VAL-DASH-006):
+            // ru 1/21 → «растение», 2/22 → «растения», 5/25 → «растений»;
+            // en во всех количествах — «plants watered», как было.
+            "$successCount " + pluralStringResource(
+                Res.plurals.dashboard_plantsWatered,
+                successCount,
+            )
         } else {
             ""
         }

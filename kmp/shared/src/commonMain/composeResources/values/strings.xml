@@ -70,7 +70,10 @@
     <string name="dashboard_wateringAllPending">Watering %1$d plants...</string>
     <string name="dashboard_postponeAll">Postpone All</string>
     <string name="dashboard_lastSynced">Updated at %1$s</string>
-    <string name="dashboard_plantsWatered">plants watered</string>
+    <plurals name="dashboard_plantsWatered">
+        <item quantity="one">plants watered</item>
+        <item quantity="other">plants watered</item>
+    </plurals>
     <string name="dashboard_plantsPostponed">plants postponed</string>
     <string name="dashboard_refreshFailed">Couldn\'t refresh — showing saved data</string>
     <string name="dashboard_databaseError">Local database error</string>

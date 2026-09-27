@@ -70,7 +70,12 @@
     <string name="dashboard_wateringAllPending">Поливаем %1$d растений...</string>
     <string name="dashboard_postponeAll">Отложить все</string>
     <string name="dashboard_lastSynced">Обновлено в %1$s</string>
-    <string name="dashboard_plantsWatered">растений полито</string>
+    <plurals name="dashboard_plantsWatered">
+        <item quantity="one">растение полито</item>
+        <item quantity="few">растения полито</item>
+        <item quantity="many">растений полито</item>
+        <item quantity="other">растений полито</item>
+    </plurals>
     <string name="dashboard_plantsPostponed">растений отложено</string>
     <string name="dashboard_refreshFailed">Не удалось обновить — показаны сохранённые данные</string>
     <string name="dashboard_databaseError">Ошибка чтения локальной базы</string>

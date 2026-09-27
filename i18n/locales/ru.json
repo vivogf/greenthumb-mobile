@@ -83,6 +83,9 @@
     "postponeAll": "Отложить все",
     "lastSynced": "Обновлено в {{time}}",
     "plantsWatered": "растений полито",
+    "plantsWatered_0": "растение полито",
+    "plantsWatered_1": "растения полито",
+    "plantsWatered_2": "растений полито",
     "plantsPostponed": "растений отложено"
   },
   "plant": {
