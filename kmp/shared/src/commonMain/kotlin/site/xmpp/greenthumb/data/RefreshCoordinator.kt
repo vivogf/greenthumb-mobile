@@ -66,10 +66,11 @@ public sealed class RefreshOutcome {
  *
  * Сам жизненный цикл не слушает. Скелет вызывает [onFirstShow] при входе
  * в онлайн-сессию и передаёт [PlantRepository.refresh]: успех пишет
- * `sync_meta`, ошибка таблицу не трогает. [onResume] и привязка к
- * `ON_RESUME` остаются оболочке Stage 6. [attachConnectivity] — на поток
- * [site.xmpp.greenthumb.core.platform.Connectivity.isOnline]. [refresh] не
- * должен звать координатор повторно — мьютекс не реентерабелен.
+ * `sync_meta`, ошибка таблицу не трогает. [attachForeground] — привязка к
+ * `ON_RESUME` (VAL-DASH-010: тёплый возврат принимает серверную правду,
+ * например удалённые растения, без перезапуска); [attachConnectivity] — на
+ * поток [site.xmpp.greenthumb.core.platform.Connectivity.isOnline].
+ * [refresh] не должен звать координатор повторно — мьютекс не реентерабелен.
  *
  * @param syncMeta источник времени последней успешной синхронизации (M4: Room).
  * @param nowMillis часы (эпоха-миллисекунды); прод передаёт системные.
@@ -118,6 +119,43 @@ public class RefreshCoordinator(
                 .filter { it }
                 .collect { onNetworkRestored() }
         }
+
+    /**
+     * Подписка на «приложение вернулось на передний план» (VAL-DASH-010):
+     * событие — переход `false → true` в потоке состояния
+     * [site.xmpp.greenthumb.core.platform.AppForeground.isResumed].
+     *
+     * Первое значение потока — ориентир подписки, не событие (тот же
+     * приём, что `drop(1)` у [attachConnectivity]): первый показ экрана уже
+     * отвечает за первый refresh. Каждое событие зовёт [onResume] — дальше
+     * решает сам координатор: свежее окно [staleAfterMillis] и полёт
+     * предыдущего запроса гасят дубль, поэтому первый показ/восстановление
+     * сети/ON_RESUME в одном окне дают один запрос.
+     *
+     * @param scope область подписки (жизнь экрана); отмена снимает её.
+     * @param isResumed поток состояния «на переднем плане».
+     * @param onOutcome что координатор сделал с триггером (экран гасит
+     *   полоску ошибки и перечитывает баннер); сюда же приходят Skipped*.
+     *   Колбэк suspend: исходы приходят из корутины подписки, и экран может
+     *   прочитать `sync_meta` (баннер) без отдельного запуска.
+     * @return задание подписки; отменяется вместе с переданным scope.
+     */
+    public fun attachForeground(
+        scope: CoroutineScope,
+        isResumed: Flow<Boolean>,
+        onOutcome: suspend (RefreshOutcome) -> Unit = {},
+    ): Job = scope.launch {
+        // Первое значение — ориентир подписки (null), не событие: за первый
+        // refresh отвечает [onFirstShow]. Дальше — только `false → true`.
+        var wasResumed: Boolean? = null
+        isResumed.collect { resumed ->
+            val previous = wasResumed
+            wasResumed = resumed
+            if (resumed && previous == false) {
+                onOutcome(onResume())
+            }
+        }
+    }
 
     private suspend fun refreshIfStale(): RefreshOutcome {
         if (!inFlight.tryLock()) return RefreshOutcome.SkippedInFlight
