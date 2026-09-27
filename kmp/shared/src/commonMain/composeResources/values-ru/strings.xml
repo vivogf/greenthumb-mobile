@@ -72,6 +72,8 @@
     <string name="dashboard_lastSynced">Обновлено в %1$s</string>
     <string name="dashboard_plantsWatered">растений полито</string>
     <string name="dashboard_plantsPostponed">растений отложено</string>
+    <string name="dashboard_refreshFailed">Не удалось обновить — показаны сохранённые данные</string>
+    <string name="dashboard_databaseError">Ошибка чтения локальной базы</string>
     <string name="plant_water">Полить</string>
     <string name="plant_watered">Полито!</string>
     <string name="plant_needsWater">Нужен полив</string>

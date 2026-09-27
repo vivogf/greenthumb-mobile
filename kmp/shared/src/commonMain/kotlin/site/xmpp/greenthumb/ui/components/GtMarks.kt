@@ -947,3 +947,202 @@ fun GtGalleryMark(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Лупа — Ionicons `search` (поиск дашборда). */
+@Composable
+fun GtSearchMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.28f,
+            center = Offset(size.width * 0.42f, size.height * 0.42f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.64f, size.height * 0.64f),
+            end = Offset(size.width * 0.86f, size.height * 0.86f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Крест — Ionicons `close`/`close-circle` (очистка поиска). */
+@Composable
+fun GtCloseMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 4).toPx()
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.25f, size.height * 0.25f),
+            end = Offset(size.width * 0.75f, size.height * 0.75f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.75f, size.height * 0.25f),
+            end = Offset(size.width * 0.25f, size.height * 0.75f),
+            strokeWidth = stroke,
+        )
+    }
+}
+
+/** Плюс — Ionicons `add` (FAB и кнопка пустого состояния). */
+@Composable
+fun GtPlusMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 4).toPx()
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.5f, size.height * 0.2f),
+            end = Offset(size.width * 0.5f, size.height * 0.8f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.2f, size.height * 0.5f),
+            end = Offset(size.width * 0.8f, size.height * 0.5f),
+            strokeWidth = stroke,
+        )
+    }
+}
+
+/** Воронка — Ionicons `funnel-outline` (пустой результат фильтра). */
+@Composable
+fun GtFunnelMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 4).toPx()
+        // Верхняя кромка и стенки конуса.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.15f, size.height * 0.2f),
+            end = Offset(size.width * 0.85f, size.height * 0.2f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.15f, size.height * 0.2f),
+            end = Offset(size.width * 0.45f, size.height * 0.55f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.85f, size.height * 0.2f),
+            end = Offset(size.width * 0.55f, size.height * 0.55f),
+            strokeWidth = stroke,
+        )
+        // Носик.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.45f, size.height * 0.55f),
+            end = Offset(size.width * 0.45f, size.height * 0.8f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.55f, size.height * 0.55f),
+            end = Offset(size.width * 0.55f, size.height * 0.8f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.45f, size.height * 0.8f),
+            end = Offset(size.width * 0.55f, size.height * 0.8f),
+            strokeWidth = stroke,
+        )
+    }
+}
+
+/** Облако с чертой — Ionicons `cloud-offline-outline` (баннер ≥5 минут). */
+@Composable
+fun GtCloudOffMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Капсула-основание облака.
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(size.width * 0.18f, size.height * 0.52f),
+            size = Size(size.width * 0.64f, size.height * 0.3f),
+            cornerRadius = CornerRadius(size.height * 0.15f),
+            style = stroke,
+        )
+        // Верхняя дуга-бугор.
+        drawArc(
+            color = tint,
+            startAngle = -180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.28f, size.height * 0.22f),
+            size = Size(size.width * 0.44f, size.height * 0.6f),
+            style = stroke,
+        )
+        // Диагональная черта.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.12f, size.height * 0.88f),
+            end = Offset(size.width * 0.88f, size.height * 0.12f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Список — Ionicons `list` (переключатель вида: list). */
+@Composable
+fun GtListViewMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 4).toPx()
+        for (index in 0..2) {
+            val y = size.height * (0.25f + index * 0.25f)
+            drawLine(
+                color = tint,
+                start = Offset(size.width * 0.15f, y),
+                end = Offset(size.width * 0.85f, y),
+                strokeWidth = stroke,
+            )
+        }
+    }
+}
+
+/** Карточки — Ionicons `albums` (переключатель вида: card). */
+@Composable
+fun GtCardViewMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Задняя карточка.
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(size.width * 0.32f, size.height * 0.12f),
+            size = Size(size.width * 0.54f, size.height * 0.54f),
+            cornerRadius = CornerRadius(stroke.width * 2),
+            style = stroke,
+        )
+        // Передняя карточка.
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(size.width * 0.14f, size.height * 0.34f),
+            size = Size(size.width * 0.54f, size.height * 0.54f),
+            cornerRadius = CornerRadius(stroke.width * 2),
+            style = stroke,
+        )
+    }
+}
+
+/** Сетка — Ionicons `grid` (переключатель вида: grid, 3×3 точки). */
+@Composable
+fun GtGridViewMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        for (row in 0..2) {
+            for (column in 0..2) {
+                drawCircle(
+                    color = tint,
+                    radius = size.minDimension * 0.08f,
+                    center = Offset(
+                        size.width * (0.2f + column * 0.3f),
+                        size.height * (0.2f + row * 0.3f),
+                    ),
+                )
+            }
+        }
+    }
+}

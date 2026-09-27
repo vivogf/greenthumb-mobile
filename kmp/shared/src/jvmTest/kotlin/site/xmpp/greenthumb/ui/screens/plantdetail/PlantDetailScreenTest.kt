@@ -341,12 +341,12 @@ class PlantDetailScreenTest {
         waitUntilAtLeastOneExists(hasText("Maybe later"), TIMEOUT)
         onNodeWithText("Maybe later").performClick()
         waitUntil(timeoutMillis = TIMEOUT) { h.server.plantsCount >= 1 }
-        waitUntilAtLeastOneExists(hasSubText("Plant: Ficus"), TIMEOUT)
+        waitUntilAtLeastOneExists(hasSubText("Ficus"), TIMEOUT)
     }
 
-    /** Тап по карточке растения (интерим-дашборд) → экран деталей. */
+    /** Тап по карточке растения (дашборд, режим list) → экран деталей. */
     private fun androidx.compose.ui.test.ComposeUiTest.openPlantDetail() {
-        clickAt(hasClickAction() and hasSubText("Plant: Ficus"))
+        clickAt(hasClickAction() and hasSubText("Ficus"))
         waitUntilAtLeastOneExists(hasSubText("Living Room"), TIMEOUT)
         waitUntilAtLeastOneExists(hasSubText("LAST WATERED"), TIMEOUT)
     }
@@ -475,12 +475,12 @@ class PlantDetailScreenTest {
             waitUntilDoesNotExist(hasText("Delete this plant?"), TIMEOUT)
 
             // DELETE зафиксирован; карточка не вернулась (список пуст —
-            // интерим-дашборд держит RU-строку «Список пуст», перевод —
-            // фича screen-dashboard).
+            // дашборд screen-dashboard показывает empty-state «нет растений
+            // вообще», не «ничего не найдено фильтром»).
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.deleteCount >= 1 }
             assertEquals("/api/plants/det-1", graph.server.lastDeletePath)
             waitUntil(timeoutMillis = TIMEOUT) {
-                onAllNodesWithText("Список пуст", substring = true).fetchSemanticsNodes().isNotEmpty()
+                onAllNodesWithText("No plants yet", substring = true).fetchSemanticsNodes().isNotEmpty()
             }
 
             runOnIdle { graph.close() }
@@ -504,7 +504,7 @@ class PlantDetailScreenTest {
             waitUntilDoesNotExist(hasText("Delete this plant?"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Error"), TIMEOUT)
             // Растение восстановлено откатом снимка (репозиторий).
-            waitUntilAtLeastOneExists(hasSubText("Plant: Ficus"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("Ficus"), TIMEOUT)
 
             runOnIdle { graph.close() }
         }

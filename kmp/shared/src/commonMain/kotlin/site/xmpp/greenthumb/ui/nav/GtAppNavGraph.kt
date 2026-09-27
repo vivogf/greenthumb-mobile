@@ -171,9 +171,11 @@ public fun GtAppNavGraph(
                     if (sessionUserId != null) {
                         DashboardScreen(
                             userId = sessionUserId,
+                            session = session,
                             onlineSession = onlineSession,
                             connectivity = connectivity,
                             opener = plants,
+                            settings = settings,
                             onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
                             onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
                         )
