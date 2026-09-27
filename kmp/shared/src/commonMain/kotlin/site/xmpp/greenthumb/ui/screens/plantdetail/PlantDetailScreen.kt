@@ -141,14 +141,29 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
 /**
- * Состояние ошибки удаления, ПЕРЕЖИВАЮЩЕЕ экран деталей (RN-паритет
+ * Ветка отказа удаления, ПЕРЕЖИВАЮЩАЯ экран деталей (RN-паритет
  * `app/plant/[id].tsx` deleteMutation: onMutate мгновенно делает
  * router.replace('/'), onError показывает Alert уже ПОВЕРХ дашборда —
- * алерт обязан жить не на экране деталей). Владелец — GtAppNavGraph:
- * читает после NavHost и рисует алерт поверх любого маршрута.
+ * алерт обязан жить не на экране деталей).
+ *
+ * Две ветки (VAL-DETAIL-004, решение пользователя 2026-09-27):
+ * [Failed] — определённый 4xx/5xx (откат уже сделал репозиторий);
+ * [Queued] — Network/Timeout: удаление стоит в очереди M4 и досылается
+ * при восстановлении сети — сообщение честное, не «ошибка».
+ */
+public sealed interface PlantDeleteNotice {
+    /** Определённый отказ сервера: карточка возвращена откатом, журнал пуст. */
+    public data class Failed(public val message: String) : PlantDeleteNotice
+
+    /** Network/Timeout: карточка исчезла, удаление выполнится после подключения. */
+    public data object Queued : PlantDeleteNotice
+}
+
+/**
+ * Состояние отказа удаления — владелец GtAppNavGraph (см. [PlantDeleteNotice]).
  */
 public class PlantDeleteErrorState {
-    public var message: String? by mutableStateOf(null)
+    public var notice: PlantDeleteNotice? by mutableStateOf(null)
 }
 
 /**
@@ -172,8 +187,11 @@ public class PlantDeleteErrorState {
  * как RN onMutate: репозиторий убирает строку мгновенно (Room + эффект до
  * сети), экран СРАЗУ уходит на дашборд ([onDeleted] без ожидания сети);
  * корутина удаления живёт в отдельном [CoroutineScope] (не
- * rememberCoroutineScope — тот отменяется при уходе экрана), ошибка
- * попадает в [PlantDeleteErrorState] → алерт над графом.
+ * rememberCoroutineScope — тот отменяется при уходе экрана), отказ
+ * попадает в [PlantDeleteErrorState] → алерт над графом. Ветка отказа —
+ * [deleteFailureBranch] (VAL-DETAIL-004): Network/Timeout → честный
+ * статус очереди [PlantDeleteNotice.Queued], определённый 4xx/5xx →
+ * [PlantDeleteNotice.Failed] поверх дашборда (RN onError-паритет).
  *
  * Осознанные отличия от RN (parity-файл):
  * - react-query optimistic-кэш → Room-наблюдение (architecture.md §7);
@@ -314,10 +332,17 @@ public fun PlantDetailScreen(
                         // на следующем replay.
                         throw cancellation
                     } catch (error: Throwable) {
-                        // RN onError: откат снимком (сделал репозиторий) +
-                        // Alert поверх дашборда (router.replace из onMutate
-                        // уже был).
-                        deleteErrorState.message = error.message ?: error.toString()
+                        // Две ветки VAL-DETAIL-004 (решение 2026-09-27):
+                        // Network/Timeout — репозиторий оставил удаление в
+                        // очереди M4 (досошлёт при подключении) → честный
+                        // статус «удаление выполнится после подключения»;
+                        // определённый 4xx/5xx — откат снимком уже сделан →
+                        // RN onError: Alert поверх дашборда.
+                        deleteErrorState.notice = when (deleteFailureBranch(error)) {
+                            DeleteFailureBranch.Queued -> PlantDeleteNotice.Queued
+                            DeleteFailureBranch.Rejected ->
+                                PlantDeleteNotice.Failed(error.message ?: error.toString())
+                        }
                     } finally {
                         deleting = false
                     }

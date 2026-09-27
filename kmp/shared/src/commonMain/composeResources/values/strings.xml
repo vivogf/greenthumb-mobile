@@ -171,6 +171,8 @@
     <string name="plantDetails_deleteDescription">This action cannot be undone. This will permanently delete %1$s from your collection.</string>
     <string name="plantDetails_cancel">Cancel</string>
     <string name="plantDetails_delete">Delete</string>
+    <string name="plantDetails_deleteQueuedTitle">Delete postponed</string>
+    <string name="plantDetails_deleteQueuedMessage">No connection. The deletion will run after you reconnect.</string>
     <string name="plantDetails_careSettings">Care Settings</string>
     <string name="plantDetails_careSettingsDescription">Adjust the care schedule for %1$s</string>
     <string name="plantDetails_wateringFrequency">Watering Frequency (days)</string>

@@ -34,11 +34,14 @@ import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.common_error
+import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedMessage
+import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedTitle
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteErrorState
+import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteNotice
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
@@ -228,18 +231,28 @@ public fun GtAppNavGraph(
             }
         }
     }
-    // Алерт ошибки удаления — НАД графом (RN onError deleteMutation: мутация
+    // Алерт отказа удаления — НАД графом (RN onError deleteMutation: мутация
     // уже увела экран на дашборд, Alert показывается поверх нового экрана).
-    // message != null → алерт; закрытие чистит состояние.
-    val deleteMessage = deleteErrorState.message
-    if (deleteMessage != null) {
-        val errorTitle = stringResource(Res.string.common_error)
-        GtAlertDialog(
-            title = errorTitle,
-            message = deleteMessage,
-            buttons = listOf(GtAlertButton(text = "OK")),
-            onDismissRequest = { deleteErrorState.message = null },
-        )
+    // Две ветки VAL-DETAIL-004 (решение пользователя 2026-09-27): определённый
+    // 4xx/5xx → «Ошибка» + текст сервера; Network/Timeout → честный статус
+    // «удаление выполнится после подключения» (очередь M4 досошлёт удаление).
+    // Закрытие чистит состояние.
+    val deleteNotice = deleteErrorState.notice
+    if (deleteNotice != null) {
+        when (deleteNotice) {
+            is PlantDeleteNotice.Failed -> GtAlertDialog(
+                title = stringResource(Res.string.common_error),
+                message = deleteNotice.message,
+                buttons = listOf(GtAlertButton(text = "OK")),
+                onDismissRequest = { deleteErrorState.notice = null },
+            )
+            PlantDeleteNotice.Queued -> GtAlertDialog(
+                title = stringResource(Res.string.plantDetails_deleteQueuedTitle),
+                message = stringResource(Res.string.plantDetails_deleteQueuedMessage),
+                buttons = listOf(GtAlertButton(text = "OK")),
+                onDismissRequest = { deleteErrorState.notice = null },
+            )
+        }
     }
 }
 
