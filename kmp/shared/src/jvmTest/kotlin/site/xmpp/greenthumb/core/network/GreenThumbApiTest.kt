@@ -201,9 +201,10 @@ class GreenThumbApiTest {
         )
         assertEquals("Ficus", added.name)
         assertEquals("POST", captured.method)
-        // encodeDefaults=false: photo_url="" и notes="" — дефолты, в провод не пишутся.
+        // RN всегда шлёт photo_url ("" без фото); серверный zod требует поле.
+        // @EncodeDefault(ALWAYS): photo_url="" пишется и для дефолта; notes="" — дефолт, в провод не пишется.
         assertEquals(
-            """{"name":"Ficus","location":"Living room","water_frequency_days":7,"last_watered_date":"2026-09-20"}""",
+            """{"name":"Ficus","location":"Living room","photo_url":"","water_frequency_days":7,"last_watered_date":"2026-09-20"}""",
             captured.body,
         )
         client.close()

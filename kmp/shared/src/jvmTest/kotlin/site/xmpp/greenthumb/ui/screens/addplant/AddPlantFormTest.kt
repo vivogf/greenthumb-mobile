@@ -257,7 +257,9 @@ class AddPlantFormTest {
         assertFalse(body.containsKey("prune_frequency_months"), "пустой уход не попадает в POST")
         assertFalse(body.containsKey("last_pruned_date"), "пустой уход не попадает в POST")
         assertFalse(body.containsKey("notes"), "пустые notes не пишутся (серверный дефолт '')")
-        assertFalse(body.containsKey("photo_url"), "пустое фото не пишется (серверный дефолт '')")
+        // RN всегда шлёт photo_url ("" без фото); серверный zod требует поле
+        // (@EncodeDefault(ALWAYS), 400 photo_url: Required проверено live).
+        assertEquals("", (body["photo_url"] as kotlinx.serialization.json.JsonPrimitive).content, "пустое фото уходит как \"\" (RN-паритет)")
         assertFalse(body.containsKey("user_id"), "user_id ставит сервер, клиент не шлёт")
     }
 
