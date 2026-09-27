@@ -29,6 +29,7 @@ import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
@@ -180,7 +181,15 @@ public fun GtAppNavGraph(
             }
         }
         composable(NavRoutes.ADD_PLANT) {
-            AppLocalizedContent { PlaceholderScreen(title = NavRoutes.ADD_PLANT, note = "форма растения — Stage 7") }
+            AppLocalizedContent {
+                if (sessionUserId != null) {
+                    AddPlantScreen(
+                        userId = sessionUserId,
+                        opener = plants,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+            }
         }
         composable(NavRoutes.PLANT) { entry ->
             // SavedState в navigation 2.9.2 мультиплатформенный: строковые

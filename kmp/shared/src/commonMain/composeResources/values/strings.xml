@@ -130,6 +130,10 @@
     <string name="addPlant_fileTooLarge">File too large</string>
     <string name="addPlant_fileTooLargeHint">Photo must be less than 5MB</string>
     <string name="addPlant_uploadFailed">Upload failed</string>
+    <string name="addPlant_validation_nameRequired">Enter a name</string>
+    <string name="addPlant_validation_frequencyInvalidNumber">Enter a number</string>
+    <string name="addPlant_validation_frequencyMinimum">Minimum 1 day</string>
+    <string name="addPlant_validation_dateRequired">Pick a date</string>
     <string name="plantDetails_back">Back</string>
     <string name="plantDetails_changePhoto">Change Photo</string>
     <string name="plantDetails_plantNotFound">Plant not found</string>

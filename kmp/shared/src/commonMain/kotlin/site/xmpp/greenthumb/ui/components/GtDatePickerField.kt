@@ -3,6 +3,7 @@ package site.xmpp.greenthumb.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,6 +51,8 @@ fun GtDatePickerField(
     languageTag: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** Ошибка валидации под полем (рамка error, `add-plant.tsx` errorStyle). */
+    errorText: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val today = remember { pickerToday() }
@@ -74,25 +77,35 @@ fun GtDatePickerField(
         state.displayedMonthMillis = pickerMillis(initial)
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(scheme.surface, shape)
-            .borderHairline(scheme.outline, shape)
-            .clickable(enabled = enabled, onClick = { if (enabled) open = true }, role = Role.Button)
-            .semantics { contentDescription = "Date field $shown" }
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        GtCalendarMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.xl))
-        Text(
-            text = shown,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (normalized == null) scheme.onSurfaceVariant else scheme.onSurface,
-        )
-        GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(scheme.surface, shape)
+                .borderHairline(if (errorText == null) scheme.outline else scheme.error, shape)
+                .clickable(enabled = enabled, onClick = { if (enabled) open = true }, role = Role.Button)
+                .semantics { contentDescription = "Date field $shown" }
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            GtCalendarMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.xl))
+            Text(
+                text = shown,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (normalized == null) scheme.onSurfaceVariant else scheme.onSurface,
+            )
+            GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
+        }
+        if (errorText != null) {
+            Text(
+                text = errorText,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.error,
+                modifier = Modifier.padding(top = Spacing.xxs),
+            )
+        }
     }
 
     if (open) {
