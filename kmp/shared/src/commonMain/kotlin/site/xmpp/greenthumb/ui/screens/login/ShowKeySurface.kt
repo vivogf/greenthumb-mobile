@@ -5,14 +5,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemGesturesPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +69,13 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * Цвета успеха — RN `#22c55e` / `#22c55e22` → роль [GreenThumbColors.success] +
  * `successContainer` (literал RN-экрана портирован ролью темы, без
  * hex-литералов в экране).
+ *
+ * Корень — как у [LoginCard] (эталон screen-login: RN все режимы живут в
+ * одном ScrollView flexGrow/center, login.tsx:167-172): `fillMaxSize` +
+ * `verticalScroll`. Show-key — жёсткий шлюз (авто-переход подавлен); без
+ * скролла крупный Android-шрифт выталкивает единственную кнопку выхода за
+ * экран и запирает пользователя (scrutiny m7, VAL-LOGIN-002). Гейтинг шлюза
+ * не меняется: выход только кнопкой «я сохранил».
  */
 @Composable
 public fun ShowKeySurface(
@@ -79,10 +89,12 @@ public fun ShowKeySurface(
 
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .background(scheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .systemGesturesPadding()
+            .verticalScroll(rememberScrollState())
             .padding(Spacing.xxl),
         verticalArrangement = Arrangement.Center,
     ) {

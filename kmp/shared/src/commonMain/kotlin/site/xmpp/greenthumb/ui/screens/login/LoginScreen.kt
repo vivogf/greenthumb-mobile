@@ -319,9 +319,10 @@ private fun CreateMode(
                 scope.launch {
                     try {
                         // RN: имя trim'ится, пустое → undefined (сервер ставит
-                        // дефолт). createAnonymousAccount без имени — тот же
-                        // контракт.
-                        val state = session.createAnonymousAccount() as SessionState.SignedIn
+                        // дефолт) — login.tsx:104 `name.trim() || undefined`.
+                        // Имя обязано доехать до провода: непустое едет в
+                        // create-anonymous, пустое опускает поле (VAL-LOGIN-002).
+                        val state = session.createAnonymousAccount(name.trim().ifEmpty { null }) as SessionState.SignedIn
                         // Шлюз показа ключа (RN setMode('show-key') + гаптика
                         // Success; навигацию решает граф после смены состояния).
                         onAccountCreated(state.user.recoveryKey)
