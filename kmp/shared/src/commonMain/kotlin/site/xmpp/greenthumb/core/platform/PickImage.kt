@@ -10,6 +10,7 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Источник фото (RN bottom sheet `components/ImagePickerField.tsx`: Camera /
@@ -129,12 +130,59 @@ expect suspend fun pickImage(source: PickSource): PickResult
  * (`components/ImagePickerField.tsx:39-44`). EXIF-ориентация нормализуется
  * (см. [jpegExifOrientation]).
  *
- * Примечание для Stage 8 п.2 (`resizeJpeg`): пиксельная обработка уже идёт
- * здесь (даунсэмпл до декодирования, поворот по EXIF, компрессия) — отдельный
- * `resizeJpeg` может переиспользовать те же хелперы либо заменить финальный
- * шаг, не дублируя декодирование.
+ * Stage 8 п.2 (`resizeJpeg`) НЕ вызывается после кропа: оба — альтернативные
+ * выходы из одного конвейера (кадрирование или просто уменьшение), цепочка
+ * crop → resize дала бы второй JPEG re-encode зря.
  */
 expect fun cropSquareJpeg(bytes: ByteArray, rect: CropRect): ByteArray
+
+/**
+ * Ошибки декодирования входных байтов: неподдерживаемый формат (HEIC на
+ * Android API 24–25, где системного HEIF-декодера нет — факты в
+ * `research/android-heic-m8.md`) или повреждённый файл.
+ *
+ * Бросается ДО показа экрана кропа и из [resizeJpeg]/[cropSquareJpeg];
+ * `PhotoPickerController` ловит её и показывает алерт `common.error`
+ * с текстом — вход не декодируется БЕЗ краша (не «пустой экран кропа»).
+ */
+class UnsupportedImageException(message: String) : IllegalArgumentException(message)
+
+/** Текст ошибки «вход не декодируется» — им же показывается алерт `common.error`. */
+internal const val UNSUPPORTED_IMAGE_MESSAGE =
+    "unsupported or corrupt image file — pick a JPEG or another photo this device can decode"
+
+/** Размеры изображения (ширина × высота, px). */
+data class ImageSize(val width: Int, val height: Int)
+
+/**
+ * Размеры с сохранением пропорций и ограничением [maxSide] по большей
+ * стороне. Маленькое фото НЕ увеличивается (стороны ≤ maxSide — на месте).
+ */
+internal fun fitWithin(width: Int, height: Int, maxSide: Int): ImageSize {
+    if (width <= 0 || height <= 0) return ImageSize(width, height)
+    val longest = max(width, height)
+    if (longest <= maxSide) return ImageSize(width, height)
+    val scale = maxSide.toDouble() / longest
+    return ImageSize(
+        width = max(1, (width * scale).roundToInt()),
+        height = max(1, (height * scale).roundToInt()),
+    )
+}
+
+/**
+ * Уменьшение без кропа (Stage 8 п.2, план `library/kmp-migration-plan.md`):
+ * пропорции сохраняются, большая сторона ≤ [maxSide] (по умолчанию 800,
+ * RN `manipulateAsync resize 800…` для неквадратного ввода), маленькие
+ * фото не растягиваются, EXIF-ориентация нормализуется (выход — свежий
+ * JPEG без APP1), качество [quality] (RN `compress: 0.8` → 0.8 по умолчанию).
+ *
+ * androidMain — `BitmapFactory` c `inSampleSize` ДО декодирования (иначе
+ * кадр с камеры выест память) + `Bitmap.compress`; jvmMain — `javax.imageio`.
+ *
+ * Альтернатива [cropSquareJpeg], не шаг после него: вызов обоих подряд
+ * сделал бы лишний JPEG re-encode.
+ */
+expect fun resizeJpeg(bytes: ByteArray, maxSide: Int = 800, quality: Double = 0.8): ByteArray
 
 /** Список файлов [path] для файлового диалога: без скрытых, каталоги первыми. */
 expect fun listDirectory(path: String): List<PickDirEntry>

@@ -8,8 +8,9 @@ package site.xmpp.greenthumb.core.platform
  * Возвращает 1..8 (1 — без поворота); на любом мусоре/обрыве/отсутствии APP1
  * — 1, исключений не бросает. HEIC не разбирается (вне этого контракта).
  *
- * Для Stage 8 п.2 (`resizeJpeg`, VAL-PHOTO-004): парсер переиспользуем —
- * нормализация ориентации уже применяется в [cropSquareJpeg].
+ * Для Stage 8 п.2 (`resizeJpeg`, VAL-PHOTO-004): тот же парсер —
+ * нормализация ориентации применяется и в [cropSquareJpeg], и в
+ * [resizeJpeg]; фикстуры 90°/270° проверяют оба выхода.
  */
 internal fun jpegExifOrientation(bytes: ByteArray): Int {
     // SOI

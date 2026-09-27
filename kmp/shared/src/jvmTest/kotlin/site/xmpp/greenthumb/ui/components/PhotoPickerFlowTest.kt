@@ -6,11 +6,13 @@ import kotlinx.coroutines.test.runTest
 import site.xmpp.greenthumb.core.platform.CropRect
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
+import site.xmpp.greenthumb.core.platform.UnsupportedImageException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Обёртки результата пикера различаются (Stage 8 п.1, expectedBehavior #3):
@@ -111,6 +113,26 @@ class PhotoPickerFlowTest {
         assertEquals(0, h.picked.size)
         assertNull(controller.cropping)
         assertNull(controller.deniedSource, "ошибка ≠ отказ в разрешении")
+    }
+
+    @Test
+    fun unsupportedFileSurfacesAsHandledErrorNotCrash() = runTest {
+        // HEIC/API 24–25 (и любой недекодируемый вход): платформа бросает
+        // UnsupportedImageException из pickImage — контроллер показывает алерт
+        // common.error с текстом, кроп не открывается, краша нет.
+        val h = Harness()
+        val controller = h.controller {
+            throw UnsupportedImageException("unsupported or corrupt image file")
+        }
+        launchOn(controller)
+        assertNotNull(controller.pickErrorMessage, "ошибка обязана дойти до UI")
+        assertTrue(
+            controller.pickErrorMessage!!.contains("unsupported"),
+            "текст объясняет неподдерживаемый файл, got ${controller.pickErrorMessage}",
+        )
+        assertNull(controller.cropping, "экран кропа не показывается")
+        assertNull(controller.deniedSource, "ошибка ≠ отказ в разрешении")
+        assertEquals(0, h.picked.size)
     }
 
     @Test
