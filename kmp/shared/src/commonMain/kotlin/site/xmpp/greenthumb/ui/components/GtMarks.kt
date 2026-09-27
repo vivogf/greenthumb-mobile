@@ -663,3 +663,287 @@ fun GtMoonMark(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Метки plant detail (screen-plant-detail M7): create-outline / location /
+// leaf(есть) / pot / scissors / settings / trash / images — Ionicons тех же
+// имён тем же простым стилем.
+// ---------------------------------------------------------------------------
+
+/** Карандаш — Ionicons `create-outline` (инлайн-редактирование имени). */
+@Composable
+fun GtPencilMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 4).toPx()
+        // Корпус по диагонали.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.25f, size.height * 0.75f),
+            end = Offset(size.width * 0.72f, size.height * 0.28f),
+            strokeWidth = stroke,
+        )
+        // Грань (вторая линия корпуса).
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.33f, size.height * 0.83f),
+            end = Offset(size.width * 0.8f, size.height * 0.36f),
+            strokeWidth = stroke,
+        )
+        // Остриё.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.25f, size.height * 0.75f),
+            end = Offset(size.width * 0.16f, size.height * 0.9f),
+            strokeWidth = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.16f, size.height * 0.9f),
+            end = Offset(size.width * 0.33f, size.height * 0.83f),
+            strokeWidth = stroke,
+        )
+    }
+}
+
+/** Булавка локации — Ionicons `location-outline` (строка локации в шапке). */
+@Composable
+fun GtLocationMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Купол булавки.
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.28f, size.height * 0.1f),
+            size = Size(size.width * 0.44f, size.height * 0.44f),
+            style = stroke,
+        )
+        // Стенки к острию.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.28f, size.height * 0.32f),
+            end = Offset(size.width * 0.5f, size.height * 0.9f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.72f, size.height * 0.32f),
+            end = Offset(size.width * 0.5f, size.height * 0.9f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Горшок с растением — Ionicons `bulb`-стиль для пересадки (RN 🪴). */
+@Composable
+fun GtPotMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Листья: два овала-лепестка над горшком.
+        drawOval(
+            color = tint,
+            topLeft = Offset(size.width * 0.12f, size.height * 0.08f),
+            size = Size(size.width * 0.34f, size.height * 0.34f),
+            style = stroke,
+        )
+        drawOval(
+            color = tint,
+            topLeft = Offset(size.width * 0.54f, size.height * 0.08f),
+            size = Size(size.width * 0.34f, size.height * 0.34f),
+            style = stroke,
+        )
+        // Стебли в горшок.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.29f, size.height * 0.4f),
+            end = Offset(size.width * 0.42f, size.height * 0.56f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.71f, size.height * 0.4f),
+            end = Offset(size.width * 0.58f, size.height * 0.56f),
+            strokeWidth = stroke.width,
+        )
+        // Корпус горшка (трапеция тремя линиями).
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.24f, size.height * 0.56f),
+            end = Offset(size.width * 0.76f, size.height * 0.56f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.32f, size.height * 0.56f),
+            end = Offset(size.width * 0.38f, size.height * 0.9f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.68f, size.height * 0.56f),
+            end = Offset(size.width * 0.62f, size.height * 0.9f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.38f, size.height * 0.9f),
+            end = Offset(size.width * 0.62f, size.height * 0.9f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Ножницы — Ionicons `scissors` (RN ✂️, обрезка). */
+@Composable
+fun GtScissorsMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Лезвия крест-накрест.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.28f, size.height * 0.14f),
+            end = Offset(size.width * 0.72f, size.height * 0.62f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.72f, size.height * 0.14f),
+            end = Offset(size.width * 0.28f, size.height * 0.62f),
+            strokeWidth = stroke.width,
+        )
+        // Кольца-ручки.
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.12f,
+            center = Offset(size.width * 0.3f, size.height * 0.78f),
+            style = stroke,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.12f,
+            center = Offset(size.width * 0.7f, size.height * 0.78f),
+            style = stroke,
+        )
+    }
+}
+
+/** Шестерёнка — Ionicons `settings-outline` (кнопка настроек ухода). */
+@Composable
+fun GtGearMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.3f,
+            center = Offset(size.width * 0.5f, size.height * 0.5f),
+            style = stroke,
+        )
+        // 8 зубцов-спиц наружу.
+        for (index in 0 until 8) {
+            val angle = Math.PI * index / 4.0
+            val cx = size.width * 0.5f
+            val cy = size.height * 0.5f
+            val innerR = size.minDimension * 0.3f
+            val outerR = size.minDimension * 0.42f
+            drawLine(
+                color = tint,
+                start = Offset(cx + innerR * kotlin.math.cos(angle).toFloat(), cy + innerR * kotlin.math.sin(angle).toFloat()),
+                end = Offset(cx + outerR * kotlin.math.cos(angle).toFloat(), cy + outerR * kotlin.math.sin(angle).toFloat()),
+                strokeWidth = stroke.width,
+            )
+        }
+    }
+}
+
+/** Корзина — Ionicons `trash-outline` (кнопка удаления). */
+@Composable
+fun GtTrashMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Корпус.
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(size.width * 0.24f, size.height * 0.3f),
+            size = Size(size.width * 0.52f, size.height * 0.6f),
+            cornerRadius = CornerRadius(stroke.width * 2),
+            style = stroke,
+        )
+        // Крышка.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.16f, size.height * 0.28f),
+            end = Offset(size.width * 0.84f, size.height * 0.28f),
+            strokeWidth = stroke.width,
+        )
+        // Ручка крышки.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.4f, size.height * 0.28f),
+            end = Offset(size.width * 0.4f, size.height * 0.16f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.4f, size.height * 0.16f),
+            end = Offset(size.width * 0.6f, size.height * 0.16f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.6f, size.height * 0.16f),
+            end = Offset(size.width * 0.6f, size.height * 0.28f),
+            strokeWidth = stroke.width,
+        )
+        // Две штриха на корпусе.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.42f, size.height * 0.42f),
+            end = Offset(size.width * 0.42f, size.height * 0.74f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.58f, size.height * 0.42f),
+            end = Offset(size.width * 0.58f, size.height * 0.74f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Галерея — Ionicons `images-outline` (модалка смены фото). */
+@Composable
+fun GtGalleryMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Рамка снимка.
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(size.width * 0.14f, size.height * 0.18f),
+            size = Size(size.width * 0.72f, size.height * 0.64f),
+            cornerRadius = CornerRadius(stroke.width * 2),
+            style = stroke,
+        )
+        // Солнце.
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.07f,
+            center = Offset(size.width * 0.36f, size.height * 0.38f),
+            style = stroke,
+        )
+        // Гора.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.2f, size.height * 0.76f),
+            end = Offset(size.width * 0.44f, size.height * 0.5f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.44f, size.height * 0.5f),
+            end = Offset(size.width * 0.8f, size.height * 0.76f),
+            strokeWidth = stroke.width,
+        )
+    }
+}

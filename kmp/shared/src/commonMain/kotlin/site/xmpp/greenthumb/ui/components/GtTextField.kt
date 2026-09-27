@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -32,6 +33,8 @@ fun GtTextField(
     singleLine: Boolean = true,
     /** Клавиатура поля (число у частот — RN keyboardType numeric). */
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    /** Действия клавиатуры (RN onSubmitEditing — Done у поля имени шапки). */
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     val scheme = MaterialTheme.colorScheme
     val hasError = !error.isNullOrEmpty()
@@ -50,6 +53,7 @@ fun GtTextField(
             isError = hasError,
             singleLine = singleLine,
             keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
             placeholder = if (placeholder.isEmpty()) {
                 null
             } else {
