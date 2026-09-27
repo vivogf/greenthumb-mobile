@@ -12,6 +12,7 @@
   - en-плюрализм: base→one, base_plural→other (<plurals>);
   - интерполяция {{count}} → %1$d, {{любое}} → %1$s;
   - экранирование как в Android: \\' \\" \\\\ \\n \\t (& → &amp; обязателен XML-правилами).
+  - RN_STRINGS_AS_KMP_PLURALS: RN-ключ-строка → KMP <plurals> (см. константу).
 
 Разрешённые надмножества RN (ключи, которых в RN нет):
   - session.* — экран «ключ не найден» (SessionState.KeyNotFound, Stage 3 п.6;
@@ -64,6 +65,30 @@ KMP_ONLY_KEYS = {
     "dashboard.refreshFailed",
     "dashboard.databaseError",
 }
+
+# RN держит эти ключи-строки как KMP <plurals> (не <string>): плюрализации
+# success/pending-баннера массового полива в RN нет — t('dashboard.plantsWatered')
+# без форм (баг «2 растений полито»), t('dashboard.wateringAllPending', {count})
+# с захардкоженным «растений» («Поливаем 2 растений...»). KMP эти формы
+# легитимно заводит: ru one/few/many/other через <plurals> +
+# pluralStringResource (VAL-DASH-006, коммит a0e6f54 и его pending-продолжение).
+# Паритет честный по базовому тексту: RN-строка — «общая» форма, она обязана
+# совпадать с quantity "other" (ru) / "one"+"other" (en); ru дополняется
+# one/few/many — текстов в RN нет, проверяется только НАЛИЧИЕ всех форм CLDR
+# в обеих локалях. Суффиксные ключи в RN-JSON для этого НЕ заводить:
+# i18n/locales — живые Expo-исходники, RN-рантайм их не читает.
+RN_STRINGS_AS_KMP_PLURALS = frozenset({
+    "dashboard.plantsWatered",
+    "dashboard.wateringAllPending",
+})
+
+# Полный набор quantity KMP-плюрала поверх RN-строки (см. выше).
+REQUIRED_PLURAL_QUANTITIES = {
+    "ru": {"one", "few", "many", "other"},
+    "en": {"one", "other"},
+}
+
+KMP_PLURAL_NAMES = frozenset(k.replace(".", "_") for k in RN_STRINGS_AS_KMP_PLURALS)
 
 PLURAL_SUFFIX_QUANTITY_RU = {"_0": "one", "_1": "few", "_2": "many"}
 PLURAL_SUFFIX_QUANTITY_EN = {"_plural": "other"}
@@ -134,6 +159,17 @@ def expected_resources(flat, lang):
     for key, value in flat.items():
         name = to_res_name(key)
         converted = convert_interpolation(value)
+        if key in RN_STRINGS_AS_KMP_PLURALS:
+            # RN-строка — «общая» форма KMP-плюрала: ru base → other
+            # (Stage 6-правило), en — one+other одинаковым текстом
+            # (en форм не различает). Остальные quantity добираются
+            # в check_locale как KMP-only (REQUIRED_PLURAL_QUANTITIES).
+            plurals[name] = (
+                {"one": converted, "other": converted}
+                if lang == "en"
+                else {"other": converted}
+            )
+            continue
         base = next((b for b in bases if key == b or key.startswith(b + "_")), None)
         if base is None:
             strings[name] = converted
@@ -233,7 +269,18 @@ def main():
                     problems.append(
                         f"{lang}: {n}[{q}] не совпадает:\n  RN:  {txt!r}\n  XML: {got_q[q]!r}"
                     )
-            for q in sorted(set(got_q) - set(quantities)):
+            extra = sorted(set(got_q) - set(quantities))
+            if n in KMP_PLURAL_NAMES:
+                # KMP-плюрал RN-строки: полный набор форм CLDR обязан быть
+                # (ru one/few/many сверх RN-"other"; en one/other уже в
+                # expected); лишние сверх набора — нарушение.
+                required = REQUIRED_PLURAL_QUANTITIES[lang]
+                for q in sorted(required - set(got_q)):
+                    problems.append(
+                        f"{lang}: {n} — нет quantity \"{q}\" (KMP-плюрал RN-строки)"
+                    )
+                extra = [q for q in extra if q not in required]
+            for q in extra:
                 problems.append(f"{lang}: {n} — лишний quantity \"{q}\"")
         # KMP-only ключи обязаны быть в обеих локалях.
         for k in KMP_ONLY_KEYS:

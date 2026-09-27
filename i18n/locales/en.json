@@ -83,7 +83,6 @@
     "postponeAll": "Postpone All",
     "lastSynced": "Updated at {{time}}",
     "plantsWatered": "plants watered",
-    "plantsWatered_plural": "plants watered",
     "plantsPostponed": "plants postponed"
   },
   "plant": {
