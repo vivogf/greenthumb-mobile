@@ -204,6 +204,8 @@ fun App(
                         connectivity = connectivity,
                         plants = plants,
                         settings = settings,
+                        push = push,
+                        pushLanguage = { pushLanguage },
                     )
                     StartRoute.Welcome -> GtAppNavGraph(
                         startDestination = NavRoutes.WELCOME,

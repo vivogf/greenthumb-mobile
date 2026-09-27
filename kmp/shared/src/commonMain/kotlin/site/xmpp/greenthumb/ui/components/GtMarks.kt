@@ -389,3 +389,277 @@ fun GtCopyMark(tint: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Метки profile (screen-profile M7): notifications / time / paper-plane /
+// refresh / log-out / person / language / palette — Ionicons тех же имён тем
+// же простым стилем.
+// ---------------------------------------------------------------------------
+
+/** Колокольчик контурный — Ionicons `notifications-outline` (строка пушей). */
+@Composable
+fun GtBellOutlineMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.24f, size.height * 0.18f),
+            size = Size(size.width * 0.52f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.24f, size.height * 0.43f),
+            end = Offset(size.width * 0.14f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.76f, size.height * 0.43f),
+            end = Offset(size.width * 0.86f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.14f, size.height * 0.68f),
+            end = Offset(size.width * 0.86f, size.height * 0.68f),
+            strokeWidth = stroke.width,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.06f,
+            center = Offset(size.width * 0.5f, size.height * 0.82f),
+            style = stroke,
+        )
+    }
+}
+
+/** Циферблат — Ionicons `time-outline` (время уведомления). */
+@Composable
+fun GtClockMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.42f,
+            center = Offset(size.width * 0.5f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.5f, size.height * 0.5f),
+            end = Offset(size.width * 0.5f, size.height * 0.24f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.5f, size.height * 0.5f),
+            end = Offset(size.width * 0.72f, size.height * 0.62f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Бумажный самолётик — Ionicons `paper-plane-outline` (тестовое уведомление). */
+@Composable
+fun GtSendMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val tip = Offset(size.width * 0.88f, size.height * 0.12f)
+        val bottom = Offset(size.width * 0.12f, size.height * 0.56f)
+        val mid = Offset(size.width * 0.6f, size.height * 0.62f)
+        val low = Offset(size.width * 0.5f, size.height * 0.9f)
+        drawLine(tint, tip, bottom, stroke.width)
+        drawLine(tint, tip, mid, stroke.width)
+        drawLine(tint, bottom, mid, stroke.width)
+        drawLine(tint, mid, low, stroke.width)
+        drawLine(tint, low, tip, stroke.width)
+    }
+}
+
+/** Стрелка обновления — Ionicons `refresh` (регенерация ключа). */
+@Composable
+fun GtRefreshMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawArc(
+            color = tint,
+            startAngle = -40f,
+            sweepAngle = 300f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.15f, size.height * 0.15f),
+            size = Size(size.width * 0.7f, size.height * 0.7f),
+            style = stroke,
+        )
+        // Наконечник стрелки.
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.86f, size.height * 0.1f),
+            end = Offset(size.width * 0.86f, size.height * 0.36f),
+            strokeWidth = stroke.width,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.86f, size.height * 0.1f),
+            end = Offset(size.width * 0.62f, size.height * 0.14f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Глобус — Ionicons `language-outline` (язык). */
+@Composable
+fun GtGlobeMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.42f,
+            center = Offset(size.width * 0.5f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawOval(
+            color = tint,
+            topLeft = Offset(size.width * 0.3f, size.height * 0.08f),
+            size = Size(size.width * 0.4f, size.height * 0.84f),
+            style = stroke,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.08f, size.height * 0.5f),
+            end = Offset(size.width * 0.9f, size.height * 0.5f),
+            strokeWidth = stroke.width,
+        )
+    }
+}
+
+/** Палитра — Ionicons `color-palette-outline` (тема). */
+@Composable
+fun GtPaletteMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawArc(
+            color = tint,
+            startAngle = 150f,
+            sweepAngle = 240f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.12f, size.height * 0.12f),
+            size = Size(size.width * 0.76f, size.height * 0.76f),
+            style = stroke,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.07f,
+            center = Offset(size.width * 0.5f, size.height * 0.28f),
+            style = stroke,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.07f,
+            center = Offset(size.width * 0.32f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.07f,
+            center = Offset(size.width * 0.62f, size.height * 0.5f),
+            style = stroke,
+        )
+    }
+}
+
+/** Выход — Ionicons `log-out-outline` (выход из аккаунта). */
+@Composable
+fun GtSignOutMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Дверь (скобка).
+        drawLine(tint, Offset(size.width * 0.3f, size.height * 0.12f), Offset(size.width * 0.12f, size.height * 0.12f), stroke.width)
+        drawLine(tint, Offset(size.width * 0.12f, size.height * 0.12f), Offset(size.width * 0.12f, size.height * 0.88f), stroke.width)
+        drawLine(tint, Offset(size.width * 0.12f, size.height * 0.88f), Offset(size.width * 0.3f, size.height * 0.88f), stroke.width)
+        // Стрелка наружу.
+        drawLine(tint, Offset(size.width * 0.38f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.5f), stroke.width)
+        drawLine(tint, Offset(size.width * 0.68f, size.height * 0.28f), Offset(size.width * 0.9f, size.height * 0.5f), stroke.width)
+        drawLine(tint, Offset(size.width * 0.68f, size.height * 0.72f), Offset(size.width * 0.9f, size.height * 0.5f), stroke.width)
+    }
+}
+
+/** Контраст авто-темы — Ionicons `contrast-outline` (пикер темы: auto). */
+@Composable
+fun GtContrastMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.42f,
+            center = Offset(size.width * 0.5f, size.height * 0.5f),
+            style = stroke,
+        )
+        drawArc(
+            color = tint,
+            startAngle = 90f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(size.width * 0.08f, size.height * 0.08f),
+            size = Size(size.width * 0.84f, size.height * 0.84f),
+        )
+    }
+}
+
+/** Солнце — Ionicons `sunny-outline` (пикер темы: light). */
+@Composable
+fun GtSunMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        drawCircle(
+            color = tint,
+            radius = size.minDimension * 0.26f,
+            center = Offset(size.width * 0.5f, size.height * 0.5f),
+            style = stroke,
+        )
+        // 8 лучей.
+        for (index in 0 until 8) {
+            val angle = Math.PI * index / 4.0
+            val innerR = size.minDimension * 0.36f
+            val outerR = size.minDimension * 0.46f
+            val cx = size.width * 0.5f
+            val cy = size.height * 0.5f
+            drawLine(
+                color = tint,
+                start = Offset(cx + innerR * kotlin.math.cos(angle).toFloat(), cy + innerR * kotlin.math.sin(angle).toFloat()),
+                end = Offset(cx + outerR * kotlin.math.cos(angle).toFloat(), cy + outerR * kotlin.math.sin(angle).toFloat()),
+                strokeWidth = stroke.width,
+            )
+        }
+    }
+}
+
+/** Луна — Ionicons `moon-outline` (пикер темы: dark). */
+@Composable
+fun GtMoonMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        // Серп: внешняя дуга + внутренняя вырезка (двумя дугами).
+        drawArc(
+            color = tint,
+            startAngle = 160f,
+            sweepAngle = 220f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.14f, size.height * 0.1f),
+            size = Size(size.width * 0.72f, size.height * 0.8f),
+            style = stroke,
+        )
+        drawArc(
+            color = tint,
+            startAngle = 300f,
+            sweepAngle = 160f,
+            useCenter = false,
+            topLeft = Offset(size.width * 0.3f, size.height * 0.26f),
+            size = Size(size.width * 0.44f, size.height * 0.5f),
+            style = stroke,
+        )
+    }
+}
