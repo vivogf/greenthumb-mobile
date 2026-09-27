@@ -53,6 +53,9 @@ kotlin {
             // генерация Res-класса. Без явной зависимости generateResClass=auto
             // не генерирует Res вовсе.
             implementation(compose.components.resources)
+            // Coil 3 (запинен миссией): data-URI фото на экране деталей
+            // (Stage 7 п.6, шапка). Keyer кэша — m8-coil-keyer.
+            implementation(libs.coilCompose)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)

@@ -22,6 +22,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
+import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.platform.PushTokens
@@ -29,10 +30,16 @@ import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.components.GtAlertDialog
+import site.xmpp.greenthumb.ui.components.GtAlertButton
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
+import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteErrorState
+import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -124,6 +131,13 @@ public fun GtAppNavGraph(
      * (subscribeToExpoNotifications). Лямбда: значение на момент действия.
      */
     pushLanguage: () -> String = { "ru" },
+    /**
+     * Ошибка удаления растения (screen-plant-detail, RN-паритет onError
+     * deleteMutation: экран уже ушел на дашборд из onMutate, Alert — поверх
+     * нового экрана). Владелец-помощник здесь, remember — наружу
+     * [PlantDeleteErrorState]; вкладка дашборда не обязана знать.
+     */
+    deleteErrorState: PlantDeleteErrorState = remember { PlantDeleteErrorState() },
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -195,14 +209,35 @@ public fun GtAppNavGraph(
             // SavedState в navigation 2.9.2 мультиплатформенный: строковые
             // аргументы читаются SavedStateReader'ом (на Android SavedState —
             // Bundle, читатель тот же API).
-            val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }
+            val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
             AppLocalizedContent {
-                PlaceholderScreen(
-                    title = "plant/$plantId",
-                    note = "детали растения — Stage 7",
+                PlantDetailScreen(
+                    userId = sessionUserId ?: "",
+                    plantId = plantId,
+                    opener = plants,
+                    onBack = { navController.popBackStack() },
+                    // RN onMutate: router.replace('/') сразу после подтверждения
+                    // — экран исчезает до ответа сети (репозиторий уже убрал
+                    // строку из Room). popBackStack — дашборд с сохранённым
+                    // состоянием вкладки.
+                    onDeleted = { navController.popBackStack() },
+                    deleteErrorState = deleteErrorState,
                 )
             }
         }
+    }
+    // Алерт ошибки удаления — НАД графом (RN onError deleteMutation: мутация
+    // уже увела экран на дашборд, Alert показывается поверх нового экрана).
+    // message != null → алерт; закрытие чистит состояние.
+    val deleteMessage = deleteErrorState.message
+    if (deleteMessage != null) {
+        val errorTitle = stringResource(Res.string.common_error)
+        GtAlertDialog(
+            title = errorTitle,
+            message = deleteMessage,
+            buttons = listOf(GtAlertButton(text = "OK")),
+            onDismissRequest = { deleteErrorState.message = null },
+        )
     }
 }
 
