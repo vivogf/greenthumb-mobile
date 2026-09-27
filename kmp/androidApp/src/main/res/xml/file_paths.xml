@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Временные кадры камеры (Stage 8 п.1): cacheDir/gt-pick/gt-pick-*.jpg —
+         только этот подкаталог, остальное files/cache (recovery key и пр.)
+         сюда не попадает. -->
+    <cache-path
+        name="gt_pick"
+        path="gt-pick/" />
+</paths>

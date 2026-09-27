@@ -27,8 +27,9 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
  * Оболочка `components/ImagePickerField.tsx`.
- * Сам пикер (камера, галерея, кроп, resize) — M8. Здесь квадрат и лист
- * источников: колбэки, без платформенного запуска.
+ * Квадрат и лист источников (камера/галерея/удалить); запуск платформенного
+ * пикера и кропа — за вызывающим кодом через [rememberPhotoPicker] +
+ * [PhotoPickerHost] (Stage 8 п.1).
  */
 enum class GtImageSource { Camera, Gallery }
 

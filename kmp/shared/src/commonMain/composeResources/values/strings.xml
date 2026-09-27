@@ -267,6 +267,12 @@
     <string name="common_permissionDeniedTitle">No Access</string>
     <string name="common_cameraPermissionDenied">Please allow camera access in your phone settings.</string>
     <string name="common_galleryPermissionDenied">Please allow photo library access in your phone settings.</string>
+    <!-- Stage 8 п.1: свой экран квадратного кропа + файловый диалог десктопа.
+         В RN этих ключей нет (нативный allowsEditing локализуется системой) —
+         KMP_ONLY_KEYS в scripts/i18n_check.py. -->
+    <string name="photoCrop_title">Crop photo</string>
+    <string name="photoCrop_hint">Pinch to zoom, drag to move</string>
+    <string name="photoPick_fileTitle">Select a photo</string>
     <string name="handoffModal_title">Save your recovery key</string>
     <string name="handoffModal_subtitle">Keep it somewhere safe — a password manager or a note only you can find.</string>
     <string name="handoffModal_keyLabel">Recovery key</string>

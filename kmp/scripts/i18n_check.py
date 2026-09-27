@@ -46,6 +46,12 @@ KMP_ONLY_KEYS = {
     "session.keyNotFoundBody",
     "session.keyNotFoundEnterKey",
     "session.keyNotFoundCreateAccount",
+    # photoCrop.* / photoPick.* — Stage 8 п.1: RN отдаёт кроп нативному
+    # allowsEditing (локализация системная), KMP рисует свой Compose-экран
+    # кропа и файловый диалог десктопа — заголовки/подсказка переводятся здесь.
+    "photoCrop.title",
+    "photoCrop.hint",
+    "photoPick.fileTitle",
     # profile.regenerateWarning — RN profile.tsx:192-193 держит текст диалога
     # регенерации захардкоженным по-английски (пробел i18n RN); KMP заводит
     # ключ в обеих локалях (ru-текст собственный).

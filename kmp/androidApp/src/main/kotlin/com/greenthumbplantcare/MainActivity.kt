@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import site.xmpp.greenthumb.App
+import site.xmpp.greenthumb.core.platform.AppActivityHolder
 import site.xmpp.greenthumb.core.platform.AppLocale
 import site.xmpp.greenthumb.core.platform.Connectivity
 
@@ -16,6 +17,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Activity для activity-result'ов пикера фото (Stage 8 п.1): registry
+        // живёт на Activity, Application-контекста недостаточно. Пишется до
+        // setContent — pickImage вызывается уже из первого кадра экранов.
+        AppActivityHolder.activity = this
         // Граф сессии и opener per-user баз — на процесс (Application, фикс M6
         // VAL-SHELL-003): пересоздание Activity конфигурацией (поворот, масштаб
         // шрифта) переиспользует их вместо повторного открытия DataStore-файлов
@@ -64,6 +69,7 @@ class MainActivity : ComponentActivity() {
         if (::connectivity.isInitialized) {
             connectivity.close()
         }
+        AppActivityHolder.activity = null
         super.onDestroy()
     }
 }

@@ -36,6 +36,8 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
+import site.xmpp.greenthumb.core.platform.PickSource
+import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
@@ -46,9 +48,11 @@ import site.xmpp.greenthumb.ui.components.GtImagePickerField
 import site.xmpp.greenthumb.ui.components.GtImageSource
 import site.xmpp.greenthumb.ui.components.GtSectionHeader
 import site.xmpp.greenthumb.ui.components.GtTextField
+import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
+import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.addPlant_additionalCare
 import site.xmpp.greenthumb.ui.res.addPlant_additionalCareHint
@@ -114,7 +118,7 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * - RN invalidateQueries + router.back → [PlantRepository.add] уже пишет
  *   Room; экран только возвращается назад (architecture.md §7);
  * - photoUri/photoBase64 RN-состояния → единый [AddPlantFields.photoUrl]
- *   data-URI (контракт бэкенда тот же; сам пикер M8);
+ *   data-URI (контракт бэкенда тот же; пикер/кроп — Stage 8 п.1);
  * - KeyboardAvoidingView → navigationBars/statusBars-пэддинги; RN-гаптика —
  *   expect-слой M10, desktop no-op;
  * - Ionicons leaf/arrow-back → Canvas-метки (material-icons в пинах нет,
@@ -147,6 +151,12 @@ public fun AddPlantScreen(
     var submitting by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
+
+    // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → data-URI в форму.
+    // rememberUpdatedState внутри не даёт рекомпозиции потерять открытый кроп.
+    val photoPicker = rememberPhotoPicker { bytes ->
+        fields = fields.copy(photoUrl = photoDataUri(bytes))
+    }
 
     // Тексты — до корутин (stringResource композабелен, catch — нет).
     val uploadFailed = stringResource(Res.string.addPlant_uploadFailed)
@@ -184,222 +194,228 @@ public fun AddPlantScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(scheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(Spacing.xl),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-    ) {
-        // Шапка: назад + заголовок (RN header row, gap 12 → Spacing.sm).
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Box(
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                    ) { onBack() }
-                    .padding(Spacing.xs),
-            ) {
-                GtChevronMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.xl))
-            }
-            Text(
-                text = stringResource(Res.string.addPlant_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = scheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        // Фото (квадрат; активный пикер — M8).
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            GtImagePickerField(
-                hasImage = fields.photoUrl.isNotEmpty(),
-                label = if (fields.photoUrl.isEmpty()) photoPlaceholder else photoLabel,
-                sourceTitle = photoSourceTitle,
-                cameraLabel = stringResource(Res.string.common_camera),
-                galleryLabel = stringResource(Res.string.common_gallery),
-                removeLabel = removePhoto,
-                cancelLabel = cancelText,
-                onPickRequested = { source ->
-                    // Сам пикер/кроп/resize — M8 (pickImage/resizeJpeg
-                    // expect/actual); каркас колбэки не исполняет, фото
-                    // остаётся пустым (VAL-ADDPLANT-002 — без фото).
-                    when (source) {
-                        GtImageSource.Camera, GtImageSource.Gallery -> Unit
-                    }
-                },
-                onRemove = { fields = fields.copy(photoUrl = "") },
-            )
-        }
-
-        // Имя (обязательное; подсветка ошибки — рамка error).
-        FormLabel(text = stringResource(Res.string.addPlant_nameLabel))
-        GtTextField(
-            value = fields.name,
-            onValueChange = { fields = fields.copy(name = it) },
-            label = "",
-            placeholder = stringResource(Res.string.addPlant_namePlaceholder),
-            error = errors?.name,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        // Локация (опциональная).
-        FormLabel(text = stringResource(Res.string.addPlant_locationLabel))
-        GtTextField(
-            value = fields.location,
-            onValueChange = { fields = fields.copy(location = it) },
-            label = "",
-            placeholder = stringResource(Res.string.addPlant_locationPlaceholder),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        // Полив (RN SectionDivider «💧 Полив» — разделитель без заголовка).
-        GtSectionHeader(title = "")
-        FormLabel(text = stringResource(Res.string.addPlant_wateringLabel))
-        GtTextField(
-            value = fields.waterFrequencyText,
-            onValueChange = { fields = fields.copy(waterFrequencyText = it) },
-            label = "",
-            placeholder = "7",
-            error = errors?.waterFrequency,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            FormLabel(text = stringResource(Res.string.addPlant_lastWateredLabel))
-            Text(
-                text = stringResource(Res.string.addPlant_lastWateredHint),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
-            )
-        }
-        GtDatePickerField(
-            value = fields.lastWateredDate,
-            onValueChange = { date -> fields = fields.copy(lastWateredDate = date) },
-            placeholder = pickDate,
-            confirmLabel = doneText,
-            dismissLabel = cancelText,
-            languageTag = locale,
-            errorText = errors?.lastWateredDate,
-        )
-
-        // Расширенный уход (раскрывающийся блок; RN Pressable chevron).
-        GtSectionHeader(title = "")
-        Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                ) { advancedOpen = !advancedOpen }
-                .padding(vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .fillMaxSize()
+                .background(scheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            // Шапка: назад + заголовок (RN header row, gap 12 → Spacing.sm).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Button,
+                        ) { onBack() }
+                        .padding(Spacing.xs),
+                ) {
+                    GtChevronMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.xl))
+                }
                 Text(
-                    text = stringResource(Res.string.addPlant_additionalCare),
-                    style = MaterialTheme.typography.titleSmall,
+                    text = stringResource(Res.string.addPlant_title),
+                    style = MaterialTheme.typography.titleLarge,
                     color = scheme.onSurface,
+                    modifier = Modifier.weight(1f),
                 )
+            }
+
+            // Фото (квадрат; пикер — Stage 8 п.1: галерея/камера + свой кроп).
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                GtImagePickerField(
+                    hasImage = fields.photoUrl.isNotEmpty(),
+                    label = if (fields.photoUrl.isEmpty()) photoPlaceholder else photoLabel,
+                    sourceTitle = photoSourceTitle,
+                    cameraLabel = stringResource(Res.string.common_camera),
+                    galleryLabel = stringResource(Res.string.common_gallery),
+                    removeLabel = removePhoto,
+                    cancelLabel = cancelText,
+                    onPickRequested = { source ->
+                        photoPicker.launch(
+                            scope,
+                            when (source) {
+                                GtImageSource.Camera -> PickSource.Camera
+                                GtImageSource.Gallery -> PickSource.Gallery
+                            },
+                        )
+                    },
+                    onRemove = { fields = fields.copy(photoUrl = "") },
+                )
+            }
+
+            // Имя (обязательное; подсветка ошибки — рамка error).
+            FormLabel(text = stringResource(Res.string.addPlant_nameLabel))
+            GtTextField(
+                value = fields.name,
+                onValueChange = { fields = fields.copy(name = it) },
+                label = "",
+                placeholder = stringResource(Res.string.addPlant_namePlaceholder),
+                error = errors?.name,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Локация (опциональная).
+            FormLabel(text = stringResource(Res.string.addPlant_locationLabel))
+            GtTextField(
+                value = fields.location,
+                onValueChange = { fields = fields.copy(location = it) },
+                label = "",
+                placeholder = stringResource(Res.string.addPlant_locationPlaceholder),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Полив (RN SectionDivider «💧 Полив» — разделитель без заголовка).
+            GtSectionHeader(title = "")
+            FormLabel(text = stringResource(Res.string.addPlant_wateringLabel))
+            GtTextField(
+                value = fields.waterFrequencyText,
+                onValueChange = { fields = fields.copy(waterFrequencyText = it) },
+                label = "",
+                placeholder = "7",
+                error = errors?.waterFrequency,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                FormLabel(text = stringResource(Res.string.addPlant_lastWateredLabel))
                 Text(
-                    text = stringResource(Res.string.addPlant_additionalCareHint),
+                    text = stringResource(Res.string.addPlant_lastWateredHint),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
             }
-            GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
-        }
+            GtDatePickerField(
+                value = fields.lastWateredDate,
+                onValueChange = { date -> fields = fields.copy(lastWateredDate = date) },
+                placeholder = pickDate,
+                confirmLabel = doneText,
+                dismissLabel = cancelText,
+                languageTag = locale,
+                errorText = errors?.lastWateredDate,
+            )
 
-        if (advancedOpen) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                CareSubSection(title = stringResource(Res.string.addPlant_fertilizing)) {
-                    FrequencyField(
-                        value = fields.fertilizeFrequencyText,
-                        onValueChange = { fields = fields.copy(fertilizeFrequencyText = it) },
-                        label = stringResource(Res.string.addPlant_fertilizing),
-                        placeholder = stringResource(Res.string.addPlant_fertilizePlaceholder),
+            // Расширенный уход (раскрывающийся блок; RN Pressable chevron).
+            GtSectionHeader(title = "")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                    ) { advancedOpen = !advancedOpen }
+                    .padding(vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    Text(
+                        text = stringResource(Res.string.addPlant_additionalCare),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = scheme.onSurface,
                     )
-                    DateField(
-                        value = fields.lastFertilizedDate,
-                        onValueChange = { fields = fields.copy(lastFertilizedDate = it) },
-                        label = stringResource(Res.string.addPlant_lastFertilized),
-                        locale = locale,
-                        placeholder = pickDate,
-                        confirmLabel = doneText,
-                        dismissLabel = cancelText,
-                    )
-                }
-                CareSubSection(title = stringResource(Res.string.addPlant_repotting)) {
-                    FrequencyField(
-                        value = fields.repotFrequencyText,
-                        onValueChange = { fields = fields.copy(repotFrequencyText = it) },
-                        label = stringResource(Res.string.addPlant_repotting),
-                        placeholder = stringResource(Res.string.addPlant_repotPlaceholder),
-                    )
-                    DateField(
-                        value = fields.lastRepottedDate,
-                        onValueChange = { fields = fields.copy(lastRepottedDate = it) },
-                        label = stringResource(Res.string.addPlant_lastRepotted),
-                        locale = locale,
-                        placeholder = pickDate,
-                        confirmLabel = doneText,
-                        dismissLabel = cancelText,
+                    Text(
+                        text = stringResource(Res.string.addPlant_additionalCareHint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
                     )
                 }
-                CareSubSection(title = stringResource(Res.string.addPlant_pruning)) {
-                    FrequencyField(
-                        value = fields.pruneFrequencyText,
-                        onValueChange = { fields = fields.copy(pruneFrequencyText = it) },
-                        label = stringResource(Res.string.addPlant_pruning),
-                        placeholder = stringResource(Res.string.addPlant_prunePlaceholder),
-                    )
-                    DateField(
-                        value = fields.lastPrunedDate,
-                        onValueChange = { fields = fields.copy(lastPrunedDate = it) },
-                        label = stringResource(Res.string.addPlant_lastPruned),
-                        locale = locale,
-                        placeholder = pickDate,
-                        confirmLabel = doneText,
-                        dismissLabel = cancelText,
-                    )
+                GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
+            }
+
+            if (advancedOpen) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+                    CareSubSection(title = stringResource(Res.string.addPlant_fertilizing)) {
+                        FrequencyField(
+                            value = fields.fertilizeFrequencyText,
+                            onValueChange = { fields = fields.copy(fertilizeFrequencyText = it) },
+                            label = stringResource(Res.string.addPlant_fertilizing),
+                            placeholder = stringResource(Res.string.addPlant_fertilizePlaceholder),
+                        )
+                        DateField(
+                            value = fields.lastFertilizedDate,
+                            onValueChange = { fields = fields.copy(lastFertilizedDate = it) },
+                            label = stringResource(Res.string.addPlant_lastFertilized),
+                            locale = locale,
+                            placeholder = pickDate,
+                            confirmLabel = doneText,
+                            dismissLabel = cancelText,
+                        )
+                    }
+                    CareSubSection(title = stringResource(Res.string.addPlant_repotting)) {
+                        FrequencyField(
+                            value = fields.repotFrequencyText,
+                            onValueChange = { fields = fields.copy(repotFrequencyText = it) },
+                            label = stringResource(Res.string.addPlant_repotting),
+                            placeholder = stringResource(Res.string.addPlant_repotPlaceholder),
+                        )
+                        DateField(
+                            value = fields.lastRepottedDate,
+                            onValueChange = { fields = fields.copy(lastRepottedDate = it) },
+                            label = stringResource(Res.string.addPlant_lastRepotted),
+                            locale = locale,
+                            placeholder = pickDate,
+                            confirmLabel = doneText,
+                            dismissLabel = cancelText,
+                        )
+                    }
+                    CareSubSection(title = stringResource(Res.string.addPlant_pruning)) {
+                        FrequencyField(
+                            value = fields.pruneFrequencyText,
+                            onValueChange = { fields = fields.copy(pruneFrequencyText = it) },
+                            label = stringResource(Res.string.addPlant_pruning),
+                            placeholder = stringResource(Res.string.addPlant_prunePlaceholder),
+                        )
+                        DateField(
+                            value = fields.lastPrunedDate,
+                            onValueChange = { fields = fields.copy(lastPrunedDate = it) },
+                            label = stringResource(Res.string.addPlant_lastPruned),
+                            locale = locale,
+                            placeholder = pickDate,
+                            confirmLabel = doneText,
+                            dismissLabel = cancelText,
+                        )
+                    }
+                }
+            }
+
+            // Заметки (многострочные, опциональные).
+            FormLabel(text = stringResource(Res.string.addPlant_notesLabel))
+            GtTextField(
+                value = fields.notes,
+                onValueChange = { fields = fields.copy(notes = it) },
+                label = "",
+                placeholder = stringResource(Res.string.addPlant_notesPlaceholder),
+                singleLine = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Submit (disabled при отправке; RN opacity 0.75 → disabled-цвета).
+            PrimaryButton(
+                text = if (submitting) stringResource(Res.string.addPlant_adding) else stringResource(Res.string.addPlant_add),
+                onClick = { submit() },
+                enabled = !submitting,
+                modifier = Modifier.gtButtonWidth(),
+            )
+            if (submitting) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
                 }
             }
         }
-
-        // Заметки (многострочные, опциональные).
-        FormLabel(text = stringResource(Res.string.addPlant_notesLabel))
-        GtTextField(
-            value = fields.notes,
-            onValueChange = { fields = fields.copy(notes = it) },
-            label = "",
-            placeholder = stringResource(Res.string.addPlant_notesPlaceholder),
-            singleLine = false,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        // Submit (disabled при отправке; RN opacity 0.75 → disabled-цвета).
-        PrimaryButton(
-            text = if (submitting) stringResource(Res.string.addPlant_adding) else stringResource(Res.string.addPlant_add),
-            onClick = { submit() },
-            enabled = !submitting,
-            modifier = Modifier.gtButtonWidth(),
-        )
-        if (submitting) {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
-            }
-        }
+        // Пикер фото поверх экрана (Stage 8 п.1): файловый диалог (jvm),
+        // кроп-экран, алерты разрешения/ошибки.
+        PhotoPickerHost(photoPicker)
     }
 
     // Ошибка загрузки (RN showAlert(t('addPlant.uploadFailed'), err.message)).
