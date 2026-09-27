@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -29,6 +30,8 @@ fun GtTextField(
     error: String? = null,
     enabled: Boolean = true,
     singleLine: Boolean = true,
+    /** Клавиатура поля (число у частот — RN keyboardType numeric). */
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     val scheme = MaterialTheme.colorScheme
     val hasError = !error.isNullOrEmpty()
@@ -46,6 +49,7 @@ fun GtTextField(
             enabled = enabled,
             isError = hasError,
             singleLine = singleLine,
+            keyboardOptions = keyboardOptions,
             placeholder = if (placeholder.isEmpty()) {
                 null
             } else {

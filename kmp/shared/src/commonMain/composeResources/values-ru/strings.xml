@@ -134,6 +134,10 @@
     <string name="addPlant_fileTooLarge">Файл слишком большой</string>
     <string name="addPlant_fileTooLargeHint">Фото должно быть меньше 5 МБ</string>
     <string name="addPlant_uploadFailed">Ошибка загрузки</string>
+    <string name="addPlant_validation_nameRequired">Введите название</string>
+    <string name="addPlant_validation_frequencyInvalidNumber">Введите число</string>
+    <string name="addPlant_validation_frequencyMinimum">Минимум 1 день</string>
+    <string name="addPlant_validation_dateRequired">Выберите дату</string>
     <string name="plantDetails_back">Назад</string>
     <string name="plantDetails_changePhoto">Изменить фото</string>
     <string name="plantDetails_plantNotFound">Растение не найдено</string>

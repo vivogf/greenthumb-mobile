@@ -49,6 +49,14 @@ KMP_ONLY_KEYS = {
     # регенерации захардкоженным по-английски (пробел i18n RN); KMP заводит
     # ключ в обеих локалях (ru-текст собственный).
     "profile.regenerateWarning",
+    # addPlant.validation.* — RN add-plant.tsx:29-49 держит тексты ошибок
+    # формы захардкоженными по-русски в zod-схеме (пробел i18n RN; фича
+    # screen-add-plant требует «ошибки валидации локализованы»); KMP заводит
+    # ключи в обеих локалях. Тексты en — перевод хардкода RN 1:1.
+    "addPlant.validation.nameRequired",
+    "addPlant.validation.frequencyInvalidNumber",
+    "addPlant.validation.frequencyMinimum",
+    "addPlant.validation.dateRequired",
 }
 
 PLURAL_SUFFIX_QUANTITY_RU = {"_0": "one", "_1": "few", "_2": "many"}
