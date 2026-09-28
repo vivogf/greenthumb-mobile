@@ -8,6 +8,8 @@ import site.xmpp.greenthumb.core.network.FcmPushSubscriptions
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PlatformEngine
 import site.xmpp.greenthumb.core.network.SessionRecoveryProvider
+import site.xmpp.greenthumb.core.platform.FcmTokenRotation
+import site.xmpp.greenthumb.core.platform.PushSubscriptions
 import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
@@ -48,6 +50,9 @@ public class SessionGraph private constructor(
     public lateinit var manager: SessionManager
         private set
 
+    /** Сетевой шов подписки — общий для [push] и [pushRotation]. */
+    private val pushSeam: PushSubscriptions = FcmPushSubscriptions(api)
+
     /**
      * Push-подсистема (M9 push-android): Android-actual — реальный FCM-конвейер
      * (канал, разрешение, токен FirebaseMessaging, самопоказ форграунда),
@@ -56,7 +61,15 @@ public class SessionGraph private constructor(
      * на процесс — та же дисциплина, что у [api]/[manager]: экраны берут её
      * отсюда, тесты подменяют весь объект ([PushTokens] открыт).
      */
-    public val push: PushTokens = PushTokens(FcmPushSubscriptions(api))
+    public val push: PushTokens = PushTokens(pushSeam)
+
+    /**
+     * Ротация FCM-токена (Stage 9 п.4, фича kmp-push-offline-routing): тот же
+     * сетевой шов, что у [push] (один шов — одна cookie-сессия). Вызывается
+     * сервисом androidApp ([GtFirebaseMessagingService.onNewToken]) после
+     * проверки живой сессии ([manager]).
+     */
+    public val pushRotation: FcmTokenRotation = FcmTokenRotation(pushSeam)
 
     public companion object {
         /**

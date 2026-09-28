@@ -84,11 +84,18 @@ public actual open class PushTokens {
     }
 
     /**
-     * Локальное тестовое уведомление — Stage 9 п.6 (фича kmp-push-deeplink-local).
-     * В этой фиче actual остаётся no-op: тумблер/канал уже реальные, но кнопку
-     * теста активирует следующий шаг миссии.
+     * Локальное тестовое уведомление (Stage 9 п.6, VAL-PUSH-006): тот же канал
+     * `default` (HIGH), тексты — RN-хардкод (`lib/notifications.ts:126-128`,
+     * не i18n). Без сети и без data-полезной нагрузки: тап по ней просто
+     * открывает приложение (RN-паритет), локальный intent не выдаётся за
+     * настоящий FCM push. Отказ показа (нет контекста/иконки, отзыв
+     * разрешения на API 33+) — тихий no-op: кнопка уже показала модалку
+     * успеха; система молча не покажет уведомление (не краш).
      */
-    public actual open suspend fun sendLocalTestNotification() = Unit
+    public actual open suspend fun sendLocalTestNotification() {
+        val context = appContextOrNull() ?: return
+        showLocalTestGtNotification(context)
+    }
 
     /** Разрешение POST_NOTIFICATIONS: API 33+ runtime, ниже — выдано неявно. */
     private fun hasPostNotificationsPermission(activity: ComponentActivity): Boolean =

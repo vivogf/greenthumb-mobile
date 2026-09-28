@@ -44,6 +44,43 @@ internal fun ensureDefaultNotificationChannel(context: Context) {
     manager.createNotificationChannel(channel)
 }
 
+/**
+ * small-icon ресурс уведомлений. Shared не видит R shell-модуля
+ * (прецедент сервиса самопоказа — иконка передаётся id'ом), поэтому androidApp
+ * регистрирует id в Application.onCreate; до регистрации — 0,
+ * показ локального тестового уведомления best-effort no-op.
+ */
+@Volatile
+public var gtNotificationSmallIconResId: Int = 0
+
+/**
+ * Тексты локального тестового уведомления — RN-хардкод (parity-файл: не i18n,
+ * порт `lib/notifications.ts:126-128` sendLocalTestNotification).
+ */
+internal const val GT_LOCAL_TEST_TITLE = "GreenThumb 💚"
+internal const val GT_LOCAL_TEST_BODY = "Уведомления работают! 🌿"
+
+/**
+ * Локальное тестовое уведомление (Stage 9 п.6, кнопка профиля — VAL-PUSH-006):
+ * тот же канал `default` (HIGH) и тот же показ, что у форграунд-пуша. Data НЕ
+ * кладётся (RN-паритет: тестовая пуши без plant_id — тап просто открывает
+ * приложение; локальный intent не выдаётся за настоящий FCM push —
+ * маршрутизация deep-link на нём не запускается).
+ *
+ * public: зовётся actual'ом [PushTokens] (shared); иконка — [gtNotificationSmallIconResId].
+ */
+public fun showLocalTestGtNotification(context: Context) {
+    val iconResId = gtNotificationSmallIconResId
+    if (iconResId == 0) return
+    showForegroundGtNotification(
+        context = context,
+        iconResId = iconResId,
+        title = GT_LOCAL_TEST_TITLE,
+        body = GT_LOCAL_TEST_BODY,
+        data = emptyMap(),
+    )
+}
+
 /** База id показываемых уведомлений (стек: новое — новый id, как у expo-notifications). */
 private val gtNotificationIdCounter = AtomicInteger(2001)
 

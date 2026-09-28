@@ -332,6 +332,11 @@ class AddPlantScreenTest {
         // «Add Plant» (a11y-лейбл FAB не виден — растений нет); OnClick
         // напрямую (clickAt-паттерн ProfileScreenTest, без требований
         // вьюпорта).
+        // Ожидание существования кнопки ПЕРЕД кликом: empty-state рендерится
+        // только после firstLoadSettled (осадки первого refresh) — без
+        // ожидания клик попадал в скелетон и класс стабильно краснел
+        // (наблюдение 2026-09-28, воспроизводится на чистом HEAD 3b87982).
+        waitUntilAtLeastOneExists(hasClickAction() and hasText("Add Plant"), TIMEOUT)
         clickAt(hasClickAction() and hasText("Add Plant"))
         waitUntilAtLeastOneExists(hasText("Add New Plant"), TIMEOUT)
         waitUntilAtLeastOneExists(hasSubText("Plant Name"), TIMEOUT)

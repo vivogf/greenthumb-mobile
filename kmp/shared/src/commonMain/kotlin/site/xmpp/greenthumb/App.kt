@@ -90,6 +90,17 @@ fun App(
     plants: PlantRepositoryOpener,
     settings: AppPreferencesStore,
     push: PushTokens,
+    /**
+     * Deep-link пуша (Stage 9 п.7, фича kmp-push-offline-routing):
+     * `data.plant_id` из launch-intent — извлекает точка входа
+     * (MainActivity.onCreate/onNewIntent; desktop-харнесс не передаёт).
+     * Маршрутизация к `plant/{id}` — ТОЛЬКО после [SessionState.SignedIn]
+     * (без сессии extra не открывает данные и не обходит вход); до того
+     * значение живёт в держателе точки входа (переход отложен).
+     */
+    launchPlantId: String? = null,
+    /** id принят графом (переход выполнен или отклонён) — держатель очищает. */
+    onLaunchPlantIdConsumed: () -> Unit = {},
 ) {
     // Stage 8 п.4 (VAL-PHOTO-005): singleton-лоадер Coil с Keyer'ом, делающим
     // ключом кэша SHA-256 от data-URI фото, а не саму строку в сотни килобайт.
@@ -219,6 +230,12 @@ fun App(
                         settings = settings,
                         push = push,
                         pushLanguage = { pushLanguage },
+                        // Deep-link пуша (Stage 9 п.7): id получает ТОЛЬКО
+                        // SignedIn-ветка (без сессии вход не обходится —
+                        // welcome/login/graph поверх офлайна extra не читают).
+                        // Отложенный id потребляется графом после входа.
+                        pendingPlantId = if (state is SessionState.SignedIn) launchPlantId else null,
+                        onPendingPlantIdConsumed = onLaunchPlantIdConsumed,
                     )
                     StartRoute.Welcome -> GtAppNavGraph(
                         startDestination = NavRoutes.WELCOME,

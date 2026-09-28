@@ -44,10 +44,17 @@
              без рестарта. Это поведение-паритет, НЕ обход корректности:
              пересоздание Activity при повороте/масштабе шрифта безопасно —
              SessionGraph и opener баз живут на процесс в GreenThumbApplication
-             (фикс M6 VAL-SHELL-003), Connectivity — ресурс Activity. -->
+             (фикс M6 VAL-SHELL-003), Connectivity — ресурс Activity.
+             launchMode singleTask — паритет RN-активности (android/app): тап
+             по пушу при живом процессе доставляет intent в onNewIntent
+             (Stage 9 п.7, deep-link plant_id), а не плодит второй экземпляр
+             поверх задачи. VIEW/deep-link фильтров НЕТ (схема greenthumb://
+             зарегистрирована только у RN-сборки; KMP маршрутизирует extras
+             launch-intent'а FCM, без VIEW-маршрутов). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@android:style/Theme.Material.Light.NoActionBar"
             android:configChanges="uiMode">
             <intent-filter>
