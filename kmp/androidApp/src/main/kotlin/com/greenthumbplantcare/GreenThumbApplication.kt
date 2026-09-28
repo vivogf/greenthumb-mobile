@@ -2,6 +2,7 @@ package com.greenthumbplantcare
 
 import android.app.Application
 import site.xmpp.greenthumb.SessionGraph
+import site.xmpp.greenthumb.core.platform.gtNotificationSmallIconResId
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.PlantDatabases
@@ -34,6 +35,11 @@ class GreenThumbApplication : Application() {
         // Контекст для isUpdateInstall() (Stage 3 п.6) — до первого доступа
         // к графу (факт «установка — обновление» читается в SessionGraph.create).
         registerAppContext(this)
+        // small-icon уведомлений (M9): shared не видит R shell-модуля — id
+        // регистрируется для самопоказа форграунда (GtFirebaseMessagingService
+        // передаёт его явно) и локального тестового уведомления
+        // (PushTokens.sendLocalTestNotification читает регистрацию).
+        gtNotificationSmallIconResId = R.drawable.gt_notification_small
     }
 
     /** Один граф сессии на процесс: хранилища DataStore уникальны на процесс. */

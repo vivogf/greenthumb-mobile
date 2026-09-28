@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
@@ -135,6 +138,16 @@ public fun GtAppNavGraph(
      */
     pushLanguage: () -> String = { "ru" },
     /**
+     * Deep-link пуша (Stage 9 п.7, фича kmp-push-offline-routing):
+     * `data.plant_id` из launch-intent. App() передаёт id ТОЛЬКО в
+     * SignedIn-ветке (без сессии extra не открывает данные и не обходит
+     * вход); до того значение живёт в держателе точки входа — переход
+     * отложен до входа.
+     */
+    pendingPlantId: String? = null,
+    /** id потреблён графом (переход выполнен или отклонён) — держатель чистит. */
+    onPendingPlantIdConsumed: () -> Unit = {},
+    /**
      * Ошибка удаления растения (screen-plant-detail, RN-паритет onError
      * deleteMutation: экран уже ушел на дашборд из onMutate, Alert — поверх
      * нового экрана). Владелец-помощник здесь, remember — наружу
@@ -230,6 +243,49 @@ public fun GtAppNavGraph(
                 )
             }
         }
+    }
+    // Deep-link пуша (Stage 9 п.7): тап по FCM-пуши с `data.plant_id`
+    // (number|string — RN-контракт app/_layout.tsx:50-54; FCM кладёт data
+    // в launch-intent) открывает plant/{id}. Переход ТОЛЬКО после SignedIn:
+    // без сессии (ветки welcome/login, офлайн-поверхности) extra не читается
+    // и вход не обходится — id ждёт в держателе точки входа до входа.
+    // Пустой id — no-op (локальное тестовое уведомление extras не несёт).
+    // Порядок: переход → refresh → consume (consume меняет ключи эффекта —
+    // работа ДО него не должна ждать, работа ПОСЛЕ — не планироваться).
+    LaunchedEffect(pendingPlantId, sessionUserId) {
+        val plantId = pendingPlantId
+        if (plantId.isNullOrEmpty() || sessionUserId == null) return@LaunchedEffect
+        try {
+            navController.navigate("plant/$plantId")
+        } catch (malformed: IllegalArgumentException) {
+            // id вне формата маршрута (`/`, `?` — произвол FCM data) —
+            // не крашить: карточка не открывается, id потребляется.
+        }
+        // Холодный старт: кадр ушёл на карточку раньше первого sync дашборда —
+        // Room пуст, и данные карточке доставляет refresh (наблюдение экрана
+        // реактивно: Loading/NotFound → карточка, когда ответ ляжет в Room).
+        // Тёплый тап по уже кэшированному растению — без лишнего GET (тяжёлые
+        // photo_url в ответе; паритет RN — из кэша). Провал refresh — честный
+        // NotFound экрана (RN error-ветка), ошибку сюда не поднимаем.
+        val repo = plants.open(sessionUserId)
+        val cached = try {
+            repo.observePlants().first()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Throwable) {
+            null
+        }
+        if (cached == null || cached.none { it.id == plantId }) {
+            try {
+                repo.refresh()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                // Тихо: карточка уже показывает NotFound; при возврате на
+                // дашборд его собственный sync повторит попытку.
+            }
+        }
+        onPendingPlantIdConsumed()
     }
     // Алерт отказа удаления — НАД графом (RN onError deleteMutation: мутация
     // уже увела экран на дашборд, Alert показывается поверх нового экрана).
