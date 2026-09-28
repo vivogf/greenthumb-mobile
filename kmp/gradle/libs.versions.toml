@@ -25,6 +25,11 @@ room = "2.8.5"
 sqliteBundled = "2.7.1"
 datastore = "1.2.1"
 activityCompose = "1.13.0"
+# Firebase (M9 push-android, architecture.md §4 «Firebase Android … актуальный BoM»):
+# BoM задаёт версии firebase-messaging; плагин активирует google-services.json.
+# Последние стабильные на Google Maven (проверено 2026-09-28).
+firebaseBom = "34.19.0"
+googleServices = "4.5.0"
 foojayResolver = "1.0.0"
 
 [plugins]
@@ -36,6 +41,9 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidKmpLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+# google-services (M9 push-android): генерирует Firebase-конфиг из
+# kmp/androidApp/google-services.json; применяется ТОЛЬКО в :androidApp.
+googleServices = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 # androidx.room (не room3): schemaDirectory для экспорта схемы. Версия = room 2.8.5.
 room = { id = "androidx.room", version.ref = "room" }
@@ -75,3 +83,7 @@ roomRuntime = { module = "androidx.room:room-runtime", version.ref = "room" }
 roomCompiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 sqliteBundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqliteBundled" }
 datastorePreferencesCore = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+# Firebase BoM (M9): платформенная зависимость, версии firebase-* задаёт она.
+firebaseBom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+# Версию подставляет BoM (в каталоге без version.ref — так и задумано).
+firebaseMessaging = { module = "com.google.firebase:firebase-messaging" }

@@ -4,6 +4,7 @@ import io.ktor.client.engine.HttpClientEngineFactory
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.ApiError
+import site.xmpp.greenthumb.core.network.FcmPushSubscriptions
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PlatformEngine
 import site.xmpp.greenthumb.core.network.SessionRecoveryProvider
@@ -48,12 +49,14 @@ public class SessionGraph private constructor(
         private set
 
     /**
-     * Push-подсистема (M7 screen-enable-notifications — первое объявление
-     * expect; активная реализация M9). Один инстанс на процесс — та же
-     * дисциплина, что у [api]/[manager]: экраны берут её отсюда, тесты
-     * подменяют весь объект ([PushTokens] открыт).
+     * Push-подсистема (M9 push-android): Android-actual — реальный FCM-конвейер
+     * (канал, разрешение, токен FirebaseMessaging, самопоказ форграунда),
+     * сеть подписки — через [FcmPushSubscriptions] поверх [api]; desktop —
+     * заглушка (шов игнорируется, [PushOutcome.Denied] всегда). Один инстанс
+     * на процесс — та же дисциплина, что у [api]/[manager]: экраны берут её
+     * отсюда, тесты подменяют весь объект ([PushTokens] открыт).
      */
-    public val push: PushTokens = PushTokens()
+    public val push: PushTokens = PushTokens(FcmPushSubscriptions(api))
 
     public companion object {
         /**

@@ -20,12 +20,23 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Пуш-уведомления (M9 push-android): runtime-разрешение API 33+
+         (RN-паритет requestPermissionsAsync; ниже 33 выдано неявно). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".GreenThumbApplication"
         android:label="GreenThumb"
         android:supportsRtl="true"
         android:fullBackupContent="@xml/full_backup_content"
         android:dataExtractionRules="@xml/data_extraction_rules">
+
+        <!-- Канал фоновых FCM-доставок (M9): когда приложение в фоне/убито,
+             система показывает notification-полезную нагрузку сама — через
+             наш канал `default` (HIGH, вибрация, цвет), а не «Miscellaneous». -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="default" />
 
         <!-- configChanges uiMode (Stage 6 п.3): смена системной темы НЕ
              пересоздаёт Activity (как у Expo-активности RN), и Compose
@@ -44,6 +55,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Перехват FCM (M9 push-android, Stage 9 п.5): форграунд-пуш
+             SDK сам не показывает — сервис показывает через канал `default`
+             (баннер + список + звук). -->
+        <service
+            android:name=".GtFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <!-- content:// для EXTRA_OUTPUT камеры (Stage 8 п.1): кадр пишется в
              cacheDir/gt-pick-*.jpg и читается приложением же; пути —

@@ -6,6 +6,7 @@ import io.ktor.http.HttpMethod
 import kotlinx.serialization.StringFormat
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import site.xmpp.greenthumb.core.platform.PushSubscriptions
 
 /**
  * Типизированный клиент API GreenThumb — один suspend-метод на эндпоинт
@@ -169,4 +170,26 @@ class GreenThumbApi(private val client: ApiClient) {
 
     @kotlinx.serialization.Serializable
     private data class ExpoSubscribeRequest(@kotlinx.serialization.SerialName("expo_push_token") val expoPushToken: String, val language: String)
+}
+
+/**
+ * [PushSubscriptions] поверх [GreenThumbApi] (M9 push-android): шов сети для
+ * [site.xmpp.greenthumb.core.platform.PushTokens]. Ошибки НЕ глотаются —
+ * [ApiError] наверх (тумблер профиля показывает сообщение, RN-паритет).
+ *
+ * [PushSubscriptions.subscribe]'овский `platform` (строка провода) мапится в
+ * [PlatformDto]; неизвестное значение — фолбэк `android` (паритет серверного
+ * fallback из backend-contract.md №24).
+ */
+public class FcmPushSubscriptions(private val api: GreenThumbApi) : PushSubscriptions {
+    override suspend fun subscribe(token: String, platform: String, language: String) {
+        val wire = PlatformDto.entries.firstOrNull { it.name == platform } ?: PlatformDto.android
+        api.subscribeFcm(FcmSubscriptionRequest(fcmToken = token, platform = wire, language = language))
+    }
+
+    override suspend fun unsubscribe() {
+        api.unsubscribeFcm()
+    }
+
+    override suspend fun status(): Boolean = api.fcmSubscriptionStatus().subscribed
 }
