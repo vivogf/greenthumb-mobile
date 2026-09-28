@@ -367,6 +367,12 @@ public fun ProfileScreen(
                                     throw cancellation
                                 } catch (e: ApiError) {
                                     errorText = e.message
+                                } catch (other: Throwable) {
+                                    // M9 (реальный actual): неожиданный сбой
+                                    // платформенного шва — локализованное
+                                    // состояние ошибки, не краш UI
+                                    // (RN-паритет catch(error: any) → message).
+                                    errorText = other.message ?: other.toString()
                                 } finally {
                                     pushToggling = false
                                 }
@@ -430,6 +436,14 @@ public fun ProfileScreen(
                                 try {
                                     push.sendLocalTestNotification()
                                     success = SuccessEvent.TestSent
+                                } catch (cancellation: CancellationException) {
+                                    throw cancellation
+                                } catch (error: Throwable) {
+                                    // M9 (реальный actual): сбой показа
+                                    // (канал/разрешение/сервис) — модалка
+                                    // ошибки, не краш UI (RN-паритет
+                                    // catch(error: any) → showAlert(error.message)).
+                                    errorText = error.message ?: error.toString()
                                 } finally {
                                     testSending = false
                                 }

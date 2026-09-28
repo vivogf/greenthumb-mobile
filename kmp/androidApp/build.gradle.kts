@@ -2,6 +2,11 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeMultiplatform)
+    // M9 push-android: google-services.json активируется — Firebase-конфиг
+    // (google_app_id и др.) генерируется в ресурсы, FirebaseInitProvider
+    // инициализирует FirebaseApp, токен FCM доступен (до M9 файл держался
+    // инертно — scrutiny m1).
+    alias(libs.plugins.googleServices)
 }
 
 android {
@@ -42,5 +47,10 @@ kotlin {
     dependencies {
         implementation(project(":shared"))
         implementation(libs.androidxActivityCompose)
+        // Firebase Messaging (M9 push-android): сервис перехвата форграунд-пушей
+        // живёт в этом модуле (ему нужен R.drawable small-icon) — та же BoM-версия,
+        // что в :shared (actual PushTokens). Версию задаёт BoM.
+        implementation(project.dependencies.platform(libs.firebaseBom))
+        implementation(libs.firebaseMessaging)
     }
 }

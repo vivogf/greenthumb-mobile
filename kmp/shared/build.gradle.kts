@@ -63,6 +63,13 @@ kotlin {
             // (Stage 8 п.1: PickVisualMedia/TakePicture/RequestPermission).
             // Версия = существующий пин activityCompose 1.13.0, новых пинов нет.
             implementation(libs.androidxActivity)
+            // Firebase Messaging (M9 push-android): токен + сервис перехвата
+            // форграунд-пушей. Версию задаёт BoM (пин «актуальный BoM»,
+            // architecture.md §4); сам actual — PushTokens.android.kt.
+            // project.dependencies.platform: шорткат platform() в KMP-скоупе
+            // зависимостей не резолвится.
+            implementation(project.dependencies.platform(libs.firebaseBom))
+            implementation(libs.firebaseMessaging)
             // datastore-core-android: PreferenceDataStoreFactory доступна на androidMain
             // (транзитивная через datastore-preferences-core не всегда поднимает
             // android-вариант в KMP-своде).

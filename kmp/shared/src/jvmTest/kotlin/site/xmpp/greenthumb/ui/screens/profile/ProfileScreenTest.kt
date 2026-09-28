@@ -196,6 +196,9 @@ class ProfileScreenTest {
         var lastLanguage: String? = null
         var outcome: PushOutcome = PushOutcome.Subscribed("fake-fcm-token")
 
+        /** M9: инжекция сбоя тестового уведомления (реальный actual может бросать). */
+        var sendThrow: Throwable? = null
+
         override suspend fun requestSubscribe(language: String): PushOutcome {
             subscribeCalls++
             lastLanguage = language
@@ -206,7 +209,9 @@ class ProfileScreenTest {
 
         override suspend fun unsubscribe() {}
 
-        override suspend fun sendLocalTestNotification() {}
+        override suspend fun sendLocalTestNotification() {
+            sendThrow?.let { throw it }
+        }
     }
 
     private class FakeServer {
@@ -650,6 +655,60 @@ class ProfileScreenTest {
             kotlin.test.assertNull(secureKey(graph), "recovery key удалён")
             kotlin.test.assertNull(graph.settings.getCachedUserBlocking(), "cached_user удалён")
             assertEquals(1, graph.server.logoutCount, "серверный logout отправлен")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Push-сбои (M9 kmp-push-fcm): отказ/сбой тумблера и тестового уведомления
+    // — локализованное состояние ошибки, БЕЗ краша UI (RN-паритет
+    // catch(error: any) → showAlert(error.message))
+    // ------------------------------------------------------------------
+
+    @Test
+    fun togglePush_errorOutcome_showsAlert_switchStaysOff_noCrash() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.push.outcome = PushOutcome.Error("boom-toggle")
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+
+            // Тумблер вкл → исход Error (сбой подписки) → модалка ошибки.
+            // Матч по роли Switch (toggleable ставит Role.Switch; RN-свитч
+            // a11y-лейбла не имел — контент-описание компонент не применяет).
+            clickAt(hasClickAction() and hasAnyDescendantOrSelfRole(Role.Switch))
+            waitUntilAtLeastOneExists(hasText("Error"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("boom-toggle"), TIMEOUT)
+            // Тумблер остаётся выключенным (pushEnabled = false): success-модалки
+            // «Notifications enabled» нет, семантика switch не selected.
+            waitUntilDoesNotExist(hasSubText("You will receive reminders"), TIMEOUT)
+            val switchNode = onAllNodes(hasClickAction() and hasAnyDescendantOrSelfRole(Role.Switch))
+                .fetchSemanticsNodes().first()
+            kotlin.test.assertFalse(
+                switchNode.config.getOrNull(SemanticsProperties.Selected) == true,
+                "switch остаётся off после Error-исхода",
+            )
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun testNotificationException_showsAlert_noCrash() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.push.sendThrow = IllegalStateException("boom-test")
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab(pushSubscribed = true)
+
+            // Строка тестового уведомления видна при включённых пулах; бросок
+            // sendLocalTestNotification — модалка ошибки с message, не краш.
+            clickByLabel("Send Test Notification")
+            waitUntilAtLeastOneExists(hasText("Error"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("boom-test"), TIMEOUT)
 
             runOnIdle { graph.close() }
         }
