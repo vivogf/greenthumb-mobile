@@ -24,6 +24,12 @@
          (RN-паритет requestPermissionsAsync; ниже 33 выдано неявно). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Вибрация (Stage 10, VAL-ANIM-004): Haptics.android.kt вызывает
+         системный Vibrator напрямую — без этого normal-разрешения vibrate()
+         бросает SecurityException, runCatching глотает его, и на устройстве
+         вибрации нет. Normal permission — runtime-запрос не нужен. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name=".GreenThumbApplication"
         android:label="GreenThumb"
