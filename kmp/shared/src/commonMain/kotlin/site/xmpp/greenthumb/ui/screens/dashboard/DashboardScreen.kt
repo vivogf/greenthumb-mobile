@@ -258,6 +258,11 @@ public fun DashboardScreen(
     // оба снимаются через [Motion.BulkWaterSnapMs] (RN-ритм снятия снапа).
     var snappingIds by remember { mutableStateOf(emptySet<String>()) }
     var snapHeldIds by remember { mutableStateOf(emptySet<String>()) }
+    // Порядок рендера на момент клика «полить все» (до M4-записи): held-
+    // карточки держат эти позиции весь распад — иначе пост-мутационная
+    // сортировка прыгает им в хвост (M10-фикс F1; RN удерживал их на
+    // прежних местах). Снимается вместе с snapHeldIds.
+    var snapOrderIds by remember { mutableStateOf(emptyList<String>()) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
 
     // Имя пользователя в шапке (RN user?.name; офлайн-кэш тоже пользователь).
@@ -404,7 +409,10 @@ public fun DashboardScreen(
             }
             .map { it.id }
         bulkPendingCount = due
-        if (dueIds.isNotEmpty()) snapHeldIds = dueIds.toSet()
+        if (dueIds.isNotEmpty()) {
+            snapHeldIds = dueIds.toSet()
+            snapOrderIds = filteredPlants.map { it.id }
+        }
         scope.launch {
             try {
                 repo.waterAll()
@@ -420,6 +428,7 @@ public fun DashboardScreen(
                         delay(Motion.BulkWaterSnapMs.toLong())
                         snappingIds = emptySet()
                         snapHeldIds = emptySet()
+                        snapOrderIds = emptyList()
                     }
                 }
                 delay(Motion.BulkWaterSuccessBannerMs.toLong())
@@ -429,6 +438,7 @@ public fun DashboardScreen(
             } catch (error: Throwable) {
                 errorDialogMessage = error.message ?: error.toString()
                 snapHeldIds = emptySet()
+                snapOrderIds = emptyList()
             } finally {
                 bulkPendingCount = null
             }
@@ -771,11 +781,17 @@ public fun DashboardScreen(
                             // данные уже обновлены и фильтр их больше не отдаёт
                             // (M4-механизм: запись не ждёт анимацию — видимость
                             // карточек держит сам эффект; RN достигал того же тем,
-                            // что держал запись кэша 1150 мс).
-                            val snapExtras = plants.filter {
-                                it.id in snapHeldIds && filteredPlants.none { p -> p.id == it.id }
-                            }
-                            val renderPlants = if (snapExtras.isEmpty()) filteredPlants else filteredPlants + snapExtras
+                            // что держал запись кэша 1150 мс). Порядок —
+                            // order-preserving по [snapOrderIds]: карточки держат
+                            // исходные позиции, stagger распада идёт в исходном
+                            // порядке (M10-фикс F1; раньше held дописывались в
+                            // хвост и визуально прыгали вниз).
+                            val renderPlants = renderPlantsDuringSnap(
+                                filteredPlants = filteredPlants,
+                                allPlants = plants,
+                                snapHeldIds = snapHeldIds,
+                                snapOrderIds = snapOrderIds,
+                            )
                             when (viewMode) {
                                 LayoutMode.Grid -> PlantsGrid(
                                     plants = renderPlants,

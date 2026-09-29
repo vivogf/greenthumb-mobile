@@ -52,6 +52,52 @@ public fun filterAndSortPlants(
 }
 
 /**
+ * Порядок рендера списка/сетки во время снапа массового полива (M10-фикс F1
+ * после scrutiny: ghost-карточки дописывались в хвост).
+ *
+ * M4-мутация пишет данные немедленно, поэтому пост-мутационный [filteredPlants]
+ * либо сортирует политые карточки в хвост (daysUntil = frequency), либо не
+ * отдаёт их вовсе (фильтр needs-water после перехода в healthy). Прежняя сборка
+ * `filteredPlants + snapExtras` дописывала карточки-призраки в хвост: карточки
+ * визуально прыгали вниз, а stagger распада (`index * Motion.ThanosStaggerMs`,
+ * развёртка слева направо) шёл не в исходном порядке. RN удерживал их на
+ * прежних местах (запись кэша шла после эффекта).
+ *
+ * Один order-preserving проход по [snapOrderIds] — порядку рендера на момент
+ * клика: каждая видимая карточка занимает исходную позицию. Совпадения,
+ * которых не было в исходном порядке (поиск/фильтр сменился во время снапа),
+ * дописываются хвостом в порядке [visible]. Видимый набор не меняется:
+ * фильтр + карточки-призраки из [snapHeldIds] (эффект владеет их видимостью).
+ * Без снапа (held снят, в том числе после неуспеха мутации) — [filteredPlants]
+ * без изменений: ghost-карточек не остаётся.
+ */
+public fun renderPlantsDuringSnap(
+    filteredPlants: List<PlantDto>,
+    allPlants: List<PlantDto>,
+    snapHeldIds: Set<String>,
+    snapOrderIds: List<String>,
+): List<PlantDto> {
+    if (snapHeldIds.isEmpty()) return filteredPlants
+    val snapExtras = allPlants.filter {
+        it.id in snapHeldIds && filteredPlants.none { p -> p.id == it.id }
+    }
+    val visible = if (snapExtras.isEmpty()) filteredPlants else filteredPlants + snapExtras
+    if (snapOrderIds.isEmpty()) return visible
+    val visibleById = HashMap<String, PlantDto>(visible.size)
+    for (plant in visible) visibleById[plant.id] = plant
+    val rendered = ArrayList<PlantDto>(visible.size)
+    val emitted = HashSet<String>(visible.size)
+    for (id in snapOrderIds) {
+        val plant = visibleById[id] ?: continue
+        if (emitted.add(id)) rendered.add(plant)
+    }
+    for (plant in visible) {
+        if (emitted.add(plant.id)) rendered.add(plant)
+    }
+    return rendered
+}
+
+/**
  * Счётчик нуждающихся в поливе (RN useMemo `needsWaterCount`): статус ≠ healthy.
  * Ведёт подпись чипа needsWater, видимость кнопок массовых действий и
  * pending-баннер массового полива.
