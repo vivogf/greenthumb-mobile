@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.Clipboard
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.ui.components.GtCheckMark
 import site.xmpp.greenthumb.ui.components.GtCopyMark
 import site.xmpp.greenthumb.ui.components.GtIconButton
@@ -170,6 +171,8 @@ public fun ShowKeySurface(
                     GtIconButton(
                         onClick = {
                             Clipboard.copy(recoveryKey)
+                            // RN copyKey: гаптика Light (login.tsx:107).
+                            Haptics.light()
                             copied = true
                             scope.launch {
                                 delay(2000)

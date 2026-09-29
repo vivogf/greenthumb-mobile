@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.PushOutcome
 import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
@@ -80,9 +81,10 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  *   40 — ближайшие шаги шкалы без литералов;
  * - `colors.primary + '22'` → `primaryContainer` (тот же приём, что у
  *   welcome-слайдов и GtEmptyState);
- * - RN-гаптика (Haptics.notificationAsync Success / selectionAsync) не
- *   переносится: Haptics — expect-слой M10, на desktop no-op; эффект тапа не
- *   влияет на навигацию или данные;
+ * - RN-гаптика перенесена (M10, VAL-ANIM-004): успешная подписка →
+ *   [Haptics.success] (enable-notifications.tsx:60), Later → [Haptics.selection]
+ *   (enable-notifications.tsx:72); ветки отказа/сбоя гаптики в RN не имеют —
+ *   и здесь нет; тапы не меняют навигацию или данные (desktop no-op);
  * - RN-подсказка отказа различала iOS/Android (pushPermissionDeniedIOS);
  *   KMP-мишень миссии — только Android (desktop — заглушка [PushOutcome.Denied]):
  *   используется общая строка `profile_pushPermissionDenied`. iOS-ветка
@@ -190,6 +192,9 @@ public fun EnableNotificationsScreen(
                         when (val outcome = push.requestSubscribe(language)) {
                             is PushOutcome.Subscribed -> {
                                 errorText = null
+                                // RN notificationAsync(Success) после подписки
+                                // (enable-notifications.tsx:60).
+                                Haptics.success()
                                 onFinished()
                             }
                             is PushOutcome.Denied -> {
@@ -222,7 +227,11 @@ public fun EnableNotificationsScreen(
                         indication = null,
                         role = Role.Button,
                         enabled = !loading,
-                    ) { onFinished() }
+                    ) {
+                        // RN selectionAsync в handleLater (enable-notifications.tsx:72).
+                        Haptics.selection()
+                        onFinished()
+                    }
                     .padding(vertical = Spacing.sm),
             )
         }

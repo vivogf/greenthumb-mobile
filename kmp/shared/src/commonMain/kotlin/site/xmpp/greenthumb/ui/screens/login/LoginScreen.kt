@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.ApiError
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
@@ -109,8 +110,10 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  *   [GtChevronMark] (material-icons в пинах миссии нет, прецедент GtBottomTabs);
  * - `colors.primary + '22'` (альфа-хвост строки) → `primaryContainer`
  *   (тот же приём, что welcome-слайды/GtEmptyState);
- * - RN-гаптика (Haptics.notificationAsync/impactAsync) не переносится:
- *   Haptics — expect-слой M10, desktop — no-op; тапы не меняют данные;
+ * - RN-гаптика перенесена (M10, VAL-ANIM-004): успех/ошибка создания и входа →
+ *   [Haptics.success]/[Haptics.error], копия ключа в [ShowKeySurface] →
+ *   [Haptics.light] (RN notificationAsync/impactAsync); тапы не меняют данные
+ *   (fire-and-forget, desktop no-op);
  * - useAlertDialog → [GtAlertDialog] в составе экрана (та же модалка);
  * - Linking.openURL(mailto) → [OpenUrl.open] (expect/actual, desktop —
  *   best-effort no-op при отсутствии обработчика).
@@ -324,7 +327,8 @@ private fun CreateMode(
                         // create-anonymous, пустое опускает поле (VAL-LOGIN-002).
                         val state = session.createAnonymousAccount(name.trim().ifEmpty { null }) as SessionState.SignedIn
                         // Шлюз показа ключа (RN setMode('show-key') + гаптика
-                        // Success; навигацию решает граф после смены состояния).
+                        // Success login.tsx:81; навигацию решает граф).
+                        Haptics.success()
                         onAccountCreated(state.user.recoveryKey)
                     } catch (cancellation: kotlinx.coroutines.CancellationException) {
                         throw cancellation
@@ -336,6 +340,8 @@ private fun CreateMode(
                             networkErrorText = networkErrorText,
                             serviceUnavailableText = serviceUnavailableText,
                         )
+                        // RN notificationAsync(Error) рядом с алертом (login.tsx:84).
+                        Haptics.error()
                     } finally {
                         loading = false
                     }
@@ -460,8 +466,10 @@ private fun LoginKeyMode(
                 scope.launch {
                     try {
                         // Успех → сессия SignedIn → граф уводит на вкладки
-                        // (RN useEffect login.tsx:41-45 — автопереход).
+                        // (RN useEffect login.tsx:41-45 — автопереход);
+                        // гаптика Success (RN login.tsx:95).
                         session.signInWithRecoveryKey(entered)
+                        Haptics.success()
                     } catch (cancellation: kotlinx.coroutines.CancellationException) {
                         throw cancellation
                     } catch (e: ApiError) {
@@ -472,6 +480,8 @@ private fun LoginKeyMode(
                             networkErrorText = networkErrorText,
                             serviceUnavailableText = serviceUnavailableText,
                         )
+                        // RN notificationAsync(Error) рядом с алертом (login.tsx:99).
+                        Haptics.error()
                         loading = false
                     }
                 }

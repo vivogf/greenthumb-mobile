@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.ui.components.GtBellMark
 import site.xmpp.greenthumb.ui.components.GtLeafMark
@@ -80,9 +81,10 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * - `colors.primary + '22'` (альфа-хвост строки) → `primaryContainer`
  *   (тот же приём, что у [site.xmpp.greenthumb.ui.components.GtEmptyState]:
  *   rgba-строку в токены не заводят);
- * - RN-гаптика тапов (`Haptics.impactAsync/selectionAsync`) не переносится:
- *   Haptics — expect-слой M10, на desktop — no-op; эффект тапа не влияет на
- *   навигационное поведение карусели.
+ * - RN-гаптика тапов перенесена (M10, VAL-ANIM-004): Next → [Haptics.selection],
+ *   завершение на последнем слайде → [Haptics.light] (RN selectionAsync /
+ *   impactAsync(Light)); Skip в RN гаптики не имеет — здесь тоже; тактильный
+ *   отклик не меняет навигацию или данные (fire-and-forget, desktop no-op).
  *
  * Завершение — только кнопками (Skip / Get started), свайп карусели интро
  * не закрывает — как в RN.
@@ -176,12 +178,16 @@ fun WelcomeScreen(
                 if (onLast) {
                     if (!finished) {
                         finished = true
+                        // RN impactAsync(Light) на завершении (welcome.tsx:50).
+                        Haptics.light()
                         scope.launch { settings.setIntroSeen(); onFinish() }
                     }
                 } else {
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
                     }
+                    // RN selectionAsync() после перехода (welcome.tsx:57).
+                    Haptics.selection()
                 }
             },
             modifier = Modifier
