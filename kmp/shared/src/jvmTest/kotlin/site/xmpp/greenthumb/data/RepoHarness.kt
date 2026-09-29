@@ -22,8 +22,15 @@ import kotlin.io.path.deleteRecursively
 
 internal const val USER: String = "24"
 
-/** Полдень UTC → локальный день 2026-09-25 в [TimeZone.UTC]. */
-internal val SYNCED_AT: Long = Instant.parse("2026-09-25T12:00:00Z").toEpochMilliseconds()
+/**
+ * Пояс тестового «сегодня» — UTC+3 (Europe/Moscow), НЕ [TimeZone.UTC]:
+ * UTC в статусе полива сдвинул бы его на сутки у большинства пользователей
+ * (Stage 11 п.2; `lib/utils.ts:8-19` — локальная дата). 09:00Z = полдень
+ * по [TEST_ZONE] → локальный день 2026-09-25, метка баннера «12:00».
+ */
+internal val TEST_ZONE: TimeZone = TimeZone.of("Europe/Moscow")
+
+internal val SYNCED_AT: Long = Instant.parse("2026-09-25T09:00:00Z").toEpochMilliseconds()
 
 internal const val TODAY: String = "2026-09-25"
 
@@ -88,6 +95,7 @@ internal fun openHarness(
     nowMillis: () -> Long = { SYNCED_AT },
     ids: ArrayDeque<String> = ArrayDeque(),
     session: AccountSession = AccountSession(),
+    zone: TimeZone = TEST_ZONE,
     handler: MockRequestHandler,
 ): RepoHarness {
     val dir = createTempDirectory(prefix = "gt-repo").toFile()
@@ -100,7 +108,7 @@ internal fun openHarness(
         db = databases.open(USER),
         api = api,
         deleteFiles = { id -> databases.delete(id) },
-        clocks = PlantClocks(nowMillis = nowMillis, zone = TimeZone.UTC),
+        clocks = PlantClocks(nowMillis = nowMillis, zone = zone),
         newId = {
             if (ids.isEmpty()) "m-${++n}" else ids.removeFirst()
         },
@@ -117,6 +125,7 @@ internal fun reopenRepository(
     databases: JvmPlantDatabases,
     handler: MockRequestHandler,
     nowMillis: () -> Long = { SYNCED_AT },
+    zone: TimeZone = TEST_ZONE,
 ): Pair<ApiClient, PlantRepository> {
     val client = ApiClient(io.ktor.client.engine.mock.MockEngine(handler))
     var n = 0
@@ -125,7 +134,7 @@ internal fun reopenRepository(
         db = databases.open(USER),
         api = GreenThumbApi(client),
         deleteFiles = { id -> databases.delete(id) },
-        clocks = PlantClocks(nowMillis = nowMillis, zone = TimeZone.UTC),
+        clocks = PlantClocks(nowMillis = nowMillis, zone = zone),
         newId = { "r-${++n}" },
     )
     return client to repo

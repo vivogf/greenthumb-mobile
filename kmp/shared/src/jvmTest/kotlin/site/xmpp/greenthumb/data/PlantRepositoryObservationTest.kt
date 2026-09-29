@@ -102,7 +102,7 @@ private fun openObservationHarness(handler: MockRequestHandler): ObservationHarn
         db = db,
         api = GreenThumbApi(client),
         deleteFiles = { id -> databases.delete(id) },
-        clocks = PlantClocks(nowMillis = { SYNCED_AT }, zone = kotlinx.datetime.TimeZone.UTC),
+        clocks = PlantClocks(nowMillis = { SYNCED_AT }, zone = TEST_ZONE),
     )
     return ObservationHarness(dir, client, db, repo)
 }
