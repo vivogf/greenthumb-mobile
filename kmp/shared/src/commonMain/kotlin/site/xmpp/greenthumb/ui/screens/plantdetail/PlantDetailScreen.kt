@@ -87,8 +87,8 @@ import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTextField
+import site.xmpp.greenthumb.ui.components.GtWaterButton
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
-import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.formatPickerDate
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
@@ -201,7 +201,7 @@ public class PlantDeleteErrorState {
  * - react-query optimistic-кэш → Room-наблюдение (architecture.md §7);
  *   invalidate не нужен — Room рекомпонирует сам (прецедент VAL-ADDPLANT-002);
  * - Ionicons/эмодзи → Canvas-метки ([GtLeafMark]/[GtPotMark]/[GtScissorsMark]…);
- * - WaterButtonWithParticles → [PrimaryButton] (частицы — m10 animations-water);
+ * - WaterButtonWithParticles → [GtWaterButton] (частицы + Medium-гаптика — m10);
  * - LinearGradient → [Brush.verticalGradient] от [Color.Black]/[Color.Transparent]
  *   (литералы RN-экрана `#fff`/rgba — свойство-константа, K5 не матчит);
  * - фото: data-URI через Coil [AsyncImage] (Coil запинен миссией; Keyer —
@@ -361,6 +361,26 @@ public fun PlantDetailScreen(
             }
 
             val today = pickerToday()
+
+            // Полив с детали (RN waterMutation через WaterButtonWithParticles):
+            // pending только water-патча (RN isPending && 'last_watered_date'
+            // в variables); записи/откаты — в репозитории, алерт — как у update.
+            var waterPending by remember(plant.id) { mutableStateOf(false) }
+            fun waterNow() {
+                if (waterPending) return
+                waterPending = true
+                scope.launch {
+                    try {
+                        repo.update(plant.id, PatchPlantDto(lastWateredDate = Patch.Value(today.toString())))
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (error: Throwable) {
+                        errorDialogMessage = error.message ?: error.toString()
+                    } finally {
+                        waterPending = false
+                    }
+                }
+            }
             val waterDays = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today)
             val waterStatus = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today)
             val extended = greenThumbExtendedColors()
@@ -538,16 +558,15 @@ public fun PlantDetailScreen(
                                 WaterBadge(text = waterBadgeText, color = waterColor)
                             }
                             Spacer(modifier = Modifier.height(Spacing.sm))
-                            PrimaryButton(
-                                text = waterPlantLabel,
-                                onClick = { update(PatchPlantDto(lastWateredDate = Patch.Value(today.toString()))) },
-                                modifier = Modifier
-                                    .gtButtonWidth()
-                                    .semantics {
-                                        // a11y_waterPlant: «Полить растение %1$s» —
-                                        // имя подставляется stringResource'ом.
-                                        contentDescription = waterPlantA11yLabel
-                                    },
+                            // RN WaterButtonWithParticles fullWidth: частицы +
+                            // Medium-гаптика внутри компонента (M10); isWatering —
+                            // pending water-патча (RN patchMutation.isPending с
+                            // last_watered_date в variables).
+                            GtWaterButton(
+                                onWater = ::waterNow,
+                                isWatering = waterPending,
+                                label = waterPlantLabel,
+                                contentDescription = waterPlantA11yLabel,
                             )
                         }
 

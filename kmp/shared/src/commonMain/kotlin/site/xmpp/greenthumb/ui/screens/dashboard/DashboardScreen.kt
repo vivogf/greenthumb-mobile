@@ -20,8 +20,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,7 +96,9 @@ import site.xmpp.greenthumb.ui.components.GtPlusMark
 import site.xmpp.greenthumb.ui.components.GtSearchMark
 import site.xmpp.greenthumb.ui.components.GtSkeleton
 import site.xmpp.greenthumb.ui.components.GtSkeletonMode
+import site.xmpp.greenthumb.ui.components.GtThanosSnap
 import site.xmpp.greenthumb.ui.components.GtTextField
+import site.xmpp.greenthumb.ui.components.GtWaterButton
 import site.xmpp.greenthumb.ui.components.GtWaterDropMark
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.pickerToday
@@ -185,7 +187,8 @@ private const val BulkBannerBorderAlpha: Float = 36f / 255f
  *   Room немедленно, поэтому per-card «Watering…» массового полива RN
  *   (артефакт «кэш ещё не обновлён») не переносится — состояние несёт
  *   баннер; карточка при незакрытом журнале помечена [UnsavedMutation.LABEL].
- *   Частицы/ThanosSnap — M10 (здесь каркас кнопки без частиц);
+ *   ThanosSnap — эффект одноразовым набором снап-id (M10); кнопки полива —
+ *   [GtWaterButton] (частицы + Medium-гаптика внутри, RN-паритет);
  * -Ionicons → Canvas-метки (прецедент GtBottomTabs); «#ff6b6b»/«#fbbf24»
  *   сетки → scheme.error/extended.amber (литералы вне палитры не переносятся);
  * - RN-ошибка чтения кэша (полноэкранная) и полоса «не удалось обновить» —
@@ -247,6 +250,14 @@ public fun DashboardScreen(
     var bulkSuccessCount by remember { mutableStateOf<Int?>(null) }
     var postponePending by remember { mutableStateOf(false) }
     var wateringIds by remember { mutableStateOf(emptySet<String>()) }
+    // Распад при массовом поливе (M10): id карточек с эффектом ThanosSnap.
+    // Данные не ждут эффекта — Room обновлён оптимистикой репозитория;
+    // snapHeldIds держит карточки-призраки в списке с клика (запись их
+    // мгновенно выводит из фильтра — эффект владеет их видимостью),
+    // snappingIds включает распад по успеху запроса (RN onSuccess);
+    // оба снимаются через [Motion.BulkWaterSnapMs] (RN-ритм снятия снапа).
+    var snappingIds by remember { mutableStateOf(emptySet<String>()) }
+    var snapHeldIds by remember { mutableStateOf(emptySet<String>()) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
 
     // Имя пользователя в шапке (RN user?.name; офлайн-кэш тоже пользователь).
@@ -376,11 +387,24 @@ public fun DashboardScreen(
      * обновляет немедленно (до конца анимации — вкладочный чек VAL-DASH-006);
      * N фиксируется ДО записи (после оптимистичной записи все healthy).
      * Ошибка — алерт (RN onError showAlert).
+     *
+     * Эффект отвязан от данных (M4-механизм, architecture.md §7): RN держал
+     * запись кэша 1150 мс ([Motion.BulkWaterSnapMs]) ради ThanosSnap — здесь
+     * запись уже сделана репозиторием, распад ([GtThanosSnap]) — одноразовое
+     * событие по id «полить» до записи (RN context.ids из onMutate); набор
+     * снапа живёт те же 1150 мс (RN тоже снимает его на BULK_WATER_SNAP_MS).
      */
     fun waterAll() {
         if (bulkPendingCount != null) return
         val due = dueCount
+        val dueIds = plants
+            .filter {
+                wateringStatus(it.lastWateredDate, it.waterFrequencyDays, today) !=
+                    WateringStatus.Healthy
+            }
+            .map { it.id }
         bulkPendingCount = due
+        if (dueIds.isNotEmpty()) snapHeldIds = dueIds.toSet()
         scope.launch {
             try {
                 repo.waterAll()
@@ -390,12 +414,21 @@ public fun DashboardScreen(
                 // «N полито» не показывался никогда.
                 bulkPendingCount = null
                 bulkSuccessCount = due
+                if (dueIds.isNotEmpty()) {
+                    snappingIds = dueIds.toSet()
+                    launch {
+                        delay(Motion.BulkWaterSnapMs.toLong())
+                        snappingIds = emptySet()
+                        snapHeldIds = emptySet()
+                    }
+                }
                 delay(Motion.BulkWaterSuccessBannerMs.toLong())
                 bulkSuccessCount = null
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
                 errorDialogMessage = error.message ?: error.toString()
+                snapHeldIds = emptySet()
             } finally {
                 bulkPendingCount = null
             }
@@ -688,9 +721,11 @@ public fun DashboardScreen(
                         Spacer(modifier = Modifier.height(Spacing.xs))
                     }
 
-                    if (filteredPlants.isEmpty()) {
+                    if (filteredPlants.isEmpty() && snapHeldIds.isEmpty()) {
                         // Пустой результат поиска/фильтра — ОТДЕЛЬНЫЙ empty-state
                         // (RN noPlantsFound + tryDifferentSearch/tryDifferentFilter).
+                        // Во время снапа (данные уже обновлены, карточки-призраки
+                        // досиживают) пустое состояние не показываем.
                         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -732,19 +767,30 @@ public fun DashboardScreen(
                             onRefresh = { refreshManual() },
                             modifier = Modifier.weight(1f),
                         ) {
+                            // Карточки в снап-наборе досиживают в списке, даже когда
+                            // данные уже обновлены и фильтр их больше не отдаёт
+                            // (M4-механизм: запись не ждёт анимацию — видимость
+                            // карточек держит сам эффект; RN достигал того же тем,
+                            // что держал запись кэша 1150 мс).
+                            val snapExtras = plants.filter {
+                                it.id in snapHeldIds && filteredPlants.none { p -> p.id == it.id }
+                            }
+                            val renderPlants = if (snapExtras.isEmpty()) filteredPlants else filteredPlants + snapExtras
                             when (viewMode) {
                                 LayoutMode.Grid -> PlantsGrid(
-                                    plants = filteredPlants,
+                                    plants = renderPlants,
                                     unsavedIds = unsavedIds,
                                     wateringIds = wateringIds,
+                                    snappingIds = snappingIds,
                                     today = today,
                                     onOpenPlant = onOpenPlant,
                                     onWater = ::water,
                                 )
                                 else -> PlantsList(
-                                    plants = filteredPlants,
+                                    plants = renderPlants,
                                     unsavedIds = unsavedIds,
                                     wateringIds = wateringIds,
+                                    snappingIds = snappingIds,
                                     today = today,
                                     cardMode = viewMode == LayoutMode.Card,
                                     onOpenPlant = onOpenPlant,
@@ -922,12 +968,17 @@ internal fun BulkWaterBanner(
     }
 }
 
-/** Список и карточки (RN FlatList numColumns=1; card — градиент на фото). */
+/**
+ * Список и карточки (RN FlatList numColumns=1; card — градиент на фото).
+ * Карточка в снап-наборе завёрнута в [GtThanosSnap] (RN renderItemFinal:
+ * `snappingIds.has(id)` → `<ThanosSnap snap delay={index * 70}>`).
+ */
 @Composable
 private fun PlantsList(
     plants: List<PlantDto>,
     unsavedIds: Set<String>,
     wateringIds: Set<String>,
+    snappingIds: Set<String>,
     today: LocalDate,
     cardMode: Boolean,
     onOpenPlant: (String) -> Unit,
@@ -942,36 +993,49 @@ private fun PlantsList(
         ),
         verticalArrangement = Arrangement.spacedBy(if (cardMode) Spacing.lg else Spacing.sm),
     ) {
-        items(plants, key = { it.id }) { plant ->
+        itemsIndexed(plants, key = { _, plant -> plant.id }) { index, plant ->
             val waterColor = statusAccent(plant, today)
             val pill = statusPill(plant, today)
-            if (cardMode) {
-                PlantCard(
-                    plant = plant,
-                    today = today,
-                    statusText = pill.text,
-                    statusColor = pill.color,
-                    statusBg = pill.bg,
-                    isWatering = plant.id in wateringIds,
-                    unsaved = plant.id in unsavedIds,
-                    onOpenPlant = onOpenPlant,
-                    onWater = onWater,
+            val item: @Composable (Modifier) -> Unit = { mod ->
+                if (cardMode) {
+                    PlantCard(
+                        plant = plant,
+                        today = today,
+                        statusText = pill.text,
+                        statusColor = pill.color,
+                        statusBg = pill.bg,
+                        isWatering = plant.id in wateringIds,
+                        unsaved = plant.id in unsavedIds,
+                        onOpenPlant = onOpenPlant,
+                        onWater = onWater,
+                        modifier = mod,
+                    )
+                } else {
+                    PlantListItem(
+                        plant = plant,
+                        today = today,
+                        statusText = pill.text,
+                        statusColor = pill.color,
+                        statusBg = pill.bg,
+                        accentColor = waterColor,
+                        isWatering = plant.id in wateringIds,
+                        unsaved = plant.id in unsavedIds,
+                        onOpenPlant = onOpenPlant,
+                        onWater = onWater,
+                        modifier = mod,
+                    )
+                }
+            }
+            if (plant.id in snappingIds) {
+                GtThanosSnap(
+                    snap = true,
+                    delayMillis = index * Motion.ThanosStaggerMs,
                     modifier = Modifier.animateItem(),
-                )
+                ) {
+                    item(Modifier)
+                }
             } else {
-                PlantListItem(
-                    plant = plant,
-                    today = today,
-                    statusText = pill.text,
-                    statusColor = pill.color,
-                    statusBg = pill.bg,
-                    accentColor = waterColor,
-                    isWatering = plant.id in wateringIds,
-                    unsaved = plant.id in unsavedIds,
-                    onOpenPlant = onOpenPlant,
-                    onWater = onWater,
-                    modifier = Modifier.animateItem(),
-                )
+                item(Modifier.animateItem())
             }
         }
     }
@@ -983,6 +1047,7 @@ private fun PlantsGrid(
     plants: List<PlantDto>,
     unsavedIds: Set<String>,
     wateringIds: Set<String>,
+    snappingIds: Set<String>,
     today: LocalDate,
     onOpenPlant: (String) -> Unit,
     onWater: (String) -> Unit,
@@ -998,16 +1063,29 @@ private fun PlantsGrid(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        items(plants, key = { it.id }) { plant ->
-            PlantGridCell(
-                plant = plant,
-                today = today,
-                isWatering = plant.id in wateringIds,
-                unsaved = plant.id in unsavedIds,
-                onOpenPlant = onOpenPlant,
-                onWater = onWater,
-                modifier = Modifier.animateItem(),
-            )
+        itemsIndexed(plants, key = { _, plant -> plant.id }) { index, plant ->
+            val cell: @Composable (Modifier) -> Unit = { mod ->
+                PlantGridCell(
+                    plant = plant,
+                    today = today,
+                    isWatering = plant.id in wateringIds,
+                    unsaved = plant.id in unsavedIds,
+                    onOpenPlant = onOpenPlant,
+                    onWater = onWater,
+                    modifier = mod,
+                )
+            }
+            if (plant.id in snappingIds) {
+                GtThanosSnap(
+                    snap = true,
+                    delayMillis = index * Motion.ThanosStaggerMs,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    cell(Modifier)
+                }
+            } else {
+                cell(Modifier.animateItem())
+            }
         }
     }
 }
@@ -1154,19 +1232,19 @@ private fun PlantListItem(
                 )
             }
         }
-        when {
-            isWatering -> CircularProgressIndicator(
-                color = scheme.primary,
-                modifier = Modifier.size(Spacing.lg + Spacing.xxs),
+        // RN WaterButtonWithParticles compact: спиннер живёт ВНУТРИ кнопки
+        // (isWatering), всплеск частиц поверх — в компоненте.
+        if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
+            WateringStatus.Healthy
+        ) {
+            GtWaterButton(
+                onWater = { onWater(plant.id) },
+                isWatering = isWatering,
+                compact = true,
+                contentDescription = waterLabel,
             )
-            wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
-                WateringStatus.Healthy ->
-                CompactWaterButton(
-                    isWatering = false,
-                    contentDescription = waterLabel,
-                    onClick = { onWater(plant.id) },
-                )
-            else -> GtCheckMark(
+        } else {
+            GtCheckMark(
                 tint = scheme.primary.copy(alpha = 0.4f),
                 modifier = Modifier.size(Spacing.lg + Spacing.xxs),
             )
@@ -1278,11 +1356,12 @@ private fun PlantCard(
             if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
                 WateringStatus.Healthy
             ) {
-                FullWaterButton(
+                // RN WaterButtonWithParticles fullWidth (спиннер/частицы внутри).
+                GtWaterButton(
+                    onWater = { onWater(plant.id) },
+                    isWatering = isWatering,
                     label = stringResource(Res.string.plant_water),
                     contentDescription = waterLabel,
-                    isWatering = isWatering,
-                    onClick = { onWater(plant.id) },
                 )
             }
         }
@@ -1388,12 +1467,14 @@ private fun PlantGridCell(
                     .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(Spacing.xxs))
                     .padding(horizontal = Spacing.xxs, vertical = Spacing.xxs / 2),
             )
-            // Кнопка полива — правый верхний угол (только не-healthy).
+            // Кнопка полива — правый верхний угол (только не-healthy; RN
+            // WaterButtonWithParticles compact: спиннер/частицы внутри).
             if (needsWater) {
-                CompactWaterButton(
+                GtWaterButton(
+                    onWater = { onWater(plant.id) },
                     isWatering = isWatering,
+                    compact = true,
                     contentDescription = waterLabel,
-                    onClick = { onWater(plant.id) },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(Spacing.xxs),
@@ -1435,78 +1516,6 @@ private fun PlantPhoto(
                 .background(scheme.surfaceVariant, RoundedCornerShape(Radii.md))
                 .clip(RoundedCornerShape(Radii.md)),
             contentScale = ContentScale.Crop,
-        )
-    }
-}
-
-/** Кнопка полива — компактный круг 40 (RN WaterButtonWithParticles compact; частицы — M10). */
-@Composable
-private fun CompactWaterButton(
-    isWatering: Boolean,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Box(
-        modifier = modifier
-            .size(Spacing.xxl + Spacing.lg)
-            .background(
-                if (isWatering) scheme.surfaceVariant else scheme.primary,
-                CircleShape,
-            )
-            .clickable(enabled = !isWatering, role = Role.Button, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (isWatering) {
-            CircularProgressIndicator(
-                color = scheme.onPrimary,
-                modifier = Modifier.size(Spacing.lg + Spacing.xxs),
-            )
-        } else {
-            GtWaterDropMark(
-                tint = scheme.onPrimary,
-                modifier = Modifier.size(Spacing.lg + Spacing.xxs),
-            )
-        }
-    }
-}
-
-/** Кнопка полива — полная ширина (RN WaterButtonWithParticles fullWidth; частицы — M10). */
-@Composable
-private fun FullWaterButton(
-    label: String,
-    contentDescription: String,
-    isWatering: Boolean,
-    onClick: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(scheme.primary, RoundedCornerShape(Radii.md))
-            .clickable(enabled = !isWatering, role = Role.Button, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription }
-            .padding(vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
-    ) {
-        if (isWatering) {
-            CircularProgressIndicator(
-                color = scheme.onPrimary,
-                modifier = Modifier.size(Spacing.md + Spacing.xxs),
-            )
-        } else {
-            GtWaterDropMark(
-                tint = scheme.onPrimary,
-                modifier = Modifier.size(Spacing.md + Spacing.xxs),
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = scheme.onPrimary,
         )
     }
 }

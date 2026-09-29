@@ -47,6 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.Clipboard
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushOutcome
 import site.xmpp.greenthumb.core.platform.PushTokens
@@ -169,7 +170,10 @@ private val TimePickerListHeight: Dp = Spacing.xxl * 25
  * - `colors.primary + '22'` (альфа-хвост строки) → primaryContainer
  *   (прецедент welcome/login); скопированный checkmark —
  *   [GreenThumbColors.success] (`#22c55e` RN);
- * - RN-гаптика (Haptics) не переносится: expect-слой M10, desktop no-op;
+ * - RN-гаптика перенесена (M10, VAL-ANIM-004): успех подписки/теста/времени/
+ *   регенерации → [Haptics.success], отключение пушей/копия ключа/язык/тема →
+ *   [Haptics.light] (RN notificationAsync/impactAsync, 8 точек profile.tsx);
+ *   fire-and-forget, тапы не меняют данные (desktop no-op);
  * - RN-ветка isExpoGo («Requires development build») не переносится:
  *   KMP всегда standalone-сборка;
  * - текст предупреждения регенерации — RN-хардкод (англ. строка в исходнике
@@ -353,6 +357,9 @@ public fun ProfileScreen(
                                         when (val outcome = push.requestSubscribe(pushLanguage())) {
                                             is PushOutcome.Subscribed -> {
                                                 pushEnabled = true
+                                                // RN notificationAsync(Success)
+                                                // (profile.tsx:95).
+                                                Haptics.success()
                                                 success = SuccessEvent.NotificationsEnabled
                                             }
                                             is PushOutcome.Denied -> errorText = permissionDeniedText
@@ -361,6 +368,9 @@ public fun ProfileScreen(
                                     } else {
                                         push.unsubscribe()
                                         pushEnabled = false
+                                        // RN impactAsync(Light) на отключение
+                                        // (profile.tsx:101).
+                                        Haptics.light()
                                         success = SuccessEvent.NotificationsDisabled
                                     }
                                 } catch (cancellation: CancellationException) {
@@ -435,6 +445,8 @@ public fun ProfileScreen(
                                 testSending = true
                                 try {
                                     push.sendLocalTestNotification()
+                                    // RN notificationAsync(Success) (profile.tsx:116).
+                                    Haptics.success()
                                     success = SuccessEvent.TestSent
                                 } catch (cancellation: CancellationException) {
                                     throw cancellation
@@ -542,6 +554,8 @@ public fun ProfileScreen(
                         GtIconButton(
                             onClick = {
                                 Clipboard.copy(user.recoveryKey)
+                                // RN impactAsync(Light) в handleCopyKey (profile.tsx:156).
+                                Haptics.light()
                                 copied = true
                                 scope.launch {
                                     delay(2000)
@@ -705,6 +719,9 @@ public fun ProfileScreen(
                                         savingTime = true
                                         try {
                                             session.updateNotificationTime(newTime)
+                                            // RN notificationAsync(Success)
+                                            // (profile.tsx:143).
+                                            Haptics.success()
                                             success = SuccessEvent.TimeSaved
                                         } catch (cancellation: CancellationException) {
                                             throw cancellation
@@ -762,6 +779,8 @@ public fun ProfileScreen(
                         selected = selected,
                         onClick = {
                             showLanguagePicker = false
+                            // RN impactAsync(Light) в handleSelectLanguage (profile.tsx:210).
+                            Haptics.light()
                             scope.launch { settings.setLanguage(language) }
                         },
                     )
@@ -810,6 +829,8 @@ public fun ProfileScreen(
                         leadingIcon = icon,
                         onClick = {
                             showThemePicker = false
+                            // RN impactAsync(Light) в handleSelectTheme (profile.tsx:224).
+                            Haptics.light()
                             scope.launch { settings.setTheme(preference) }
                         },
                     )
@@ -837,6 +858,8 @@ public fun ProfileScreen(
                             try {
                                 session.regenerateRecoveryKey()
                                 keyVisible = true
+                                // RN notificationAsync(Success) (profile.tsx:174).
+                                Haptics.success()
                                 success = SuccessEvent.KeyRegenerated
                             } catch (cancellation: CancellationException) {
                                 throw cancellation

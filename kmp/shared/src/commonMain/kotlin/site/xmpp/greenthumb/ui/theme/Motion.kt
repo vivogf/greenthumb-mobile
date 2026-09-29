@@ -60,6 +60,9 @@ object Motion {
     const val ThanosSweepBaseMs = 450
     const val ThanosSweepJitterMs = 200
 
+    /** Развёртка слева направо по списку: `delay={props.index * 70}` — `index.tsx:700`. */
+    const val ThanosStaggerMs = 70
+
     const val BulkWaterSnapMs = 1150
     const val BulkWaterSuccessBannerMs = 2400
 
