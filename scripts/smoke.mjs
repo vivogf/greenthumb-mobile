@@ -1,7 +1,14 @@
 #!/usr/bin/env node
-// Boot an Android emulator (or use a connected device), install a preview APK,
-// launch the app, grab a screenshot and the last 200 lines of logcat.
-// Usage: node scripts/smoke.mjs <path-to.apk> [avd-name]
+// УСТАРЕЛО (Stage 11 п.4, фича kmp-maestro-smoke) — НЕ запускать на этой машине.
+//
+// Заменено на `kmp/maestro/smoke.yaml` + `kmp/maestro/render-smoke.sh`
+// (Maestro 2.10.0, эмулятор `elt_test` / `emulator-5554`, API 34).
+// Причины: этот скрипт заточен под Windows (`adb.exe`, `emulator.exe`,
+// `%LOCALAPPDATA%`), гоняет APK-установку и не проверяет поведение входа,
+// добавления растения, полива, pull-to-refresh и офлайн-перезапуска.
+// Файл оставлен как история Stage 0–8; правки сюда не вносятся.
+//
+// Usage (не поддерживается): node scripts/smoke.mjs <path-to.apk> [avd-name]
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
