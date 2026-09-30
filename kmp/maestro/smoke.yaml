@@ -20,6 +20,13 @@
 #     пакета (firstInstallTime != lastUpdateTime, UpdateInstallMarker →
 #     SessionManager) — экран «Key not found». Обе ветки завершаются экраном
 #     входа по ключу и дальше идут общими шагами.
+#   * Шаг 2 переживает ГРАНИЦУ МЕСЯЦА (блокирующий дефект scrutiny m11b):
+#     «сегодня − 10» в числах 1–10 любого месяца лежит в ПРЕДЫДУЩЕМ месяце,
+#     а GtDatePickerField всегда открывает сетку на текущий месяц (1-го
+#     числа прошлой даты в сетке нет вообще). Под гардом
+#     runFlow.when.notVisible пикер уводится на месяц назад кнопкой
+#     «Change to previous month» (content-desc снят дампом живого диалога
+#     на экране Add Plant).
 #
 # СПОСОБ УСТАНОВКИ ПЕРЕД ПРОГОНОМ — обе ветки валидны:
 #   * «свежая»: adb -s emulator-5554 uninstall com.greenthumbplantcare;
@@ -70,7 +77,14 @@ name: GreenThumb smoke (Stage 11b — VAL-TEST-006)
 #     → режим логина СРАЗУ (мимо экрана выбора — App.kt ведёт в LoginMode.
 #     Login, RN setMode login.tsx:82-90), поэтому гард «I Have a Key» на этой
 #     ветке молчит.
+#
+#   Цикл ОГРАНИЧЕН `times` (иначе неограничен: в Maestro 2.10.0 отсутствие
+#   `times` — fallback Integer.MAX_VALUE, находка scrutiny m11b). Обе
+#   одобренные ветки сходятся за 1–2 итерации; 15 — запас на медленный
+#   сплеш. Если «Welcome Back» так и не появился, цикл исчерпывается, и
+#   следующий assert даёт понятную ошибку вместо бесконечного ретрая.
 - repeat:
+    times: 15
     while:
       notVisible: "Welcome Back"
     commands:
@@ -135,15 +149,38 @@ name: GreenThumb smoke (Stage 11b — VAL-TEST-006)
 # ПОЛНОЕ совпадение (regex anchors), не подстрока: селектор обязан равняться
 # всему тексту узла. Поэтому ячейка дня тапается ПОЛНЫМ FULL-стилем
 # material3 («Sunday, September 20, 2026» — с днём недели; у не-сегодняшних
-# ячеек префикса «Today,» нет). Даты нельзя фиксировать в файле: сетка
-# пикера открывается на ТЕКУЩИЙ месяц, и зафиксированное «20 число» уедет
-# из видимой сетки в следующем месяце. Обе даты вычисляются evalScript'ом
-# ОТ СЕГОДНЯШНЕГО ДНЯ (часы хоста и эмулятора в одной таймзоне —
-# Europe/Moscow; проверено в handoff фичи). evalScript печатает выражение в
-# stdout — секретов в нём нет; второй вызов переиспользует `output`.
+# ячеек префикса «Today,» нет). Даты нельзя фиксировать в файле: обе даты
+# вычисляются evalScript'ом ОТ СЕГОДНЯШНЕГО ДНЯ (часы хоста и эмулятора в
+# одной таймзоне — Europe/Moscow; проверено в handoff фичи; расхождение
+# возможно только при намеренной подмене часов одного из них — так сделан
+# граничный прогон в evidence, у него свой рендер с согласованным
+# смещением). evalScript печатает выражение в stdout — секретов в нём нет;
+# второй вызов переиспользует `output`.
+#
+# ГРАНИЦА МЕСЯЦА: GtDatePickerField всегда открывает сетку на ТЕКУЩИЙ
+# месяц (initialDisplayedMonthMillis + LaunchedEffect на сегодня), а
+# material3 не рисует дни соседних месяцев — 1-го числа прошлой даты в
+# сетке нет вообще, поэтому «сегодня − 1..9» не спасает. Вместо этого под
+# гардом notVisible цели делается ОДИН шаг назад кнопкой навигации пикера:
+# content-desc «Change to previous month» (снят дампом живого диалога на
+# Add Plant, НЕ экрана логина). Узел не кликабелен, но тап Maestro идёт по
+# центру его bounds внутрь кликабельного родителя — тот же механизм, что у
+# текстового узла «Done»; работа селектора подтверждена пробой на живом
+# диалоге (месяц сменился). Одного шага назад хватает ровно: −10 дней
+# пересекает границу месяца максимум на один. extendedWaitUntil «Done»
+# перед гардом убирает гонку: `runFlow.when` оценивается МГНОВЕННО, и без
+# дождя диалога гард мог бы сработать до появления сетки.
 - evalScript: "${output = (() => { var d = new Date(); return d.toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'}); })()}"
 - tapOn: ${output}
+- extendedWaitUntil:
+    visible: Done
+    timeout: 10000
 - evalScript: "${output = (() => { var d = new Date(); d.setDate(d.getDate() - 10); return d.toLocaleDateString('en-US', {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'}); })()}"
+- runFlow:
+    when:
+      notVisible: ${output}
+    commands:
+      - tapOn: "Change to previous month"
 - tapOn: ${output}
 - tapOn: Done
 - scrollUntilVisible:
