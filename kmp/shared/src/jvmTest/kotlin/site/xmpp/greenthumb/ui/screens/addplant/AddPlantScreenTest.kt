@@ -3,7 +3,9 @@
 package site.xmpp.greenthumb.ui.screens.addplant
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
 import androidx.compose.ui.test.onAllNodesWithText
@@ -30,6 +32,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.number
 import site.xmpp.greenthumb.App
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
@@ -52,6 +55,8 @@ import site.xmpp.greenthumb.core.storage.ThemePreference
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.components.formatPickerDate
+import site.xmpp.greenthumb.ui.components.pickerToday
 
 /**
  * Stage 7 п.5 (фича screen-add-plant) — desktop-ветка VAL-ADDPLANT-001/002:
@@ -500,6 +505,81 @@ class AddPlantScreenTest {
             waitUntilAtLeastOneExists(hasText("Upload failed"), TIMEOUT)
             // Форма осталась открытой (не ушли назад).
             onNodeWithText("Add New Plant").assertExists()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // VAL-TEST-002 (M11): GtDatePickerField на экране — диалог, Done,
+    // прошедшая дата, onValueChange
+    // ------------------------------------------------------------------
+
+    /**
+     * Дефект-гипотеза M7 (одиночный Android uiautomator-дамп без Done)
+     * закрывается desktop-семантикой без Android source set: поле даты
+     * открывает диалог, Done существует и ВКЛЮЧЁН сразу после открытия
+     * (initial selected = сегодня — селектабельно), выбор прошедшей даты
+     * и подтверждение пишут значение через onValueChange (поле показывает
+     * его в формате языка UI).
+     */
+    @Test
+    fun datePickerField_opensDialog_doneEnabled_pastDateCommits() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openAddPlantForm()
+
+            // Поле даты: дефолт — сегодня (en-формат MM/dd/yyyy), a11y-имя
+            // «Date field …». Клик — открытие диалога.
+            val today = pickerToday()
+            val todayLabel = formatPickerDate(today.toString(), "en")
+            waitUntilAtLeastOneExists(
+                hasContentDescription("Date field $todayLabel"),
+                TIMEOUT,
+            )
+            clickAt(hasClickAction() and hasContentDescription("Date field $todayLabel"))
+
+            // Диалог открыт: заголовок-граница + Done/Cancel; Done включён.
+            waitUntilAtLeastOneExists(hasText("Maximum $today"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Done"), TIMEOUT)
+            onNodeWithText("Done").assertIsEnabled()
+            onNodeWithText("Cancel").assertExists()
+
+            // Прошедшая дата из показанного месяца: 1-е число всегда ≤ сегодня.
+            // На 1-е число месяца прошедших дней в сетке нет — тогда шаг
+            // выбора пропускается (подтверждается дефолтная дата), гард
+            // selectability не меняется.
+            if (today.day > 1) {
+                val firstOfMonth = java.time.LocalDate.of(today.year, today.month.number, 1)
+                val dayLabel = firstOfMonth.format(
+                    java.time.format.DateTimeFormatter
+                        .ofLocalizedDate(java.time.format.FormatStyle.FULL)
+                        .withLocale(java.util.Locale.ENGLISH),
+                )
+                clickAt(hasClickAction() and hasText(dayLabel))
+                waitForIdle()
+            }
+
+            // Подтверждение: onValueChange пишет выбранное значение в форму —
+            // поле показывает дату в en-формате; диалог закрыт.
+            clickAt(hasClickAction() and hasText("Done"))
+            waitUntilDoesNotExist(hasText("Done"), TIMEOUT)
+            val expectedShown = if (today.day > 1) {
+                formatPickerDate(
+                    kotlinx.datetime.LocalDate(today.year, today.month, 1).toString(),
+                    "en",
+                )
+            } else {
+                todayLabel
+            }
+            waitUntilAtLeastOneExists(hasText(expectedShown), TIMEOUT)
+            waitUntilAtLeastOneExists(
+                hasContentDescription("Date field $expectedShown"),
+                TIMEOUT,
+            )
 
             runOnIdle { graph.close() }
         }
