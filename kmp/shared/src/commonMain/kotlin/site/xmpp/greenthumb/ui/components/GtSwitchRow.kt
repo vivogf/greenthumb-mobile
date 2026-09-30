@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -27,7 +28,9 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * onPrimary-бегунком (RN `primary + '66'`/primary; альфа-хвост RN-строки в
  * токены не заводится — прецедент ShowKeySurface, контраст onPrimary/primary
  * читаем). Тап по дорожке меняет значение (RN onValueChange); disabled — тап
- * не работает (RN `disabled={pushToggling}`).
+ * не работает (RN `disabled={pushToggling}`). [contentDescription] — a11y-имя
+ * тумблера, входит в семантику узла (M11: фикс дефекта M9 — параметр
+ * существовал, но в semantics не попадал; тест GtSwitchSemanticsTest).
  */
 @Composable
 fun GtSwitch(
@@ -57,7 +60,13 @@ fun GtSwitch(
                 enabled = enabled,
                 onValueChange = onCheckedChange,
             )
-            .semantics { this.selected = checked },
+            .semantics {
+                this.selected = checked
+                // M11 (дефект M9): переданный contentDescription теперь входит
+                // в семантику — профиль передаёт `profile.notifications`
+                // (a11y-имя тумблера пушей); поведение switch не меняется.
+                this.contentDescription = contentDescription
+            },
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(

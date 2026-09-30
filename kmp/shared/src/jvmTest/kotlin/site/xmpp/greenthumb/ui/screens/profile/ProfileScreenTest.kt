@@ -676,8 +676,10 @@ class ProfileScreenTest {
             openProfileTab()
 
             // Тумблер вкл → исход Error (сбой подписки) → модалка ошибки.
-            // Матч по роли Switch (toggleable ставит Role.Switch; RN-свитч
-            // a11y-лейбла не имел — контент-описание компонент не применяет).
+            // Матч по роли Switch (toggleable ставит Role.Switch; M11:
+            // contentDescription «Notifications» теперь входит в семантику —
+            // фикс дефекта M9, GtSwitchSemanticsTest — но матч по роли устойчив
+            // и не зависит от текста).
             clickAt(hasClickAction() and hasAnyDescendantOrSelfRole(Role.Switch))
             waitUntilAtLeastOneExists(hasText("Error"), TIMEOUT)
             waitUntilAtLeastOneExists(hasSubText("boom-toggle"), TIMEOUT)
