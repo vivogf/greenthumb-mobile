@@ -1,95 +1,100 @@
-# Crash-базлайн перед раскаткой (Stage 12 п.7, VAL-REL-006)
+# Crash baseline before rollout (Stage 12 item 7, VAL-REL-006)
 
-**Исполнение — user-gated там, где нужен доступ к консолям/проду.** Этот
-документ определяет метрики, пороги остановки и базу, с которой сравнивается
-каждая ступень `release-gate-rollout.md`.
+**Execution is user-gated wherever console/prod access is needed.** This
+document defines the metrics, the halt thresholds and the baseline that every
+step of `release-gate-rollout.md` is compared against.
 
-## 1. Телеметрия: что подключено
+## 1. Telemetry: what is wired in
 
-**Crashlytics в сборке** (`kmp/androidApp`, коммит M12 release-rollout-prep):
+**Crashlytics in the build** (`kmp/androidApp`, commit M12 release-rollout-prep):
 
-| Элемент | Значение |
+| Element | Value |
 |---|---|
-| SDK | `com.google.firebase:firebase-crashlytics`, версию задаёт BoM `firebaseBom = 34.19.0` (главный модуль, НЕ -ktx: KTX сняты с BoM с 34.0.0, на старых ktx теряется `mapping_file_id` — firebase-android-sdk #8564) |
-| Gradle-плагин | `com.google.firebase.crashlytics` **3.0.8** (пин в `kmp/gradle/libs.versions.toml`), применяется только в `:androidApp` |
-| Mapping-файлы (деобфускация R8) | `mappingFileUploadEnabled = true` для release — ЗАДАНО ЯВНО: AGP 9.3.1 сам не регистрирует `uploadCrashlyticsMappingFile<Variant>` (#8545, фикс AGP с 9.3.3; пин AGP 9.3.1 не бампается миссией) |
-| Native-символы (Stage 12 п.7 «загрузка символов нативных библиотек») | `nativeSymbolUploadEnabled = true` для release: libsqliteJni.so (sqlite-bundled), libdatastore_shared_counter.so, libandroidx.graphics.path.so |
-| Debug-сборки | `isCrashlyticsCollectionEnabled = false` в `GreenThumbApplication` (FLAG_DEBUGGABLE): пробы валидаторов на эмуляторе не попадают в базлайн релиза |
-| Инициализация | автоматическая (`FirebaseInitProvider` от google-services, тот же `google-services.json`, проект `greenthumb-5e3df`, пакет `com.greenthumbplantcare`) |
+| SDK | `com.google.firebase:firebase-crashlytics`, version set by the BoM `firebaseBom = 34.19.0` (the main module, NOT -ktx: KTX modules were dropped from the BoM as of 34.0.0, and on old ktx the `mapping_file_id` is lost — firebase-android-sdk #8564) |
+| Gradle plugin | `com.google.firebase.crashlytics` **3.0.8** (pinned in `kmp/gradle/libs.versions.toml`), applied only in `:androidApp` |
+| Mapping files (R8 deobfuscation) | `mappingFileUploadEnabled = true` for release — SET EXPLICITLY: AGP 9.3.1 does not register `uploadCrashlyticsMappingFile<Variant>` itself (#8545, fixed in AGP from 9.3.3; the mission does not bump the AGP 9.3.1 pin) |
+| Native symbols (Stage 12 item 7 "upload of native library symbols") | `nativeSymbolUploadEnabled = true` for release: libsqliteJni.so (sqlite-bundled), libdatastore_shared_counter.so, libandroidx.graphics.path.so |
+| Debug builds | `isCrashlyticsCollectionEnabled = false` in `GreenThumbApplication` (FLAG_DEBUGGABLE): validator probes on the emulator never reach the release baseline |
+| Initialization | automatic (`FirebaseInitProvider` from google-services, the same `google-services.json`, project `greenthumb-5e3df`, package `com.greenthumbplantcare`) |
 
-**User-gated шаги Firebase Console** (воркеры не исполняют):
+**User-gated Firebase Console steps** (workers do not execute them):
 
-1. ☐ Firebase Console → проект `greenthumb-5e3df` → **Crashlytics** →
-   «Enable Crashlytics» для приложения (первое открытие консоли доусловно
-   предлагает включить сервис; без этого шага upload-задачи сборки и доставка
-   крашей не работают).
-2. ☐ После включения — проверить загрузку символов первой release-сборкой:
-   сборка должна выполнить `uploadCrashlyticsMappingFileRelease` /
-   `uploadCrashlyticsSymbolFileRelease` без ошибок; в консоли
-   Crashlytics → вкладка «Mapping files» / «dSYM & .sym file» появляются записи
-   для `com.greenthumbplantcare`.
-   Замер сухого прогона (2026-10-01, до console-шага): gradle-задачи
+1. ☐ Firebase Console → project `greenthumb-5e3df` → **Crashlytics** →
+   "Enable Crashlytics" for the app (on first open the console offers to enable
+   the service up front; without this step the build's upload tasks and crash
+   delivery do not work).
+2. ☐ After enabling — verify symbol upload by the first release build: the
+   build must run `uploadCrashlyticsMappingFileRelease` /
+   `uploadCrashlyticsSymbolFileRelease` without errors; in the console,
+   Crashlytics → the "Mapping files" / "dSYM & .sym file" tab shows entries for
+   `com.greenthumbplantcare`.
+   Dry-run measurement (2026-10-01, before the console step): the gradle tasks
    `generateCrashlyticsSymbolFileRelease` + `uploadCrashlyticsSymbolFileRelease`
-   выполняются успешно (exit 0), `uploadCrashlyticsMappingFileRelease` —
-   NO-SOURCE (mapping-файла нет без R8/minify — норма; при включении R8
-   загрузка уже настроена `mappingFileUploadEnabled = true`). Остаток —
-   подтверждение ВИДИМОСТИ символов/mapping в консоли после её включения.
-3. ☐ Тестовый краш: на internal-сборке (не на личном телефоне — стоп M8,
-   AGENTS.md) вызвать краш и убедиться, что он появился в консоли Crashlytics
-   и деобфусцирован. Рецепт краша — на усмотрение пользователя (например,
-   временный debug-вызов в dev-ветке с последующим удалением).
+   run successfully (exit 0), `uploadCrashlyticsMappingFileRelease` —
+   NO-SOURCE (no mapping file without R8/minify — normal; once R8 is on, upload
+   is already configured with `mappingFileUploadEnabled = true`). The remainder
+   is confirming the VISIBILITY of symbols/mapping in the console after it is
+   enabled.
+3. ☐ Test crash: on an internal build (not on a personal phone — stop M8,
+   AGENTS.md) trigger a crash and verify it appears in the Crashlytics console
+   and is deobfuscated. The crash recipe is up to the user (for example, a
+   temporary debug call in a dev branch, removed afterwards).
 
-## 2. Базлайн (что с чем сравнивается)
+## 2. Baseline (what is compared against what)
 
-Метрики плана (Stage 12 п.7): **доля сессий с крашем** и **доля сессий с ANR**.
+Plan metrics (Stage 12 item 7): **share of sessions with a crash** and **share
+of sessions with an ANR**.
 
-| Эпоха | Источник чисел |
+| Era | Source of numbers |
 |---|---|
-| Expo (база, versionCode ≤ 5) | **Android Vitals** в Play Console (у Expo-сборки Crashlytics нет): Production/Testing → Statistics/Vitals → crash rate, ANR rate по версиям |
-| KMP (ступени раскатки) | **Crashlytics**: crash-free sessions / sessions; ANR: Vitals (Crashlytics-ANR сигнал выводится из того же Play-контура) + сессии Crashlytics |
+| Expo (base, versionCode ≤ 5) | **Android Vitals** in Play Console (the Expo build has no Crashlytics): Production/Testing → Statistics/Vitals → crash rate, ANR rate by version |
+| KMP (rollout steps) | **Crashlytics**: crash-free sessions / sessions; ANR: Vitals (the Crashlytics-ANR signal comes from the same Play contour) + Crashlytics sessions |
 
-**Таблица базлайна (заполняет пользователь перед выходом из internal-трека;**
-значения берутся за 14 дней до даты гейта):
+**Baseline table (filled in by the user before leaving the internal track;**
+values are taken over the 14 days before the gate date):
 
-| Метрика | Значение базлайна | Дата замера | Где взято |
+| Metric | Baseline value | Measurement date | Where taken |
 |---|---|---|---|
-| Доля сессий с крашем (Expo, Vitals) | ______ | ______ | Play Console → Vitals → Crash rate |
-| Доля сессий с ANR (Expo, Vitals) | ______ | ______ | Play Console → Vitals → ANR rate |
-| Активные установки всего | ______ | ______ | Play Console → Statistics |
-| Доля активных на versionCode ≥ 5 | ______ | ______ | Active devices by app version (это и есть вход гейта VAL-REL-002) |
+| Share of sessions with a crash (Expo, Vitals) | ______ | ______ | Play Console → Vitals → Crash rate |
+| Share of sessions with an ANR (Expo, Vitals) | ______ | ______ | Play Console → Vitals → ANR rate |
+| Active installs total | ______ | ______ | Play Console → Statistics |
+| Share active on versionCode ≥ 5 | ______ | ______ | Active devices by app version (this is the entry to gate VAL-REL-002) |
 
-Пока поля не заполнены, раскатка не выходит из internal-трека даже при
-формально закрытом гейте адопции: сравнивать ступени не с чем.
+Until the fields are filled in, the rollout does not leave the internal track
+even with the adoption gate formally closed: there is nothing to compare the
+steps against.
 
-**Честное ограничение:** до первой release-сборки KMP Crashlytics не имеет
-данных; «базлайн KMP» на первой ступени = сами пороги ниже, а не относительное
-сравнение. Сравнение с базой Expo становится возможным со второй ступени.
+**Honest limitation:** before the first KMP release build Crashlytics has no
+data; the "KMP baseline" at the first step = the thresholds below themselves,
+not a relative comparison. Comparison with the Expo base becomes possible from
+the second step on.
 
-## 3. Пороги остановки (числами, не на глаз)
+## 3. Halt thresholds (by the numbers, not by eye)
 
-Любой порог превышен на ступени → **halt** (`release-gate-rollout.md`) и
-`incident-runbook.md`. Продвижение разрешено только если на ступени набран
-минимум наблюдения (там же, таблица лестницы).
+Any threshold exceeded on a step → **halt** (`release-gate-rollout.md`) and
+`incident-runbook.md`. Advancing is allowed only if the step has collected its
+minimum observation (same place, the ladder table).
 
-| # | Метрика | Порог остановки | Измерение |
+| # | Metric | Halt threshold | Measurement |
 |---|---|---|---|
-| 1 | Доля сессий с крашем (Crashlytics) | > 0.5% **или** выше базлайна Expo более чем на 0.3 п.п. | Crashlytics → Sessions; автоматично |
-| 2 | Доля сессий с ANR | > 0.47% (порог «плохого поведения» Vitals) **или** выше базлайна на 0.3 п.п. | Vitals; автоматично |
-| 3 | Доля запусков с экраном «ключ не найден» на установках-обновлениях | > 1% запусков | ручная проба: перечень виден только локально (телеметрии экрана нет — аналитика осознанно не подключена); фиксируется жалобами и контрольной пробой на обновлённом устройстве |
-| 4 | Доля неуспешных входов | > 2% попыток | user-gated: логи `login-recovery` на VPS (ssh — пользователь); отличать 401 (неверный ключ) от 4xx/5xx/квот Neon |
-| 5 | Мутации, застрявшие в журнале > 24 ч | > 1% мутаций | прямой серверной видимости нет; контроль — пробы офлайн-очереди на сборке internal-трека + жалобы «изменение не сохраняется» |
-| 6 | Устройства без активной push-подписки после ≥ 7 дней на KMP (среди имевших Expo-push) | > 10% | user-gated: SELECT по `fcm_push_subscriptions`/`expo_push_subscriptions` на проде (только чтение; пользователь) |
+| 1 | Share of sessions with a crash (Crashlytics) | > 0.5% **or** above the Expo baseline by more than 0.3 p.p. | Crashlytics → Sessions; automatic |
+| 2 | Share of sessions with an ANR | > 0.47% (the Vitals "bad behavior" threshold) **or** above baseline by 0.3 p.p. | Vitals; automatic |
+| 3 | Share of launches with the "key not found" screen on update installs | > 1% of launches | manual probe: the list is visible only locally (no screen telemetry — analytics are deliberately not wired in); tracked via complaints and a control probe on an updated device |
+| 4 | Share of failed logins | > 2% of attempts | user-gated: `login-recovery` logs on the VPS (ssh — the user); distinguish 401 (wrong key) from 4xx/5xx/Neon quota errors |
+| 5 | Mutations stuck in the journal for > 24 h | > 1% of mutations | no direct server-side visibility; controlled by offline-queue probes on the internal-track build + "my change doesn't save" complaints |
+| 6 | Devices without an active push subscription after ≥ 7 days on KMP (among those that had Expo push) | > 10% | user-gated: SELECT over `fcm_push_subscriptions`/`expo_push_subscriptions` on prod (read-only; the user) |
 
-Пороги 1–2 — автоматические (дашборд Crashlytics/Vitals). Пороги 3–6 —
-первого релиза: автоматической телеметрии событий для них в приложении нет
-(аналитика — P1-roadmap, вне миссии), измеряются вручную пробами и
-серверными логами; это согласовано с планом как «отдельно отслеживаются».
-Переопределять пороги можно только ДО раскатки.
+Thresholds 1–2 are automatic (Crashlytics/Vitals dashboard). Thresholds 3–6 are
+first-release ones: there is no automatic event telemetry for them in the app
+(analytics are P1 roadmap, outside the mission); they are measured by manual
+probes and server logs; this is agreed with the plan as "tracked separately".
+Thresholds may be overridden only BEFORE the rollout.
 
-## 4. Как это связано с kill-switch и репетицией
+## 4. How this relates to the kill-switch and the rehearsal
 
-- Kill-switch (`min_supported_build`) не ловит краш до чтения конфига — его
-  закрывают: прогон релизной сборки на чистом устройстве (чеклист гейта) +
-  порог 1 этой таблицы + репетиция аварии (`incident-runbook.md`).
-- Возврат на Expo-сборку закрыт (ключ перезаписан KMP-версией) — путь
-  восстановления только вперёд, исправленной KMP-сборкой.
+- The kill-switch (`min_supported_build`) does not catch a crash before the
+  config is read — those are covered by: running the release build on a clean
+  device (the gate checklist) + threshold 1 of this table + the incident
+  rehearsal (`incident-runbook.md`).
+- Going back to the Expo build is closed (the key has been overwritten by the
+  KMP version) — the only recovery path is forward, with a fixed KMP build.

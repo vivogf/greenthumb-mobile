@@ -1,212 +1,215 @@
 # GreenThumb KMP — Android + JVM desktop
 
-Kotlin Multiplatform + Compose Multiplatform перенос приложения GreenThumb.
-Активная разработка ведётся здесь; Expo-приложение в корне репозитория — легаси
-(см. [корневой README](../README.md)).
+Kotlin Multiplatform + Compose Multiplatform port of the GreenThumb app.
+Active development happens here; the Expo app in the repository root is legacy
+(see the [root README](../README.md)).
 
-Все команды ниже — из каталога `kmp/`, если не указано иное.
+All commands below are run from the `kmp/` directory unless stated otherwise.
 
-## Оглавление
+## Contents
 
-- [Требования](#требования)
-- [Модули](#модули)
-- [Сборка и запуск](#сборка-и-запуск)
-- [Тесты и проверки](#тесты-и-проверки)
-- [Ключевая механика](#ключевая-механика)
-- [Релиз](#релиз)
-- [Правило: никогда не советуйте переустановку](#правило-никогда-не-советуйте-переустановку)
+- [Requirements](#requirements)
+- [Modules](#modules)
+- [Build and run](#build-and-run)
+- [Tests and checks](#tests-and-checks)
+- [Key mechanics](#key-mechanics)
+- [Release](#release)
+- [Rule: never suggest reinstalling](#rule-never-suggest-reinstalling)
 
-## Требования
+## Requirements
 
-| Инструмент | Требование |
+| Tool | Requirement |
 |---|---|
-| **JDK 21** | `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` обязателен в каждом вызове `./gradlew` (`scripts/check.sh` подставляет этот путь сам, если `JAVA_HOME` не задан) |
-| **Android SDK** | переменная `ANDROID_HOME` указывает на Android SDK (по умолчанию на macOS — `~/Library/Android/sdk`); `adb` и `emulator` не в PATH — использовать полные пути от `$ANDROID_HOME` |
-| **Эмулятор** | AVD `elt_test` (system image API 34, `google_apis`). Нужен только для установки APK и Maestro-смоука; на машине максимум один эмулятор |
-| **Maestro 2.10.0** (опционально) | `/opt/homebrew/bin/maestro`; без него гейт просто пропускает шаг проверки синтаксиса флоу |
-| **Python 3** | для `scripts/i18n_check.py` в гейте |
+| **JDK 21** | `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` is required for every `./gradlew` call (`scripts/check.sh` sets this path itself if `JAVA_HOME` is not set) |
+| **Android SDK** | the `ANDROID_HOME` variable points to the Android SDK (on macOS — `~/Library/Android/sdk` by default); `adb` and `emulator` are not on PATH — use full paths under `$ANDROID_HOME` |
+| **Emulator** | AVD `elt_test` (system image API 34, `google_apis`). Needed only for installing the APK and the Maestro smoke; at most one emulator on the machine |
+| **Maestro 2.10.0** (optional) | `/opt/homebrew/bin/maestro`; without it the gate simply skips the flow syntax check step |
+| **Python 3** | for `scripts/i18n_check.py` in the gate |
 
-## Модули
+## Modules
 
-| Модуль | Что внутри |
+| Module | What's inside |
 |---|---|
-| **`shared/`** | весь общий код (`commonMain` + `androidMain`/`jvmMain`, тесты в `jvmTest`):<br>• `core.network` — `ApiClient` (Ktor, таймаут 10 с, cookies в памяти) и `ApiError`; единственный путь в сеть (grep-правило K1)<br>• `core.storage` — SecureStore (AES-GCM + AndroidKeyStore; на JVM — файл), `AppSettings` (DataStore: язык, тема, сетка, `cached_user`), Room `GreenThumbDb` (база per-user `plants_${userId}.db`)<br>• `core.platform` — expect/actual: Connectivity, RemoteKillSwitch, Haptics, pickImage/resizeJpeg и др. (desktop — заглушки там, где платформы нет)<br>• `data/` — `PlantRepository`, журнал офлайн-мутаций, `WateringStatus`, `RefreshCoordinator`<br>• `ui.theme` / `ui.components` / `ui.screens.*` (welcome, login, enablenotifications, dashboard, addplant, plantdetail, profile, update, gallery) / `ui.nav`; строки en/ru — в `composeResources` |
-| **`androidApp/`** | тонкая оболочка: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup-правила (`full_backup_content.xml`, `data_extraction_rules.xml` — из них исключены файлы с recovery key). `applicationId com.greenthumbplantcare`, `versionCode 6` / `versionName 0.1.0` |
-| **`desktopApp/`** | JVM-харнесс: `main.kt` (GUI-запуск, hot reload `hotRun`/`hotMcpServer`), `RealApiProbe.kt` (ручная проба живого API) |
-| **`scripts/`** | `check.sh` (гейт), `grep-rules-selftest.sh`, `i18n_check.py`, `mcp-driver.mjs` |
+| **`shared/`** | all shared code (`commonMain` + `androidMain`/`jvmMain`, tests in `jvmTest`):<br>• `core.network` — `ApiClient` (Ktor, 10 s timeout, cookies in memory) and `ApiError`; the only path to the network (grep rule K1)<br>• `core.storage` — SecureStore (AES-GCM + AndroidKeyStore; a file on JVM), `AppSettings` (DataStore: language, theme, grid, `cached_user`), Room `GreenThumbDb` (per-user database `plants_${userId}.db`)<br>• `core.platform` — expect/actual: Connectivity, RemoteKillSwitch, Haptics, pickImage/resizeJpeg and more (stubs on desktop where the platform has no equivalent)<br>• `data/` — `PlantRepository`, offline mutation journal, `WateringStatus`, `RefreshCoordinator`<br>• `ui.theme` / `ui.components` / `ui.screens.*` (welcome, login, enablenotifications, dashboard, addplant, plantdetail, profile, update, gallery) / `ui.nav`; en/ru strings live in `composeResources` |
+| **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 6` / `versionName 0.1.0` |
+| **`desktopApp/`** | JVM harness: `main.kt` (GUI launch, hot reload `hotRun`/`hotMcpServer`), `RealApiProbe.kt` (manual probe of the live API) |
+| **`scripts/`** | `check.sh` (the gate), `grep-rules-selftest.sh`, `i18n_check.py`, `mcp-driver.mjs` |
 | **`maestro/`** | `smoke.yaml` + `render-smoke.sh`, `delete-account.yaml` + `render-delete-account.sh` |
 
-## Сборка и запуск
+## Build and run
 
-| Задача | Команда |
+| Task | Command |
 |---|---|
-| Debug APK Android | `./gradlew :androidApp:assembleDebug` |
-| Установка на эмулятор | `$ANDROID_HOME/platform-tools/adb -s emulator-5554 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk` |
+| Android debug APK | `./gradlew :androidApp:assembleDebug` |
+| Install on the emulator | `$ANDROID_HOME/platform-tools/adb -s emulator-5554 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk` |
 | Desktop GUI | `./gradlew :desktopApp:run` |
-| Desktop hot reload (для разработки UI) | `./gradlew :desktopApp:hotRun --auto` |
+| Desktop hot reload (for UI development) | `./gradlew :desktopApp:hotRun --auto` |
 
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
-# Debug APK Android
+# Android debug APK
 ./gradlew :androidApp:assembleDebug
 # → androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
-# Установка на эмулятор (все adb — строго с -s emulator-5554:
-# физический телефон, если подключён, не адресуется)
+# Install on the emulator (every adb call must use -s emulator-5554:
+# a physical phone, if connected, is never addressed)
 $ANDROID_HOME/platform-tools/adb -s emulator-5554 install -r \
   androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
-Для смоука нужна установка со «свежей» меткой времени (интро-карусель):
-`adb uninstall com.greenthumbplantcare` и затем `install` того же APK. Установка
-`install -r` поверх стоящего пакета — вторая валидная стартовая ветка (экран
-«Key not found»), смоук проходит обе.
+The smoke needs an install with a fresh timestamp (intro carousel):
+`adb uninstall com.greenthumbplantcare` and then `install` of the same APK. An
+`install -r` on top of an existing package is a second valid starting branch (the
+"Key not found" screen); the smoke passes both.
 
-Desktop-приложение:
+Desktop app:
 
 ```bash
-./gradlew :desktopApp:run            # обычный GUI-запуск
-./gradlew :desktopApp:hotRun --auto  # харнесс с hot reload (для разработки UI)
+./gradlew :desktopApp:run            # regular GUI launch
+./gradlew :desktopApp:hotRun --auto  # harness with hot reload (for UI development)
 ```
 
-## Тесты и проверки
+## Tests and checks
 
-| Задача | Команда |
+| Task | Command |
 |---|---|
-| Полный гейт kmp-кода | `bash scripts/check.sh` |
-| Только grep-правила (быстрая итерация) | `bash scripts/check.sh --grep-only` |
-| Только юнит-тесты | `./gradlew :shared:jvmTest` (часто UP-TO-DATE; честный повтор — `./gradlew :shared:jvmTest --rerun`) |
-| Maestro smoke на эмуляторе | `bash maestro/render-smoke.sh run` |
-| Флоу удаления аккаунта | `bash kmp/maestro/render-delete-account.sh run <key-file>` — **удаляет аккаунт этого ключа**, запускать только с отдельным тестовым аккаунтом |
+| Full gate for the kmp code | `bash scripts/check.sh` |
+| Grep rules only (fast iteration) | `bash scripts/check.sh --grep-only` |
+| Unit tests only | `./gradlew :shared:jvmTest` (often UP-TO-DATE; an honest rerun — `./gradlew :shared:jvmTest --rerun`) |
+| Maestro smoke on the emulator | `bash maestro/render-smoke.sh run` |
+| Account deletion flow | `bash kmp/maestro/render-delete-account.sh run <key-file>` — **deletes the account of that key**; run only with a separate test account |
 
 ```bash
-bash scripts/check.sh             # полный гейт kmp-кода
-bash scripts/check.sh --grep-only # только grep-правила (быстрая итерация)
-./gradlew :shared:jvmTest         # только юнит-тесты (часто UP-TO-DATE;
-                                  # честный повтор — ./gradlew :shared:jvmTest --rerun)
+bash scripts/check.sh             # full gate for the kmp code
+bash scripts/check.sh --grep-only # grep rules only (fast iteration)
+./gradlew :shared:jvmTest         # unit tests only (often UP-TO-DATE;
+                                  # honest rerun — ./gradlew :shared:jvmTest --rerun)
 ```
 
-`scripts/check.sh` (замена `npm run check` для `kmp/`) покрывает четыре шага:
+`scripts/check.sh` (the replacement for `npm run check` in `kmp/`) covers four
+steps:
 
-1. компиляция `:shared:compileAndroidMain`, `:shared:compileKotlinJvm`,
-   `:desktopApp:compileKotlin` + тесты `:shared:jvmTest`;
-2. grep-правила K1–K5: сеть только через `core.network`, запрет unsplash-URL,
-   даты `YYYY-MM-DD` в телах запросов, БД только через `PlantRepository`,
-   UI-литералы (`.dp`, `Color(`, `.sp`) только вне `ui/screens/**`;
-3. синтаксис Maestro-флоу `maestro/smoke.yaml` (без установленного maestro шаг
-   пропускается; `GT_SKIP_MAESTRO=1` — пропустить явно);
-4. i18n-паритет: множества ключей `strings.xml` en/ru покрывают i18n-набор.
+1. compilation of `:shared:compileAndroidMain`, `:shared:compileKotlinJvm`,
+   `:desktopApp:compileKotlin` + the `:shared:jvmTest` tests;
+2. grep rules K1–K5: network only through `core.network`, no unsplash URLs,
+   `YYYY-MM-DD` dates in request bodies, the database only through
+   `PlantRepository`, UI literals (`.dp`, `Color(`, `.sp`) only outside
+   `ui/screens/**`;
+3. Maestro flow syntax for `maestro/smoke.yaml` (without maestro installed the
+   step is skipped; `GT_SKIP_MAESTRO=1` skips it explicitly);
+4. i18n parity: the en/ru `strings.xml` key sets cover the i18n set.
 
-Maestro smoke на эмуляторе (нужны запущенный AVD `elt_test` и **уже
-установленный** debug APK):
+Maestro smoke on the emulator (needs the `elt_test` AVD running and the debug
+APK **already installed**):
 
 ```bash
 bash maestro/render-smoke.sh run
 ```
 
-Флоу проходит пять сценариев: вход по recovery key, добавление растения без
-фото, полив (различающий assert «7 days overdue» → «3 days left»),
-pull-to-refresh, офлайн-перезапуск со списком; обе стартовые ветки (интро и
-«Key not found»). **Recovery key подставляется только из key-файла**
-(редиректом, не через env/argv/логи); скрипт фильтрует вывод Maestro от эха
-введённого ключа и удаляет временные копии — ключ не печатается никогда.
+The flow passes five scenarios: recovery-key login, adding a plant without a
+photo, watering (with a differentiating assert "7 days overdue" → "3 days
+left"), pull-to-refresh, an offline restart with the list; both starting branches
+(intro and "Key not found"). **The recovery key is injected only from a key
+file** (by redirect, never through env/argv/logs); the script filters Maestro
+output for echoes of the typed key and deletes temporary copies — the key is
+never printed.
 
-## Ключевая механика
+## Key mechanics
 
 <details>
-<summary><b>Хранилище и сессия</b></summary>
+<summary><b>Storage and session</b></summary>
 
-SecureStore (AES-GCM + AndroidKeyStore; на JVM — файл) + `AppSettings` на
-DataStore. Офлайн-сессия: если сеть недоступна на старте, а `cached_user` есть —
-приложение работает из Room с полосой «нет сети».
+SecureStore (AES-GCM + AndroidKeyStore; a file on JVM) + `AppSettings` on
+DataStore. Offline session: if the network is unavailable at startup and
+`cached_user` exists — the app works from Room with a "no network" banner.
 
 </details>
 
 <details>
-<summary><b>Импорт из Expo-handoff</b></summary>
+<summary><b>Import from the Expo handoff</b></summary>
 
-Handoff-релиз Expo (versionCode 5) пишет `gt-handoff.json` (recovery key +
-настройки) в `filesDir`; KMP читает и удаляет его при первом запуске. Нет ни
-handoff, ни своего ключа — экран «Key not found». Файлы с ключом исключены из
-Android backup и device transfer.
+The Expo handoff release (versionCode 5) writes `gt-handoff.json` (recovery key +
+settings) into `filesDir`; KMP reads and deletes it on first launch. With
+neither a handoff nor a key of its own — the "Key not found" screen. Files with
+the key are excluded from Android backup and device transfer.
 
 </details>
 
 <details>
-<summary><b>Офлайн-очередь мутаций</b></summary>
+<summary><b>Offline mutation queue</b></summary>
 
-Room-база per-user + журнал `pending_mutations`: при Network/Timeout изменение
-остаётся в очереди и досылается при появлении сети (UI честно говорит
-«выполнится после подключения»); при определённом отказе сервера (4xx/5xx) —
-откат из снимка.
+Per-user Room database + a `pending_mutations` journal: on Network/Timeout the
+change stays queued and is delivered when the network appears (the UI honestly
+says "will be applied once you're back online"); on a definite server rejection
+(4xx/5xx) — a rollback from the snapshot.
 
 </details>
 
 <details>
 <summary><b>FCM push + deep link</b></summary>
 
-Канал `default` («Plant Care Reminders», HIGH); уведомления в форграунде
-показывает само приложение; deep link по `data.plant_id` открывает `plant/{id}`.
+Channel `default` ("Plant Care Reminders", HIGH); foreground notifications are
+shown by the app itself; a deep link with `data.plant_id` opens `plant/{id}`.
 
 </details>
 
 <details>
 <summary><b>Kill-switch</b></summary>
 
-Firebase Remote Config `min_supported_build` сравнивается с versionCode
-установки: при блокировке — экран «Обновите приложение» с кнопкой в Google Play.
-Fail-open: любой сбой или отсутствие параметра → 0 (не блокирует); debug-сборки
-могут переопределять значением из файла `files/debug_min_supported_build`.
+Firebase Remote Config `min_supported_build` is compared with the installed
+versionCode: when blocked — an "Update the app" screen with a Google Play
+button. Fail-open: any failure or missing parameter → 0 (does not block);
+debug builds can override it with the value from the
+`files/debug_min_supported_build` file.
 
 </details>
 
 <details>
-<summary><b>Удаление аккаунта в приложении</b></summary>
+<summary><b>In-app account deletion</b></summary>
 
-Экран подтверждения → `DELETE /api/auth/account` → полная локальная чистка
-(требование Google Play).
+Confirmation screen → `DELETE /api/auth/account` → full local cleanup
+(a Google Play requirement).
 
 </details>
 
 <details>
 <summary><b>Crashlytics</b></summary>
 
-Подключён в `:androidApp` (для release загружаются mapping и native-символы);
-debug-сборки отчёты не отправляют (`isCrashlyticsCollectionEnabled = false`) —
-пробы не попадают в базлайн.
+Wired into `:androidApp` (mapping and native symbols are uploaded for release);
+debug builds do not send reports (`isCrashlyticsCollectionEnabled = false`) —
+probes never reach the baseline.
 
 </details>
 
-## Релиз
+## Release
 
-Полный контракт раскатки — в `kmp/docs/`:
+The full rollout contract lives in `kmp/docs/`:
 
-- [`kmp/docs/release-gate-rollout.md`](docs/release-gate-rollout.md) — гейт ≥95%
-  активных установок на versionCode ≥ 5 и лестница staged rollout
+- [`kmp/docs/release-gate-rollout.md`](docs/release-gate-rollout.md) — the ≥95%
+  of active installs on versionCode ≥ 5 gate and the staged rollout ladder
   5→10→20→50→100%;
-- [`kmp/docs/crash-baseline.md`](docs/crash-baseline.md) — crash-базлайн и
-  пороги остановки раскатки;
-- [`kmp/docs/incident-runbook.md`](docs/incident-runbook.md) — действия при
-  аварии после раскатки.
+- [`kmp/docs/crash-baseline.md`](docs/crash-baseline.md) — crash baseline and
+  rollout halt thresholds;
+- [`kmp/docs/incident-runbook.md`](docs/incident-runbook.md) — what to do in an
+  incident after rollout.
 
-Шаги перед раскаткой, которые исполняет **владелец** (Play/Firebase Console,
-git push — не автоматизируются агентами):
+Steps before the rollout that the **owner** performs (Play/Firebase Console,
+git push — not automated by agents):
 
-1. Firebase Console: включить Crashlytics; создать и **опубликовать** параметр
-   Remote Config `min_supported_build` = 0 (выключатель выключен) **до**
-   раскатки; заполнить crash-базлайн (`crash-baseline.md`) — без него из
-   internal-трека не выходить.
-2. `git push` — публичные страницы `docs/` (privacy и т.п.) на GitHub Pages
-   обновятся только после пуша.
-3. Play Console: Data Safety — добавить crash logs/diagnostics; загрузить KMP
-   AAB во внутренний трек; закрытое тестирование 20 тестеров × 14 дней
-   (Personal-аккаунт); staged rollout по лестнице из
-   `release-gate-rollout.md`.
+1. Firebase Console: enable Crashlytics; create and **publish** the Remote
+   Config parameter `min_supported_build` = 0 (the switch is off) **before**
+   the rollout; fill in the crash baseline (`crash-baseline.md`) — without it,
+   do not leave the internal track.
+2. `git push` — the public `docs/` pages (privacy etc.) on GitHub Pages update
+   only after a push.
+3. Play Console: Data Safety — add crash logs/diagnostics; upload the KMP AAB to
+   the internal track; closed testing of 20 testers × 14 days (Personal
+   account); staged rollout along the ladder from `release-gate-rollout.md`.
 
-## Правило: никогда не советуйте переустановку
+## Rule: never suggest reinstalling
 
 > [!WARNING]
-> **Никогда не советуйте переустановку приложения** — на Android переустановка
-> уничтожает единственный recovery key, и аккаунт потеряется навсегда. Правильный
-> совет — «обновите приложение в Google Play» (обновление данные не трогает).
+> **Never suggest reinstalling the app** — on Android a reinstall destroys the
+> only recovery key, and the account is lost forever. The right advice is
+> "update the app in Google Play" (an update does not touch the data).
