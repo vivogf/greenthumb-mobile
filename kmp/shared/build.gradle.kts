@@ -70,6 +70,10 @@ kotlin {
             // зависимостей не резолвится.
             implementation(project.dependencies.platform(libs.firebaseBom))
             implementation(libs.firebaseMessaging)
+            // Firebase Remote Config (M12 kill-switch, Stage 12 п.1): параметр
+            // min_supported_build. Версию задаёт та же BoM (architecture.md §4);
+            // сам actual — RemoteKillSwitch.android.kt.
+            implementation(libs.firebaseConfig)
             // datastore-core-android: PreferenceDataStoreFactory доступна на androidMain
             // (транзитивная через datastore-preferences-core не всегда поднимает
             // android-вариант в KMP-своде).

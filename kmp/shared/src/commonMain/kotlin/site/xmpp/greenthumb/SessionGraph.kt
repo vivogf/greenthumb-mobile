@@ -8,9 +8,11 @@ import site.xmpp.greenthumb.core.network.FcmPushSubscriptions
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PlatformEngine
 import site.xmpp.greenthumb.core.network.SessionRecoveryProvider
+import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.FcmTokenRotation
 import site.xmpp.greenthumb.core.platform.PushSubscriptions
 import site.xmpp.greenthumb.core.platform.PushTokens
+import site.xmpp.greenthumb.core.platform.RemoteKillSwitch
 import site.xmpp.greenthumb.core.storage.AppSettings
 import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.SecureStore
@@ -72,6 +74,16 @@ public class SessionGraph private constructor(
      * только ради токена) и решает по его результату.
      */
     public val pushRotation: FcmTokenRotation = FcmTokenRotation(pushSeam)
+
+    /**
+     * Kill-switch (Stage 12 п.1, VAL-REL-001): вердикт «обновите приложение» —
+     * Remote Config `min_supported_build` против [AppVersion.code]. Один на
+     * процесс (как [push]): пересоздание Activity конфигурацией не перечитывает
+     * конфиг; проверка ([KillSwitchGate.checkIfNeeded]) запускается из App()
+     * параллельно со стартом сессии и старт не гейтит. Тесты подменяют весь
+     * гейт (или передают свой в App()).
+     */
+    public val killSwitch: KillSwitchGate = KillSwitchGate(RemoteKillSwitch(), AppVersion.code)
 
     public companion object {
         /**

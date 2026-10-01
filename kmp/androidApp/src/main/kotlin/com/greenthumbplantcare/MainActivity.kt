@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
                 app.sessionGraph.push,
                 launchPlantId = launchPlantId,
                 onLaunchPlantIdConsumed = { launchPlantId = null },
+                // Kill-switch (Stage 12 п.1): вердикт на процесс — пересоздание
+                // Activity конфигурацией не перечитывает Remote Config.
+                killSwitch = app.sessionGraph.killSwitch,
             )
         }
     }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface
+import site.xmpp.greenthumb.ui.screens.update.UpdateRequiredScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -70,6 +71,20 @@ public fun GtHandoffImportFailedScreen(recoveryKey: String) {
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
+}
+
+/**
+ * Блокирующий экран kill-switch (Stage 12 п.1, VAL-REL-001):
+ * Remote Config `min_supported_build` выше build number установки.
+ * Поверхность ВНЕ графа маршрутов (как [GtKeyNotFoundScreen]) — рисуется
+ * ВМЕСТО всего содержимого App(): сессия и маршрутизация под ней недоступны,
+ * на неё не влияют состояние входа и флаг интро. Выход из состояния — только
+ * обновление из стора (кнопка, [onOpenStore] → OpenUrl); снижение значения
+ * снимает экран при следующем старте процесса, БЕЗ переустановки.
+ */
+@Composable
+public fun GtUpdateRequiredScreen(onOpenStore: () -> Unit) {
+    UpdateRequiredScreen(onOpenStore = onOpenStore)
 }
 
 /** Общий каркас поверхностей ошибки сессии: фон + центрированный текст. */

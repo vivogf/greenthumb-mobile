@@ -11,4 +11,12 @@ package site.xmpp.greenthumb.core.platform
 public expect object AppVersion {
     /** versionName (RN app.json version). */
     public val name: String
+
+    /**
+     * versionCode — build number установки (Stage 12 п.1, VAL-REL-001):
+     * kill-switch сверяет его с Remote Config `min_supported_build`.
+     * androidMain — packageInfo.longVersionCode; jvmMain — константа харнесса
+     * (kill-switch на desktop не активен, значение ни с чем не сравнивается).
+     */
+    public val code: Long
 }
