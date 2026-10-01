@@ -117,6 +117,11 @@ public sealed class SessionState {
  * + база пользователя (WAL/SHM) через [deleteUserDatabase]; cookies сбрасывает
  * [onSessionEnded]. Предпочтения (язык/тема/сетка/интро) не тронуты.
  *
+ * deleteAccount(): та же матрица чистки БЕЗ logout — после подтверждённого
+ * сервером DELETE /api/auth/account (Stage 12 п.4, удаление аккаунта
+ * в приложении; сессию уничтожает сервер). Провал запроса локальное
+ * состояние не трогает.
+ *
  * cached_user — сериализованный UserDto после каждого успешного me/логина
  * (офлайн-сессия Stage 3 п.5 читает его в M4).
  *
@@ -504,6 +509,37 @@ public class SessionManager(
         }
         // Выход — действие пользователя: исход после него уже не «холодный
         // старт», «ключ не найден» больше не показывается (см. hadSession).
+        hadSession = true
+        activeUserId = null
+        onSessionEnded()
+        sessionMutex.withLock {
+            secure.remove(SecureStoreKeys.RECOVERY_KEY)
+            settings.clearCachedUser()
+        }
+        handoff.clearHandoff()
+        mutableState.value = SessionState.SignedOut
+        discardAccountDatabase(closing)
+        return SessionState.SignedOut
+    }
+
+    public suspend fun deleteAccount(): SessionState {
+        val closing = closingUserId()
+        // Сначала сервер (Stage 12 п.4, VAL-REL-003): DELETE /api/auth/account
+        // каскадно стирает растения, push-подписки (все три вида) и строку
+        // пользователя в ОДНОЙ транзакции, затем уничтожает сессию
+        // (backend-contract.md №27) — отдельного logout, как в [signOut],
+        // здесь нет. Провал ([ApiError]) бросается наверх с ЦЕЛЫМ локальным
+        // состоянием: ключ живого аккаунта не стирается потерей ответа.
+        // Если сервер удалил аккаунт, а ответ потерялся, ключ стирает
+        // 401-дисциплина: следующий me/login-recovery даёт явный 401
+        // (строки юзера нет) → [onAuthError].
+        api.deleteAccount()
+        // Успех подтверждён — локальная чистка = матрица signOut
+        // (VAL-DATA-008): сессия (cookies, запросы), ключ, cached_user,
+        // handoff-файл, база пользователя (+WAL/SHM). Предпочтения (язык/
+        // тема/сетка/интро) не тронуты. Исход — [SessionState.SignedOut]:
+        // действие пользователя, экран «ключ не найден» не показывается
+        // ([hadSession]).
         hadSession = true
         activeUserId = null
         onSessionEnded()

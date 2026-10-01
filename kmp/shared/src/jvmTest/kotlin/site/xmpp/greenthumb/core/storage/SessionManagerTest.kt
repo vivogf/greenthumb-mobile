@@ -179,13 +179,16 @@ class SessionManagerTest {
         var meCount = 0
         var loginCount = 0
         var logoutCount = 0
+        var deleteAccountCount = 0
 
         /** Тело POST create-anonymous (провод) — pin имени VAL-LOGIN-002. */
         var createBody: String? = null
         var meStatus: HttpStatusCode = HttpStatusCode.OK
         var loginStatus: HttpStatusCode = HttpStatusCode.OK
+        var deleteAccountStatus: HttpStatusCode = HttpStatusCode.OK
         var failMeTransport = false
         var failLoginTransport = false
+        var failDeleteAccountTransport = false
 
         /** JSON-тело auth-эндпоинтов фикстуры (id числом, ключ «key-<id>»). */
         private fun userJson(): String =
@@ -217,6 +220,11 @@ class SessionManagerTest {
                 "/api/auth/logout" -> {
                     logoutCount++
                     respond("""{"success":true}""", HttpStatusCode.OK, JSON_HEADERS)
+                }
+                "/api/auth/account" -> {
+                    deleteAccountCount++
+                    if (failDeleteAccountTransport) throw IllegalStateException("Connection reset")
+                    respond("""{"success":true}""", deleteAccountStatus, JSON_HEADERS)
                 }
                 else -> respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
             }
@@ -251,6 +259,7 @@ class SessionManagerTest {
         handoff: HandoffSource = FileHandoff(handoffFile),
         server: FakeServer = FakeServer(),
         onSessionEnded: suspend () -> Unit = {},
+        deleteUserDatabase: suspend (String) -> Unit = {},
     ): SessionManager {
         val engine = MockEngine(server.handler)
         val client = site.xmpp.greenthumb.core.network.ApiClient(
@@ -258,7 +267,14 @@ class SessionManagerTest {
             InMemoryRecoveryProvider(secure, settings) { sessionKeyProvider() },
         )
         clientRef = client
-        return SessionManager(secure, settings, handoff, GreenThumbApi(client), onSessionEnded = onSessionEnded)
+        return SessionManager(
+            secure,
+            settings,
+            handoff,
+            GreenThumbApi(client),
+            onSessionEnded = onSessionEnded,
+            deleteUserDatabase = deleteUserDatabase,
+        )
     }
 
     /** Провайдер над инжектированными двойниками (ключ живёт в secure.map). */
@@ -793,6 +809,103 @@ class SessionManagerTest {
         manager.signInWithRecoveryKey("typed-key")
         manager.createAnonymousAccount()
         assertEquals(1, ended, "смена аккаунта сбрасывает сессию до нового входа")
+    }
+
+    // ------------------------------------------------------------------
+    // deleteAccount (Stage 12 п.4, VAL-REL-003): подтверждённое сервером
+    // удаление аккаунта → локальная чистка как в signOut (матрица
+    // VAL-DATA-008); провал — локальное состояние цело (ключ живого
+    // аккаунта не стирается потерей ответа)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `deleteAccount success clears like signOut and deletes user database`() = runBlocking {
+        val server = FakeServer()
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        settings.storedUser = userDto("55", "stored-key")
+        settings.values[AppSettingsKeys.LANGUAGE] = "ru"
+        settings.values[AppSettingsKeys.THEME] = "dark"
+        settings.values[AppSettingsKeys.LAYOUT_MODE] = "grid"
+        settings.values[AppSettingsKeys.INTRO_SEEN] = "1"
+        handoffFile.writeText("""{"v":1,"recovery_key":"stale","language":"ru"}""")
+        val handoff = FileHandoff(handoffFile)
+        val deletedDatabases = mutableListOf<String>()
+        var ended = 0
+        val manager = newManager(
+            handoff = handoff,
+            server = server,
+            onSessionEnded = { ended++ },
+            deleteUserDatabase = { deletedDatabases.add(it) },
+        )
+        manager.signInWithRecoveryKey("typed-key")
+
+        val state = manager.deleteAccount()
+
+        assertEquals(SessionState.SignedOut, state, "после удаления — экран входа")
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ стёрт")
+        assertNull(settings.getCachedUser(), "cached_user стёрт")
+        assertEquals(1, handoff.clearCount, "handoff-файл стёрт")
+        assertFalse(handoffFile.exists())
+        assertEquals("ru", settings.values[AppSettingsKeys.LANGUAGE], "предпочтения не тронуты")
+        assertEquals("dark", settings.values[AppSettingsKeys.THEME])
+        assertEquals("grid", settings.values[AppSettingsKeys.LAYOUT_MODE])
+        assertEquals("1", settings.values[AppSettingsKeys.INTRO_SEEN])
+        assertEquals(1, server.deleteAccountCount, "DELETE /api/auth/account отправлен")
+        assertEquals(0, server.logoutCount, "logout не вызывается: сервер сам уничтожил сессию (контракт №27)")
+        assertEquals(listOf("55"), deletedDatabases, "база пользователя удалена (WAL/SHM — deleteUserDatabase)")
+        assertEquals(1, ended, "сессия сброшена (cookies, отмена запросов)")
+    }
+
+    @Test
+    fun `deleteAccount network failure keeps everything`() = runBlocking {
+        val server = FakeServer()
+        server.failDeleteAccountTransport = true
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        settings.storedUser = userDto("55", "stored-key")
+        handoffFile.writeText("""{"v":1,"recovery_key":"stale","language":"ru"}""")
+        val handoff = FileHandoff(handoffFile)
+        val deletedDatabases = mutableListOf<String>()
+        var ended = 0
+        val manager = newManager(
+            handoff = handoff,
+            server = server,
+            onSessionEnded = { ended++ },
+            deleteUserDatabase = { deletedDatabases.add(it) },
+        )
+        manager.signInWithRecoveryKey("typed-key")
+
+        val error = expectApiError { manager.deleteAccount() }
+
+        assertTrue(error is ApiError.Network, "сетевой провал — Network, получено ${error::class.simpleName}")
+        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ хранится (серверный — сохранился при входе): аккаунт мог уцелеть")
+        assertEquals("55", settings.getCachedUser()!!.id, "cached_user цел")
+        assertTrue(manager.state.value is SessionState.SignedIn, "пользователь остался вошедшим")
+        assertTrue(deletedDatabases.isEmpty(), "база пользователя не тронута")
+        assertEquals(0, ended, "сессия не сбрасывалась")
+        assertEquals(1, server.deleteAccountCount, "запрос был отправлен")
+    }
+
+    @Test
+    fun `deleteAccount server 500 keeps everything`() = runBlocking {
+        val server = FakeServer()
+        server.deleteAccountStatus = HttpStatusCode.ServiceUnavailable
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        settings.storedUser = userDto("55", "stored-key")
+        val handoff = FileHandoff(handoffFile)
+        val deletedDatabases = mutableListOf<String>()
+        val manager = newManager(
+            handoff = handoff,
+            server = server,
+            deleteUserDatabase = { deletedDatabases.add(it) },
+        )
+        manager.signInWithRecoveryKey("typed-key")
+
+        val error = expectApiError { manager.deleteAccount() }
+
+        assertTrue(error is ApiError.Server, "5xx — Server, получено ${error::class.simpleName}")
+        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "5xx ключ сохраняет (серверный — сохранился при входе)")
+        assertTrue(manager.state.value is SessionState.SignedIn, "пользователь остался вошедшим")
+        assertTrue(deletedDatabases.isEmpty(), "база пользователя не тронута")
     }
 
     // ------------------------------------------------------------------

@@ -310,4 +310,12 @@
     <string name="updateRequired_title">Обновите приложение</string>
     <string name="updateRequired_body">Эта версия GreenThumb больше не поддерживается. Обновите приложение, чтобы продолжить уход за растениями.</string>
     <string name="updateRequired_openStore">Обновить в Google Play</string>
+    <string name="profile_deleteAccount">Удалить аккаунт</string>
+    <string name="deleteAccount_title">Удаление аккаунта</string>
+    <string name="deleteAccount_body">Это навсегда удалит ваш аккаунт GreenThumb на сервере. Действие нельзя отменить.</string>
+    <string name="deleteAccount_bulletPlants">Все растения, фото и заметки будут удалены безвозвратно.</string>
+    <string name="deleteAccount_bulletPush">Подписки на push-уведомления будут удалены.</string>
+    <string name="deleteAccount_bulletKey">Ключ восстановления перестанет работать — войти в аккаунт снова будет невозможно.</string>
+    <string name="deleteAccount_confirm">Удалить аккаунт</string>
+    <string name="deleteAccount_deleting">Удаление аккаунта...</string>
 </resources>

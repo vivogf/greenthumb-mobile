@@ -38,26 +38,57 @@
 </head>
 <body>
 
-<h1>Account & Data Deletion</h1>
+<h1>Account &amp; Data Deletion</h1>
 <p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov</p>
 
 <p>
-  This page explains how to request deletion of your account and associated data
-  from the <strong>GreenThumb — Plant Care</strong> mobile application (the
+  This page explains how to delete your account and associated data from the
+  <strong>GreenThumb — Plant Care</strong> mobile application (the
   "Application").
 </p>
 
-<h2>How to request deletion — step by step</h2>
+<h2>How to delete your account — in the Application</h2>
+
+<p>
+  You can delete your account directly inside the Application — no email
+  required:
+</p>
 
 <ol>
   <li>
-    <strong>Open the Application</strong> on your device and go to the
-    <em>Profile</em> tab (bottom-right tab in the navigation bar).
+    <strong>Open the Application</strong> on your device and sign in with your
+    recovery key.
   </li>
   <li>
-    Tap <em>Recovery key</em> (or the equivalent option labelled with a key icon)
-    to reveal your recovery key — a long random string that uniquely identifies
-    your account. Copy it to your clipboard.
+    Go to the <em>Profile</em> tab (bottom-right tab in the navigation bar).
+  </li>
+  <li>
+    Tap <strong>Delete Account</strong> (below the Sign Out option).
+  </li>
+  <li>
+    Read the confirmation screen. It lists exactly what will be deleted.
+  </li>
+  <li>
+    Tap <strong>Delete my account</strong> to confirm. The deletion is
+    <strong>immediate and permanent</strong>: your account, all plant records
+    (including photos and notes) and all push notification subscriptions are
+    removed from the backend, and the locally stored data is erased from your
+    device. Afterwards your recovery key no longer works and cannot be used to
+    sign in again.
+  </li>
+</ol>
+
+<h2>If you cannot open the Application</h2>
+
+<p>
+  If you have uninstalled the Application or lost your recovery key, request
+  deletion by email:
+</p>
+
+<ol>
+  <li>
+    If you still have your recovery key (for example, saved in a password
+    manager), copy it.
   </li>
   <li>
     <strong>Send an email</strong> to
@@ -87,8 +118,8 @@
 <ul>
   <li>All <strong>plant records</strong> you created (names, care schedules, notes, watering history)</li>
   <li>All <strong>plant photos</strong> stored on the backend</li>
-  <li>Your <strong>user record</strong> (the recovery key entry in the users table)</li>
-  <li>Your <strong>push notification subscription</strong> (FCM token), if any</li>
+  <li>Your <strong>user record</strong> (the recovery key entry in the users table) — after which the recovery key stops working</li>
+  <li>Your <strong>push notification subscriptions</strong> (FCM token and any legacy Expo push token)</li>
 </ul>
 
 <h2>What data may be retained</h2>
@@ -101,10 +132,11 @@
 </p>
 
 <p>
-  The email correspondence related to your deletion request may be retained by
-  your email provider and by the developer's email provider, subject to their
-  respective retention policies. This correspondence contains only the contents
-  of the messages you and the developer exchange.
+  The email correspondence related to an email-based deletion request may be
+  retained by your email provider and by the developer's email provider, subject
+  to their respective retention policies. This correspondence contains only the
+  contents of the messages you and the developer exchange. Deletions performed
+  inside the Application do not create any correspondence.
 </p>
 
 <h2>Contact</h2>

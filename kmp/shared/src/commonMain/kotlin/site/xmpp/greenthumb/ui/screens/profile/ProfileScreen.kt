@@ -76,6 +76,7 @@ import site.xmpp.greenthumb.ui.components.GtPersonMark
 import site.xmpp.greenthumb.ui.components.GtRefreshMark
 import site.xmpp.greenthumb.ui.components.GtSendMark
 import site.xmpp.greenthumb.ui.components.GtSignOutMark
+import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtSunMark
 import site.xmpp.greenthumb.ui.components.GtSwitch
 import site.xmpp.greenthumb.ui.components.borderHairline
@@ -91,6 +92,7 @@ import site.xmpp.greenthumb.ui.res.profile_anonymous
 import site.xmpp.greenthumb.ui.res.profile_appDescription
 import site.xmpp.greenthumb.ui.res.profile_chooseLanguage
 import site.xmpp.greenthumb.ui.res.profile_chooseTheme
+import site.xmpp.greenthumb.ui.res.profile_deleteAccount
 import site.xmpp.greenthumb.ui.res.profile_generateNewKey
 import site.xmpp.greenthumb.ui.res.profile_generating
 import site.xmpp.greenthumb.ui.res.profile_hide
@@ -194,6 +196,8 @@ public fun ProfileScreen(
     push: PushTokens,
     pushLanguage: () -> String,
     onAddPlant: () -> Unit = {},
+    /** Удаление аккаунта (Stage 12 п.4): открывает экран подтверждения. */
+    onDeleteAccount: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -656,6 +660,31 @@ public fun ProfileScreen(
                 GtSignOutMark(tint = scheme.error, modifier = Modifier.size(Spacing.xl))
                 Text(
                     text = stringResource(Res.string.profile_signOut),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.error,
+                )
+            }
+        }
+
+        // Удаление аккаунта (Stage 12 п.4, Play-требование; в RN нет —
+        // email-путь docs/account-deletion.html). Отдельная карточка:
+        // необратимое действие не смешивается с обратимым выходом.
+        SectionCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                    ) { onDeleteAccount() }
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.xl))
+                Text(
+                    text = stringResource(Res.string.profile_deleteAccount),
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.error,
                 )
