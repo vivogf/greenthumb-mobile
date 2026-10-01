@@ -83,6 +83,19 @@ KMP_ONLY_KEYS = {
     "updateRequired.title",
     "updateRequired.body",
     "updateRequired.openStore",
+    # profile.deleteAccount + deleteAccount.* — Stage 12 п.4: удаление
+    # аккаунта в приложении (Play-требование, VAL-REL-003). В RN нет — там
+    # удаление email-путём (docs/account-deletion.html); KMP добавляет
+    # строку в профиле и экран подтверждения с последствиями. Ключи в обеих
+    # локалях.
+    "profile.deleteAccount",
+    "deleteAccount.title",
+    "deleteAccount.body",
+    "deleteAccount.bulletPlants",
+    "deleteAccount.bulletPush",
+    "deleteAccount.bulletKey",
+    "deleteAccount.confirm",
+    "deleteAccount.deleting",
 }
 
 # RN держит эти ключи-строки как KMP <plurals> (не <string>): плюрализации

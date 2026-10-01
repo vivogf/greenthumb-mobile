@@ -46,6 +46,7 @@ import site.xmpp.greenthumb.ui.screens.login.LoginScreen
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteErrorState
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteNotice
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
+import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -71,6 +72,8 @@ public object NavRoutes {
     public const val TABS_PROFILE: String = "tabs/profile"
     public const val ADD_PLANT: String = "add-plant"
     public const val PLANT: String = "plant/{id}"
+    /** Экран подтверждения удаления аккаунта (Stage 12 п.4; в RN нет). */
+    public const val DELETE_ACCOUNT: String = "profile/delete-account"
 
     /** Имя аргумента маршрута растения. */
     public const val PLANT_ARG: String = "id"
@@ -208,8 +211,21 @@ public fun GtAppNavGraph(
                         push = push,
                         pushLanguage = { pushLanguage() },
                         onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
+                        onDeleteAccount = { navController.navigate(NavRoutes.DELETE_ACCOUNT) },
                     )
                 }
+            }
+        }
+        // Экран подтверждения удаления аккаунта (Stage 12 п.4, VAL-REL-003):
+        // подтверждение → session.deleteAccount() → SignedOut пересобирает
+        // граф на экран входа (App()); экрану самостоятельная навигация
+        // после успеха не нужна. Back — popBackStack на профиль.
+        composable(NavRoutes.DELETE_ACCOUNT) {
+            AppLocalizedContent {
+                DeleteAccountScreen(
+                    session = session,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
         composable(NavRoutes.ADD_PLANT) {

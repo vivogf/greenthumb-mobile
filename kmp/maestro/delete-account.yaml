@@ -1,0 +1,122 @@
+# Maestro flow — Stage 12 п.4 (фича kmp-account-deletion-ui, VAL-REL-003):
+# удаление аккаунта в приложении на эмуляторе emulator-5554.
+#
+# Сценарий: вход по recovery key тест-аккаунта → дашборд с растениями
+# (созданы curl до прогона) → Profile → «Delete Account» → экран
+# подтверждения (последствия) → «Delete my account» → экран входа.
+# Скриншоты — ПОСЛЕ шагов с ключом (правило: takeScreenshot/дампы запрещены,
+# пока на экране поле ключа).
+#
+# СЕКРЕТ. `GT_RECOVERY_KEY` — плейсхолдер, настоящего ключа в репозитории нет.
+# Прогон — ТОЛЬКО `bash kmp/maestro/render-delete-account.sh run <key-file>`:
+# рендер-скрипт читает ключ редиректом из key-файла (0600, не env/argv),
+# фильтрует stdout (раннер Maestro печатает `Input text <значение>`), удаляет
+# временную копию и debug-вывод после прогона, сохраняя только скриншоты
+# подтверждения/логина (на них ключа нет).
+#
+# Аккаунт флоу УДАЛЯЕТ: после прогона вход тем же ключом даёт 401 (проверка
+# вызывающим), растения стёрты серверным каскадом, локальные данные чисты.
+# Для повторного прогона нужен НОВЫЙ тест-аккаунт (создаётся по правилам
+# тест-аккаунтов миссии).
+#
+# Язык флоу: селекторы на АНГЛИЙСКИХ строках (эмулятор elt_test — en-US,
+# дефолт Compose Resources — en).
+appId: com.greenthumbplantcare
+name: GreenThumb account deletion (Stage 12 — VAL-REL-003)
+---
+# 0. Чистый старт. Стартовый экран зависит от способа установки (свежая —
+#    интро-карусель; поверх старого пакета — «Key not found»); сплеш
+#    асинхронный — повтор-цикл до «Welcome Back» (механика smoke.yaml,
+#    ограниченный times).
+#
+#    ГОНКА «REMOVE-TASK» (наблюдение VAL-REL-003, logcat прогона): force-stop
+#    (killApp и внутренний force-stop launchApp clearState) оставляет
+#    ОТЛОЖЕННОЕ удаление задачи — перезапущенный процесс гасится сразу
+#    («Killing <pid> ... remove task», «failed to attach»), окно остаётся
+#    пустым. Лечится повторным launchApp: он поднимает новый процесс; на
+#    живом приложении — no-op (LAUNCH_SINGLE_TASK выводит на передний план).
+#    Цикл ждёт интро (детерминированный старт свежей установки); на
+#    установке-обновлении (ветка «Key not found») цикл исчерпывается
+#    безвредно — main-цикл ниже понимает оба старта.
+- killApp
+- launchApp:
+    clearState: true
+- repeat:
+    times: 5
+    while:
+      notVisible: "Skip"
+    commands:
+      - launchApp
+- repeat:
+    times: 15
+    while:
+      notVisible: "Welcome Back"
+    commands:
+      - runFlow:
+          when:
+            visible: "Your plants, organized"
+          commands:
+            - tapOn: Skip
+      - runFlow:
+          when:
+            visible: "Key not found"
+          commands:
+            - tapOn: "Enter recovery key"
+      - runFlow:
+          when:
+            visible: "I Have a Key"
+          commands:
+            - tapOn: "I Have a Key"
+- assertVisible: Welcome Back
+
+# 1. Ввод ключа ВСЛЕПУЮ (правило секрета — см. шапку).
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: ${GT_RECOVERY_KEY}
+- hideKeyboard
+- tapOn: Sign In
+- extendedWaitUntil:
+    visible: "My Plants"
+    timeout: 30000
+
+# 2. Растения тест-аккаунта видны в приложении (созданы curl до прогона):
+#    до удаления они есть — после удаления аккаунта исчезают вместе с ним.
+- extendedWaitUntil:
+    visible: DelFlowFern
+    timeout: 30000
+- assertVisible: DelFlowBasil
+
+# 3. Профиль → строка «Delete Account». Профиль длинный — строка ниже
+#    видимой части: сначала скролл до неё (tapOn сам не скроллит).
+- tapOn: Profile
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Delete Account"
+    direction: DOWN
+- tapOn: "Delete Account"
+
+# 4. Экран подтверждения: заголовок, необратимость, последствия.
+- extendedWaitUntil:
+    visible: "Delete account"
+    timeout: 20000
+- assertVisible: ".*cannot be undone.*"
+- assertVisible: ".*All your plants, photos and notes.*"
+- assertVisible: ".*Push notification subscriptions.*"
+- assertVisible: ".*recovery key will stop working.*"
+- assertVisible: "Delete my account"
+- assertVisible: Cancel
+
+# 4.1. Скриншот подтверждения — ключа на экране нет (правило шапки).
+- takeScreenshot: delete-confirm-screen
+
+# 5. Подтверждение → DELETE /api/auth/account → локальная чистка → экран
+#    входа (граф пересобран по SignedOut).
+- tapOn: "Delete my account"
+- extendedWaitUntil:
+    visible: "Create New Account"
+    timeout: 30000
+
+# 5.1. Скриншот экрана входа после удаления.
+- takeScreenshot: login-after-delete

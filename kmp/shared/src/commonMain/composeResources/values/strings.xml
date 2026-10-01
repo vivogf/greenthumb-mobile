@@ -305,4 +305,15 @@
     <string name="updateRequired_title">Update required</string>
     <string name="updateRequired_body">This version of GreenThumb is no longer supported. Update the app to continue caring for your plants.</string>
     <string name="updateRequired_openStore">Update in Google Play</string>
+    <!-- Stage 12 п.4: удаление аккаунта в приложении (Play-требование). В RN
+         ключей нет (в RN удаление — email-путь docs/account-deletion.html) —
+         KMP_ONLY_KEYS в scripts/i18n_check.py. -->
+    <string name="profile_deleteAccount">Delete Account</string>
+    <string name="deleteAccount_title">Delete account</string>
+    <string name="deleteAccount_body">This permanently deletes your GreenThumb account on the server. This action cannot be undone.</string>
+    <string name="deleteAccount_bulletPlants">All your plants, photos and notes will be permanently deleted.</string>
+    <string name="deleteAccount_bulletPush">Push notification subscriptions will be removed.</string>
+    <string name="deleteAccount_bulletKey">Your recovery key will stop working. You will not be able to sign in again.</string>
+    <string name="deleteAccount_confirm">Delete my account</string>
+    <string name="deleteAccount_deleting">Deleting account...</string>
 </resources>
