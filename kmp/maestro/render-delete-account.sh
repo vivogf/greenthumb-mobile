@@ -98,13 +98,18 @@ case "${1:-}" in
         # Скриншоты подтверждения/логина (на них ключа нет) — в evidence
         # миссии ДО удаления debug-вывода. Maestro 2.10.0 складывает их в
         # debug-output/.maestro/tests/<timestamp>/ (наблюдение прогона).
-        mkdir -p "$PRESERVE_DIR"
-        found_shots=$(find "$DEBUG_OUT" -type f \( -name 'delete-confirm-screen.png' -o -name 'login-after-delete.png' \) 2>/dev/null || true)
-        if [ -n "$found_shots" ]; then
-            echo "$found_shots" | while IFS= read -r shot; do cp -f "$shot" "$PRESERVE_DIR"/; done
-            echo "скриншоты сохранены: $PRESERVE_DIR"
+        # Каталог задаётся через GT_EVIDENCE_DIR; без него шаг — no-op.
+        if [ -n "$PRESERVE_DIR" ]; then
+            mkdir -p "$PRESERVE_DIR"
+            found_shots=$(find "$DEBUG_OUT" -type f \( -name 'delete-confirm-screen.png' -o -name 'login-after-delete.png' \) 2>/dev/null || true)
+            if [ -n "$found_shots" ]; then
+                echo "$found_shots" | while IFS= read -r shot; do cp -f "$shot" "$PRESERVE_DIR"/; done
+                echo "скриншоты сохранены: $PRESERVE_DIR"
+            else
+                echo "ВНИМАНИЕ: скриншоты в debug-выводе не найдены" >&2
+            fi
         else
-            echo "ВНИМАНИЕ: скриншоты в debug-выводе не найдены" >&2
+            echo "GT_EVIDENCE_DIR не задан — сохранение скриншотов пропущено"
         fi
         echo "maestro exit code: $status"
         exit "$status"

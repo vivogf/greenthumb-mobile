@@ -11,8 +11,9 @@ Kotlin Multiplatform + Compose Multiplatform перенос приложения
 - **JDK 21** — `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`
   обязателен в каждом вызове `./gradlew` (`scripts/check.sh` подставляет этот
   путь сам, если `JAVA_HOME` не задан).
-- **Android SDK** — `$ANDROID_HOME`; `adb` и `emulator` не в
-  PATH — использовать полные пути.
+- **Android SDK** — переменная `ANDROID_HOME` указывает на Android SDK
+  (по умолчанию на macOS — `~/Library/Android/sdk`); `adb` и `emulator` не в
+  PATH — использовать полные пути от `$ANDROID_HOME`.
 - **Эмулятор** — AVD `elt_test` (system image API 34, `google_apis`). Нужен
   только для установки APK и Maestro-смоука; на машине максимум один эмулятор.
 - **Maestro 2.10.0** (опционально) — `/opt/homebrew/bin/maestro`; без него гейт
