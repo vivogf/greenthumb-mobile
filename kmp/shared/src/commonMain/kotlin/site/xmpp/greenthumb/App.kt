@@ -11,9 +11,13 @@ import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
+import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.platform.DataUriKeyer
+import site.xmpp.greenthumb.core.platform.KillSwitchVerdict
+import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushTokens
+import site.xmpp.greenthumb.core.platform.RemoteKillSwitch
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
@@ -23,6 +27,7 @@ import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
 import site.xmpp.greenthumb.ui.nav.GtKeyNotFoundScreen
 import site.xmpp.greenthumb.ui.nav.GtSplash
+import site.xmpp.greenthumb.ui.nav.GtUpdateRequiredScreen
 import site.xmpp.greenthumb.ui.nav.NavRoutes
 import site.xmpp.greenthumb.ui.nav.PostSignInHost
 import site.xmpp.greenthumb.ui.nav.PostSignInSurface
@@ -101,6 +106,13 @@ fun App(
     launchPlantId: String? = null,
     /** id принят графом (переход выполнен или отклонён) — держатель очищает. */
     onLaunchPlantIdConsumed: () -> Unit = {},
+    /**
+     * Kill-switch (Stage 12 п.1, VAL-REL-001): гейт «обновите приложение».
+     * Дефолт — самостоятельный гейт поверх заглушки платформы (тестовые
+     * поверхности); прод-точки входа передают [SessionGraph.killSwitch] —
+     * вердикт на процесс, переживает пересоздание Activity.
+     */
+    killSwitch: KillSwitchGate = KillSwitchGate(RemoteKillSwitch(), AppVersion.code),
 ) {
     // Stage 8 п.4 (VAL-PHOTO-005): singleton-лоадер Coil с Keyer'ом, делающим
     // ключом кэша SHA-256 от data-URI фото, а не саму строку в сотни килобайт.
@@ -163,8 +175,25 @@ fun App(
     // architecture.md §9) — инициализированная сессия не перезапускается
     // (фикс M6 VAL-SHELL-003).
     LaunchedEffect(Unit) { session.startupIfNeeded() }
+    // Kill-switch (Stage 12 п.1, VAL-REL-001): параллельно со стартом сессии,
+    // СТАРТ НЕ ГЕЙТИТ — пока fetch не решится (короткий таймаут android-actual),
+    // UI работает как обычно; решённый Blocked заменяет всё содержимое ниже.
+    LaunchedEffect(Unit) { killSwitch.checkIfNeeded() }
+    // Вердикт на процесс (гейт живёт в SessionGraph — пересоздание Activity
+    // не перечитывает конфиг и не мигает контентом).
+    val killSwitchVerdict by killSwitch.verdict.collectAsState()
     AppEnvironment(customAppLocale = languagePreference?.wire) {
         GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
+            // Блокирующий экран обновления ВЫШЕ маршрутизации и сессии (план
+            // Stage 12 п.1): отозванная версия не показывает ни растений, ни
+            // входа — только ссылку в стор. Пока Allowed/проверка идёт —
+            // обычный старт.
+            if (killSwitchVerdict is KillSwitchVerdict.Blocked) {
+                GtUpdateRequiredScreen(
+                    onOpenStore = { OpenUrl.open(PLAY_STORE_URL) },
+                )
+                return@GreenThumbTheme
+            }
             val state by session.state.collectAsState()
             val introSeen by settings.introSeen.collectAsState(initial = null)
             val route = resolveStartRoute(state, introSeen)
@@ -273,3 +302,12 @@ fun App(
         }
     }
 }
+
+/**
+ * Страница приложения в Google Play — кнопка блокирующего экрана kill-switch
+ * (Stage 12 п.1, VAL-REL-001). https-ссылка (не market://): открывается и в
+ * Play Store, и в браузере — на устройствах без Play Store приложения краша нет
+ * ([OpenUrl] best-effort).
+ */
+private const val PLAY_STORE_URL =
+    "https://play.google.com/store/apps/details?id=com.greenthumbplantcare"

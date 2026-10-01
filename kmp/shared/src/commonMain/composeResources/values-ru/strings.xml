@@ -307,4 +307,7 @@
     <string name="session_keyNotFoundBody">Аккаунт не найден на устройстве. Ваш аккаунт хранится на сервере — введите ключ восстановления вручную или создайте новый аккаунт (старый ключ восстановить нельзя).</string>
     <string name="session_keyNotFoundEnterKey">Ввести ключ</string>
     <string name="session_keyNotFoundCreateAccount">Создать аккаунт</string>
+    <string name="updateRequired_title">Обновите приложение</string>
+    <string name="updateRequired_body">Эта версия GreenThumb больше не поддерживается. Обновите приложение, чтобы продолжить уход за растениями.</string>
+    <string name="updateRequired_openStore">Обновить в Google Play</string>
 </resources>

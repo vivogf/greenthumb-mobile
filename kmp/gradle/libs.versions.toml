@@ -87,3 +87,6 @@ datastorePreferencesCore = { module = "androidx.datastore:datastore-preferences-
 firebaseBom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 # Версию подставляет BoM (в каталоге без version.ref — так и задумано).
 firebaseMessaging = { module = "com.google.firebase:firebase-messaging" }
+# Remote Config (M12 kill-switch, Stage 12 п.1): параметр min_supported_build.
+# Версию задаёт та же BoM; actual — RemoteKillSwitch.android.kt в :shared.
+firebaseConfig = { module = "com.google.firebase:firebase-config" }

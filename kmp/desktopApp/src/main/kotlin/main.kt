@@ -51,7 +51,7 @@ fun main() = application {
             },
             title = "GreenThumb",
         ) {
-            App(graph.manager, connectivity, plants, graph.settings, graph.push)
+            App(graph.manager, connectivity, plants, graph.settings, graph.push, killSwitch = graph.killSwitch)
         }
     }
 }

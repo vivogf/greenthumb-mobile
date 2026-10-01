@@ -299,4 +299,10 @@
     <string name="session_keyNotFoundBody">Account not found on this device. Your account is stored on the server — enter your recovery key manually or create a new account (the old key cannot be restored).</string>
     <string name="session_keyNotFoundEnterKey">Enter recovery key</string>
     <string name="session_keyNotFoundCreateAccount">Create new account</string>
+    <!-- Stage 12 п.1: kill-switch (Remote Config min_supported_build) —
+         блокирующий экран обновления. В RN ключей нет (в RN был OTA/EAS Update,
+         KMP-замена — kill-switch) — KMP_ONLY_KEYS в scripts/i18n_check.py. -->
+    <string name="updateRequired_title">Update required</string>
+    <string name="updateRequired_body">This version of GreenThumb is no longer supported. Update the app to continue caring for your plants.</string>
+    <string name="updateRequired_openStore">Update in Google Play</string>
 </resources>
