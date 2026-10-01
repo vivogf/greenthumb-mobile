@@ -6,10 +6,9 @@ import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import site.xmpp.greenthumb.core.platform.rotateFcmTokenAfterColdStart
 import site.xmpp.greenthumb.core.platform.showForegroundGtNotification
-import site.xmpp.greenthumb.core.storage.SessionState
 
 /**
  * Перехват FCM-сообщений (M9 push-android, Stage 9 п.5): при открытом
@@ -27,9 +26,13 @@ import site.xmpp.greenthumb.core.storage.SessionState
  * старый токен, и после ротации пуши молча ломаются. Подписка обновляется
  * ТОЛЬКО если она была включена для текущего аккаунта; иначе push самовольно
  * не включается, ошибки не включают его «незаметно» ([FcmTokenRotation]).
+ * Холодный процесс (FCM поднял процесс только ради токена) обрабатывает
+ * [rotateFcmTokenAfterColdStart] — стартовая последовательность сессии
+ * запускается фоном до проверки SignedIn (фикс scrutiny m9-push).
  *
  * Класс живёт в shell-модуле (androidApp), как MainActivity/Application:
- * самопоказ — [showForegroundGtNotification] из shared androidMain.
+ * самопоказ — [showForegroundGtNotification] из shared androidMain, логика
+ * ротации — тестируемая функция shared commonMain (сервис — тонкая обёртка).
  */
 public class GtFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -47,15 +50,20 @@ public class GtFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         val graph = (application as GreenThumbApplication).sessionGraph
         tokenRotationScope.launch {
-            // Без живой сессии шов не трогаем вовсе: статус дал бы 401 и
-            // запустил шов восстановления сессии из фонового колбэка; «подписка
-            // была включена для ТЕКУЩЕГО аккаунта» без аккаунта не существует.
-            if (graph.manager.state.value !is SessionState.SignedIn) return@launch
-            // Язык подписки — текущий язык UI (тот же контракт, что у тумблера,
-            // VAL-PUSH-007; системная локаль — RN-фолбэк 'ru').
-            val language = graph.settings.language.first()?.wire ?: "ru"
-            val outcome = graph.pushRotation.rotate(token, PLATFORM_ANDROID, language)
-            Log.i(LOG_TAG, "FCM token rotation: $outcome")
+            // Холодный процесс (FCM поднял его только ради токена, App() не
+            // запускался): rotateFcmTokenAfterColdStart сам запускает
+            // идемпотентный startupIfNeeded и решает по его результату —
+            // SignedIn доводит ротацию до шва подписки, иные исходы шов
+            // не трогают. Никаких 401-восстановлений из фона сверх того,
+            // что делает сам startup.
+            val outcome = rotateFcmTokenAfterColdStart(
+                manager = graph.manager,
+                settings = graph.settings,
+                rotation = graph.pushRotation,
+                token = token,
+                platform = PLATFORM_ANDROID,
+            )
+            Log.i(LOG_TAG, "FCM token rotation: ${outcome ?: "skipped (no SignedIn session)"}")
         }
     }
 

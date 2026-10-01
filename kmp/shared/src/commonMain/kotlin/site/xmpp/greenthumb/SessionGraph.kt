@@ -66,8 +66,10 @@ public class SessionGraph private constructor(
     /**
      * Ротация FCM-токена (Stage 9 п.4, фича kmp-push-offline-routing): тот же
      * сетевой шов, что у [push] (один шов — одна cookie-сессия). Вызывается
-     * сервисом androidApp ([GtFirebaseMessagingService.onNewToken]) после
-     * проверки живой сессии ([manager]).
+     * сервисом androidApp ([GtFirebaseMessagingService.onNewToken]) через
+     * [rotateFcmTokenAfterColdStart] — тот сам запускает идемпотентный
+     * [SessionManager.startupIfNeeded] (холодный процесс: FCM поднял процесс
+     * только ради токена) и решает по его результату.
      */
     public val pushRotation: FcmTokenRotation = FcmTokenRotation(pushSeam)
 
