@@ -1,150 +1,156 @@
-# Runbook аварии после раскатки + репетиция (Stage 12 п.8, VAL-REL-005)
+# Post-rollout incident runbook + rehearsal (Stage 12 item 8, VAL-REL-005)
 
-**Исполнение — user-gated** (Play Console, Remote Config, публикация).
-Разбор аварии отрепетирован ДО раскатки, не по факту. В конце документа —
-отчёт сухого прогона (что проверено локально, что остаётся user-gated).
+**Execution is user-gated** (Play Console, Remote Config, publishing).
+The incident walkthrough was rehearsed BEFORE the rollout, not in the heat of
+the moment. At the end of the document — a dry-run report (what was checked
+locally, what remains user-gated).
 
-Связанные документы: `release-gate-rollout.md` (гейт, лестница, halt),
-`crash-baseline.md` (пороги), `library/kill-switch.md` в missionDir (механика
-и ограничения kill-switch).
+Related documents: `release-gate-rollout.md` (gate, ladder, halt),
+`crash-baseline.md` (thresholds), `library/kill-switch.md` in missionDir
+(kill-switch mechanics and limitations).
 
-## 0. Твёрдые правила (читать до любого инцидента)
+## 0. Hard rules (read before any incident)
 
-1. **ЗАПРЕЩЕНО советовать переустановку приложения** — ни в поддержке, ни в
-   release notes, ни в диалогах, ни в FAQ: на Android переустановка уничтожает
-   единственный recovery key → потеря аккаунта навсегда. Правильный совет —
-   «обновите приложение в Google Play» (установка обновления данные не
-   трогает). В копирайте приложения переустановка не упоминается (проверено
-   грепом, см. отчёт репетиции, шаг 4).
-2. **Возврат на Expo-сборку закрыт.** После первого запуска KMP-версии
-   ключ перезаписан её хранилищем: старая Expo-сборка прочитает устаревшее
-   значение из своего SecureStore (Stage 12 п.8 плана). Путь восстановления —
-   ТОЛЬКО вперёд: исправленная KMP-сборка с большим `versionCode`.
-   Теги/артефакты последней Expo-сборки (`backup/*` на GitHub, APKs/) хранятся
-   до конца окна поддержки — для сборки, не для отката пользователей.
-3. **Staged rollout версию не возвращает.** Halt останавливает НОВЫХ
-   получателей; уже обновившимся установкам помогает kill-switch (экран
-   «обновите приложение») или новая исправленная версия.
-4. **Kill-switch не ловит краш на старте до чтения конфига** (нативный краш,
-   краш до первого кадра) и не работает без сети на старте —
-   `library/kill-switch.md` §«Что kill-switch НЕ ловит».
+1. **SUGGESTING A REINSTALL IS FORBIDDEN** — not in support, not in release
+   notes, not in dialogs, not in the FAQ: on Android a reinstall destroys the
+   only recovery key → the account is lost forever. The right advice is
+   "update the app in Google Play" (installing an update does not touch the
+   data). The app copy never mentions reinstalling (verified by grep, see the
+   rehearsal report, step 4).
+2. **Going back to an Expo build is closed.** After the first launch of the KMP
+   version the key has been overwritten by its storage: the old Expo build would
+   read a stale value from its own SecureStore (Stage 12 item 8 of the plan).
+   The only recovery path is FORWARD: a fixed KMP build with a higher
+   `versionCode`. Tags/artifacts of the last Expo build (`backup/*` on GitHub,
+   APKs/) are kept until the end of the support window — for building, not for
+   rolling users back.
+3. **Staged rollout does not roll the version back.** Halt stops NEW
+   recipients; installs that already updated are helped by the kill-switch (the
+   "update the app" screen) or by a new fixed version.
+4. **The kill-switch does not catch a crash on startup before the config is
+   read** (a native crash, a crash before the first frame) and does not work
+   without a network at startup — `library/kill-switch.md`
+   §"What the kill-switch does NOT catch".
 
-## 1. Признак аварии → остановка раскатки
+## 1. Sign of an incident → stop the rollout
 
-**Триггеры:** любой порог остановки из `crash-baseline.md` превышен
-(крэши/ANR/«ключ не найден»/входы/журнал мутаций/push-подписки), либо
-воспроизводимый краш на релизной сборке.
+**Triggers:** any halt threshold from `crash-baseline.md` is exceeded
+(crashes/ANR/"key not found"/logins/mutation journal/push subscriptions), or a
+reproducible crash on a release build.
 
-**Действие (пользователь, ~2 минуты):**
+**Action (user, ~2 minutes):**
 
-1. Play Console → Production → Releases → активный релиз со staged rollout →
-   **Halt staged rollout** (аналогично для Testing → Internal testing, если
-   авария ещё там).
-2. Зафиксировать время halt и последний достигнутый процент — с него
-   возобновление после фикса.
-3. Если дефект не зависит от версии (бэкенд) — править бэкенд, раскатку не
-   трогать.
+1. Play Console → Production → Releases → the active release with staged
+   rollout → **Halt staged rollout** (same for Testing → Internal testing, if
+   the incident is still there).
+2. Record the halt time and the last percentage reached — the rollout resumes
+   from there after the fix.
+3. If the defect is not version-specific (backend) — fix the backend, leave the
+   rollout alone.
 
-## 2. Оценка масштаба: кто пострадал
+## 2. Scope assessment: who was affected
 
-1. Play Console → Production → Releases → релиз → доля раскатки → оценка
-   числа затронутых установок (процент × активные установки из Statistics).
-2. Crashlytics → Issues: топ-крэши по версиям/OS; проверить, что данные
-   деобфусцированы (работает загрузка mapping — `crash-baseline.md` §1).
-3. Если краш ДО чтения конфига (приложение умирает до kill-switch) —
-   kill-switch помочь не может, только исправленная сборка (шаг 3).
+1. Play Console → Production → Releases → release → rollout share → estimate
+   the number of affected installs (percentage × active installs from
+   Statistics).
+2. Crashlytics → Issues: top crashes by version/OS; verify the data is
+   deobfuscated (mapping upload works — `crash-baseline.md` §1).
+3. If the crash happens BEFORE the config is read (the app dies before the
+   kill-switch) — the kill-switch cannot help; only a fixed build can (step 3).
 
-## 3. Исправленная сборка
+## 3. Fixed build
 
-1. Фикс в `kmp/` → локальный коммит (пуш — пользователь).
-2. **`versionCode` строго больше предыдущей** (была 6 → становится 7, 8, …):
-   `kmp/androidApp/build.gradle.kts` → `versionCode = <N+1>`; `versionName`
-   поднять по semver патча. Загрузка в трек с меньшим versionCode будет
-   ОТКЛОНЕНА Play — это не обходится.
-3. Сборка AAB (подписание — пользователь; release-keystore не в репо):
+1. Fix in `kmp/` → local commit (the push is the user's).
+2. **`versionCode` must be strictly greater than the previous one** (was 6 →
+   becomes 7, 8, …): `kmp/androidApp/build.gradle.kts` → `versionCode = <N+1>`;
+   bump `versionName` on the patch semver level. An upload to the track with a
+   lower versionCode will be REJECTED by Play — this cannot be worked around.
+3. Build the AAB (signing is the user's; the release keystore is not in the
+   repo):
 
    ```bash
    cd kmp
    JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
      ./gradlew :androidApp:bundleRelease
-   # артефакт: androidApp/build/outputs/bundle/release/androidApp-release.aab
+   # artifact: androidApp/build/outputs/bundle/release/androidApp-release.aab
    ```
 
-4. Проверить артефакт до загрузки:
+4. Verify the artifact before uploading:
 
    ```bash
    $ANDROID_SDK/build-tools/36.0.0/aapt2 dump badging \
      androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk \
      | grep -E "versionCode|native-code"
-   # либо bundletool dump manifest для AAB: versionCode="7"
+   # or bundletool dump manifest for the AAB: versionCode="7"
    ```
 
-5. Перед сборкой релиза — убедиться, что Crashlytics включён в консоли
-   (`crash-baseline.md` §1), иначе upload-задачи символов упадут на сборке.
+5. Before the release build — make sure Crashlytics is enabled in the console
+   (`crash-baseline.md` §1), otherwise the symbol upload tasks will fail the
+   build.
 
-## 4. Доставка исправленной версии затронутым
+## 4. Delivering the fixed version to the affected
 
-1. Play Console → Production → Create new release → загрузить AAB с
-   `versionCode N+1` → **Staged rollout = последний достигнутый процент до
-   halt** (не перескакивать на больший: пороговые проверки ступеней
-   возобновляются с того же места, `release-gate-rollout.md`).
-2. Доставка затронутым: обновление приходит по каналу Play-обновлений
-   (часы-дни); форсировать индивидуально нельзя. Установкам, которым дефект
-   мешает СТАРТУ, помогает kill-switch: Remote Config →
-   `min_supported_build` = N (публиковать ТОЛЬКО если старую версию надо
-   остановить целиком; экран «обновите приложение» сам не чинит данные) →
-   после появления N+1 в раскатке вернуть `min_supported_build` = 0.
-3. Проверка доставки: Statistics → Active devices by app version — доля
-   `versionCode N+1` растёт; Crashlytics — крэш-тренд версии N падает.
+1. Play Console → Production → Create new release → upload the AAB with
+   `versionCode N+1` → **Staged rollout = the last percentage reached before
+   the halt** (do not jump to a higher one: the step threshold checks resume
+   from the same spot, `release-gate-rollout.md`).
+2. Delivery to the affected: the update arrives through the Play update channel
+   (hours to days); it cannot be forced per device. Installs where the defect
+   blocks STARTUP are helped by the kill-switch: Remote Config →
+   `min_supported_build` = N (publish ONLY if the old version must be stopped
+   entirely; the "update the app" screen does not fix data by itself) → once N+1
+   appears in the rollout, set `min_supported_build` back to 0.
+3. Delivery check: Statistics → Active devices by app version — the share of
+   `versionCode N+1` grows; Crashlytics — the crash trend of version N falls.
 
-## 5. Закрытие инцидента
+## 5. Closing the incident
 
-1. Ступень раскатки, на которой случилась авария, повторяется заново
-   (минимум наблюдения — заново).
-2. Пост-мортем в отчёте: триггер, время halt→fix→resume, дефекты процесса.
-3. Если авария затронула локальные данные пользователей (ключ/БД) —
-   восстановимых путей нет: поддержка только помогает создать НОВЫЙ аккаунт
-   (и никогда — переустановку).
+1. The rollout step on which the incident happened is repeated from scratch
+   (the observation minimum starts over).
+2. Post-mortem in the report: trigger, halt→fix→resume times, process gaps.
+3. If the incident touched user local data (key/DB) — there are no recoverable
+   paths: support only helps create a NEW account (and never a reinstall).
 
 ---
 
-## Отчёт репетиции (сухой прогон шагов, 2026-10-01)
+## Rehearsal report (dry run of the steps, 2026-10-01)
 
-Прогон шагов без публикации (публикация — user-gated). Исполнитель: воркер
-фичи `release-rollout-prep`, на локальной машине, без Play/Firebase-консолей.
+A run of the steps without publishing (publishing is user-gated). Executor:
+feature worker `release-rollout-prep`, on a local machine, without
+Play/Firebase consoles.
 
-| # | Шаг рантбука | Статус | Наблюдение |
+| # | Runbook step | Status | Observation |
 |---|---|---|---|
-| 1 | Halt staged rollout в Play Console | **user-gated** (консоль) | путь прописан (§1); в сухом прогоне не исполнялся — интерфейс Play недоступен воркерам по границам миссии |
-| 2 | Исправленная сборка с большим versionCode | **проверено локально** | см. шаг 2а–2с ниже |
-| 3 | Доставка затронутым (Play-канал + kill-switch) | **user-gated** | процедура §4 прописана; kill-switch-механика отдельно проверена на эмуляторе в фиче `kmp-remote-kill-switch` (VAL-REL-001, evidence `missionDir/evidence/m12-kill-switch/`) |
-| 4 | Запрет совета переустановки | **проверено локально** | греп `переустанов\|reinstall`: в пользовательских строках UI KMP (composeResources) — **0 совпадений**, в копирайте RN (app/components/i18n) — **0**; в KDoc-комментариях KMP — 2 совпадения (SessionSurfaces.kt:83, KillSwitchGate.kt:28), оба документируют путь «БЕЗ переустановки» — это не советы пользователю. Правило внесено в §0 |
-| 5 | Возврат на Expo закрыт | **задокументировано** | инвариант Stage 12 п.8 плана (§0.2); исполнению не подлежит по определению — проверка = отсутствие в проекте планов даунгрейда |
+| 1 | Halt staged rollout in Play Console | **user-gated** (console) | the path is written up (§1); not executed in the dry run — the Play UI is not available to workers under the mission boundaries |
+| 2 | Fixed build with a higher versionCode | **checked locally** | see steps 2a–2e below |
+| 3 | Delivery to the affected (Play channel + kill-switch) | **user-gated** | the §4 procedure is written up; kill-switch mechanics were separately verified on the emulator in the `kmp-remote-kill-switch` feature (VAL-REL-001, evidence `missionDir/evidence/m12-kill-switch/`) |
+| 4 | Ban on suggesting reinstall | **checked locally** | grep for the word "reinstall" in both languages: in KMP user-facing UI strings (composeResources) — **0 matches**, in RN copy (app/components/i18n) — **0**; in KMP KDoc comments — 2 matches (SessionSurfaces.kt:83, KillSwitchGate.kt:28), both documenting the "WITHOUT reinstalling" path — these are not user advice. The rule is recorded in §0 |
+| 5 | Return to Expo is closed | **documented** | the invariant of Stage 12 item 8 of the plan (§0.2); not executable by definition — the check = the absence of downgrade plans in the project |
 
-Шаг 2 детально (исправленная сборка — реально собрана в сухом прогоне):
+Step 2 in detail (the fixed build was actually built in the dry run):
 
-- 2a. `versionCode` 6 → 7 во временном дереве (изменение НЕ закоммичено,
-  возвращено после прогона).
+- 2a. `versionCode` 6 → 7 in a temporary tree (the change was NOT committed,
+  reverted after the run).
 - 2b. `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
-  ./gradlew :androidApp:assembleRelease` — BUILD SUCCESSFUL (84 tasks; артефакт
-  release-APK собран; release-подпись не применялась — keystore у
-  пользователя, для сухого прогона достаточно упаковки).
-- 2c. Проверка артефакта `aapt2 dump badging`:
+  ./gradlew :androidApp:assembleRelease` — BUILD SUCCESSFUL (84 tasks; the
+  release APK artifact built; release signing was not applied — the keystore is
+  with the user, packaging is enough for a dry run).
+- 2c. Artifact check with `aapt2 dump badging`:
   `package: name='com.greenthumbplantcare' versionCode='7' versionName='0.1.0'`
-  (нативный код на месте: arm64-v8a, armeabi-v7a, x86, x86_64) — подтверждено;
-  после прогона versionCode возвращён на 6.
-- 2d. Crashlytics-задачи релиза отрабатывают на этом дереве:
+  (native code in place: arm64-v8a, armeabi-v7a, x86, x86_64) — confirmed;
+  after the run the versionCode was returned to 6.
+- 2d. Release Crashlytics tasks work on this tree:
   `injectCrashlyticsMappingFileIdRelease` + `injectCrashlyticsBuildIdsRelease` +
-  `injectCrashlyticsVersionControlInfoRelease` — в графе `assembleRelease`;
-  явный прогон `uploadCrashlyticsSymbolFileRelease` +
+  `injectCrashlyticsVersionControlInfoRelease` — in the `assembleRelease` graph;
+  an explicit run of `uploadCrashlyticsSymbolFileRelease` +
   `generateCrashlyticsSymbolFileRelease` — executed, exit 0
-  (`uploadCrashlyticsMappingFileRelease` — NO-SOURCE: mapping-файла нет, пока
-  не включён R8/minify — это норма, при включении R8 загрузка уже
-  настроена). Консольная сторона (видимость символов/mapping в Firebase
-  Console) — user-gated.
-- 2e. Вывод: механика «исправленная версия с бОльшим versionCode» работает
-  на этом дереве без дополнительных шагов кроме подписи (user-gated).
+  (`uploadCrashlyticsMappingFileRelease` — NO-SOURCE: no mapping file while
+  R8/minify is off — this is normal; once R8 is on, upload is already
+  configured). The console side (symbol/mapping visibility in Firebase Console)
+  — user-gated.
+- 2e. Conclusion: the "fixed version with a higher versionCode" mechanics work
+  on this tree with no extra steps besides signing (user-gated).
 
-Итог репетиции: исполняемые локально шаги проверены; консольные шаги
-прописаны и остаются user-gated. Повторная репетиция перед реальной
-раскаткой не требуется — при изменении интерфейса Play обновить §1/§4.
+Rehearsal outcome: the locally executable steps are verified; console steps are
+written up and remain user-gated. A repeat rehearsal before the real rollout is
+not required — if the Play UI changes, update §1/§4.
