@@ -1,3 +1,5 @@
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
@@ -7,6 +9,10 @@ plugins {
     // инициализирует FirebaseApp, токен FCM доступен (до M9 файл держался
     // инертно — scrutiny m1).
     alias(libs.plugins.googleServices)
+    // M12 release-rollout-prep (VAL-REL-006, Stage 12 п.7): загрузка mapping-
+    // и native-символов в Crashlytics при release-сборке. Применяется только
+    // здесь — плагин требует com.android.application.
+    alias(libs.plugins.crashlytics)
 }
 
 android {
@@ -40,6 +46,19 @@ android {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debugProject")
         }
+        // Crashlytics-символы (M12 release-rollout-prep, VAL-REL-006).
+        // mappingFileUploadEnabled задан ЯВНО: AGP 9.3.1 сам не регистрирует
+        // uploadCrashlyticsMappingFile<Variant> (firebase-android-sdk #8545,
+        // фикс AGP — с 9.3.3; пин 9.3.1 не бампаем, обход — официальная
+        // рекомендация из #8545). Minify сейчас не включён — с включением R8
+        // загрузка деобфускации уже на месте. nativeSymbolUploadEnabled —
+        // символы нативных библиотек (libsqliteJni.so и др.), Stage 12 п.7.
+        getByName("release") {
+            configure<CrashlyticsExtension> {
+                mappingFileUploadEnabled = true
+                nativeSymbolUploadEnabled = true
+            }
+        }
     }
 }
 
@@ -52,5 +71,8 @@ kotlin {
         // что в :shared (actual PushTokens). Версию задаёт BoM.
         implementation(project.dependencies.platform(libs.firebaseBom))
         implementation(libs.firebaseMessaging)
+        // Crashlytics (M12 release-rollout-prep, VAL-REL-006): телеметрия
+        // крашей/ANR, crash-базлайн перед раскаткой. Версию задаёт BoM.
+        implementation(libs.firebaseCrashlytics)
     }
 }

@@ -30,6 +30,12 @@ activityCompose = "1.13.0"
 # Последние стабильные на Google Maven (проверено 2026-09-28).
 firebaseBom = "34.19.0"
 googleServices = "4.5.0"
+# Crashlytics-плагин (M12 release-rollout-prep, Stage 12 п.7, architecture.md §4
+# «… + Crashlytics»): последняя стабильная на Google Maven (проверено 2026-10-01).
+# На AGP 9.3.x плагин не регистрирует uploadCrashlyticsMappingFile<Variant> сам
+# (firebase-android-sdk #8545, фикс AGP только с 9.3.3 — пин 9.3.1 не бампаем):
+# обход — явный mappingFileUploadEnabled = true в release-типе :androidApp.
+crashlyticsGradle = "3.0.8"
 foojayResolver = "1.0.0"
 
 [plugins]
@@ -44,6 +50,10 @@ androidKmpLibrary = { id = "com.android.kotlin.multiplatform.library", version.r
 # google-services (M9 push-android): генерирует Firebase-конфиг из
 # kmp/androidApp/google-services.json; применяется ТОЛЬКО в :androidApp.
 googleServices = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+# crashlytics (M12 release-rollout-prep): загрузка mapping/native-символов
+# при сборке release; применяется ТОЛЬКО в :androidApp (требует
+# com.android.application — см. #7652).
+crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlyticsGradle" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 # androidx.room (не room3): schemaDirectory для экспорта схемы. Версия = room 2.8.5.
 room = { id = "androidx.room", version.ref = "room" }
@@ -90,3 +100,8 @@ firebaseMessaging = { module = "com.google.firebase:firebase-messaging" }
 # Remote Config (M12 kill-switch, Stage 12 п.1): параметр min_supported_build.
 # Версию задаёт та же BoM; actual — RemoteKillSwitch.android.kt в :shared.
 firebaseConfig = { module = "com.google.firebase:firebase-config" }
+# Crashlytics (M12 release-rollout-prep, Stage 12 п.7): телеметрия крашей/ANR,
+# crash-базлайн перед раскаткой. ГЛАВНЫЙ модуль (не -ktx: KTX-модули сняты с
+# BoM с 34.0.0, а на старых ktx-версиях mapping_file_id теряется — #8564).
+# Версию задаёт BoM.
+firebaseCrashlytics = { module = "com.google.firebase:firebase-crashlytics" }
