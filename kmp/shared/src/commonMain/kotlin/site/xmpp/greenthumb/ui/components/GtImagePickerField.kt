@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,9 +20,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import coil3.compose.AsyncImage
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -46,6 +50,7 @@ fun GtImagePickerField(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    photoUrl: String = "",
 ) {
     val scheme = MaterialTheme.colorScheme
     var open by remember { mutableStateOf(false) }
@@ -62,6 +67,14 @@ fun GtImagePickerField(
             contentAlignment = Alignment.Center,
         ) {
             if (hasImage) {
+                if (photoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().clip(shape),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

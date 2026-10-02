@@ -158,6 +158,7 @@ public fun GtWaterButton(
                     GtWaterDropMark(
                         tint = scheme.onPrimary,
                         modifier = Modifier.size(Spacing.lg + Spacing.xxs),
+                        filled = true,
                     )
                 }
             }
@@ -182,6 +183,7 @@ public fun GtWaterButton(
                     GtWaterDropMark(
                         tint = scheme.onPrimary,
                         modifier = Modifier.size(Spacing.md + Spacing.xxs),
+                        filled = true,
                     )
                 }
                 if (label != null) {
