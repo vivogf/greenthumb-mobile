@@ -5,8 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -137,34 +141,44 @@ fun GtPersonMark(tint: Color, modifier: Modifier = Modifier) {
 }
 
 /**
- * Капля полива — Ionicons `water` (слайд 2 welcome). Контур капли (скруглённый
- * клин от острия внизу к широкой дуге наверху) тем же простым стилем.
+ * Капля полива — Ionicons `water` / `water-outline` (слайд 2 welcome, пилюли
+ * статуса, кнопка полива). Острие вверху, круглое дно: касательные из острия
+ * к окружности (угол между ними 60°) и дуга 240° снизу.
+ * [filled] — сплошная капля, как `water` на кнопке; по умолчанию контур.
  */
 @Composable
-fun GtWaterDropMark(tint: Color, modifier: Modifier = Modifier) {
+fun GtWaterDropMark(tint: Color, modifier: Modifier = Modifier, filled: Boolean = false) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        drawArc(
-            color = tint,
-            startAngle = 0f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(size.width * 0.2f, size.height * 0.2f),
-            size = Size(size.width * 0.6f, size.height * 0.5f),
-            style = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.2f, size.height * 0.45f),
-            end = Offset(size.width * 0.5f, size.height * 0.88f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.8f, size.height * 0.45f),
-            end = Offset(size.width * 0.5f, size.height * 0.88f),
-            strokeWidth = stroke.width,
-        )
+        val radius = size.minDimension * 0.29f
+        val centerX = size.width * 0.5f
+        val centerY = size.height * 0.65f
+        val tangentRad = Math.toRadians(30.0)
+        val tangentX = radius * kotlin.math.cos(tangentRad).toFloat()
+        val tangentY = radius * kotlin.math.sin(tangentRad).toFloat()
+        val drop = Path().apply {
+            moveTo(centerX, centerY - radius * 2)
+            lineTo(centerX + tangentX, centerY - tangentY)
+            arcTo(
+                rect = Rect(Offset(centerX, centerY), radius),
+                startAngleDegrees = -30f,
+                sweepAngleDegrees = 240f,
+                forceMoveTo = false,
+            )
+            close()
+        }
+        if (filled) {
+            drawPath(drop, tint)
+        } else {
+            drawPath(
+                drop,
+                tint,
+                style = Stroke(
+                    width = (Spacing.xxs / 4).toPx(),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round,
+                ),
+            )
+        }
     }
 }
 

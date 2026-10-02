@@ -240,6 +240,7 @@ public fun AddPlantScreen(
                     galleryLabel = stringResource(Res.string.common_gallery),
                     removeLabel = removePhoto,
                     cancelLabel = cancelText,
+                    photoUrl = fields.photoUrl,
                     onPickRequested = { source ->
                         photoPicker.launch(
                             scope,
