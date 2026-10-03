@@ -40,58 +40,92 @@ fun GtTextField(
     /** Слот справа (кнопка очистки поиска). */
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    val hasError = !error.isNullOrEmpty()
     Column(modifier = modifier) {
+        // Пустая подпись всё равно занимает строку + зазор: вызывающие, которым
+        // нужна своя подпись над полем, берут [GtInputField].
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = scheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
-        OutlinedTextField(
+        GtInputField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            placeholder = placeholder,
+            error = error,
             enabled = enabled,
-            isError = hasError,
             singleLine = singleLine,
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             leadingIcon = leadingIcon,
             trailingIcon = trailingIcon,
-            placeholder = if (placeholder.isEmpty()) {
-                null
-            } else {
-                { Text(text = placeholder) }
-            },
-            supportingText = if (!hasError) {
-                null
-            } else {
-                { Text(text = error) }
-            },
-            shape = RoundedCornerShape(Radii.md),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = scheme.primary,
-                unfocusedBorderColor = scheme.outline,
-                disabledBorderColor = scheme.outlineVariant,
-                errorBorderColor = scheme.error,
-                focusedContainerColor = scheme.surfaceContainerHighest,
-                unfocusedContainerColor = scheme.surfaceContainerHighest,
-                disabledContainerColor = scheme.surfaceVariant,
-                errorContainerColor = scheme.surfaceContainerHighest,
-                focusedTextColor = scheme.onSurface,
-                unfocusedTextColor = scheme.onSurface,
-                disabledTextColor = scheme.onSurfaceVariant,
-                errorTextColor = scheme.onSurface,
-                cursorColor = scheme.primary,
-                errorCursorColor = scheme.error,
-                focusedPlaceholderColor = scheme.onSurfaceVariant,
-                unfocusedPlaceholderColor = scheme.onSurfaceVariant,
-                errorSupportingTextColor = scheme.error,
-                focusedSupportingTextColor = scheme.onSurfaceVariant,
-                unfocusedSupportingTextColor = scheme.onSurfaceVariant,
-            ),
         )
     }
+}
+
+/**
+ * Само поле без подписи и без резерва под неё; подпись над ним рисует
+ * вызывающий. Текст ошибки появляется под полем только при [error].
+ */
+@Composable
+fun GtInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    error: String? = null,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val hasError = !error.isNullOrEmpty()
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        enabled = enabled,
+        isError = hasError,
+        singleLine = singleLine,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+        placeholder = if (placeholder.isEmpty()) {
+            null
+        } else {
+            { Text(text = placeholder) }
+        },
+        supportingText = if (!hasError) {
+            null
+        } else {
+            { Text(text = error) }
+        },
+        shape = RoundedCornerShape(Radii.md),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = scheme.primary,
+            unfocusedBorderColor = scheme.outline,
+            disabledBorderColor = scheme.outlineVariant,
+            errorBorderColor = scheme.error,
+            focusedContainerColor = scheme.surfaceContainerHighest,
+            unfocusedContainerColor = scheme.surfaceContainerHighest,
+            disabledContainerColor = scheme.surfaceVariant,
+            errorContainerColor = scheme.surfaceContainerHighest,
+            focusedTextColor = scheme.onSurface,
+            unfocusedTextColor = scheme.onSurface,
+            disabledTextColor = scheme.onSurfaceVariant,
+            errorTextColor = scheme.onSurface,
+            cursorColor = scheme.primary,
+            errorCursorColor = scheme.error,
+            focusedPlaceholderColor = scheme.onSurfaceVariant,
+            unfocusedPlaceholderColor = scheme.onSurfaceVariant,
+            errorSupportingTextColor = scheme.error,
+            focusedSupportingTextColor = scheme.onSurfaceVariant,
+            unfocusedSupportingTextColor = scheme.onSurfaceVariant,
+        ),
+    )
 }

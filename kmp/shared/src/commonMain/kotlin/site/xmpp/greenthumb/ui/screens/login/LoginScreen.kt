@@ -44,11 +44,11 @@ import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtChevronMark
+import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtKeyMark
 import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtLockMark
 import site.xmpp.greenthumb.ui.components.GtPersonAddMark
-import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWarningMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
@@ -293,12 +293,10 @@ private fun CreateMode(
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurface,
             )
-            GtTextField(
+            GtInputField(
                 value = name,
                 onValueChange = { name = it },
                 placeholder = stringResource(Res.string.login_namePlaceholder),
-                label = "",
-                modifier = Modifier.fillMaxWidth(),
             )
         }
 
@@ -442,15 +440,13 @@ private fun LoginKeyMode(
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurface,
             )
-            GtTextField(
+            GtInputField(
                 value = key,
                 onValueChange = {
                     key = it
                     errorText = null
                 },
                 placeholder = stringResource(Res.string.login_recoveryKeyPlaceholder),
-                label = "",
-                modifier = Modifier.fillMaxWidth(),
             )
         }
 
