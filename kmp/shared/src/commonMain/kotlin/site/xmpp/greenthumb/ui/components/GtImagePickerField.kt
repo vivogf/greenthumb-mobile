@@ -21,10 +21,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -55,13 +63,19 @@ fun GtImagePickerField(
     val scheme = MaterialTheme.colorScheme
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Radii.lg)
-    val borderColor = if (hasImage) scheme.primary else scheme.outline
+    val dashColor = scheme.onSurfaceVariant.copy(alpha = 0.7f)
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(Spacing.xxl * 4 + Spacing.lg)
                 .background(scheme.surfaceVariant, shape)
-                .borderHairline(borderColor, shape)
+                .then(
+                    if (hasImage) {
+                        Modifier.borderHairline(scheme.primary, shape)
+                    } else {
+                        Modifier.dashedBorder(dashColor, Radii.lg)
+                    },
+                )
                 .clickable(enabled = enabled, onClick = { if (enabled) open = true }, role = Role.Button)
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
@@ -89,14 +103,17 @@ fun GtImagePickerField(
                     )
                 }
             } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                ) {
                     GtCameraMark(
-                        tint = scheme.onSurfaceVariant,
-                        modifier = Modifier.size(Spacing.xxl),
+                        tint = scheme.primary,
+                        modifier = Modifier.size(Spacing.xxl * 2),
                     )
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelLarge,
                         color = scheme.onSurfaceVariant,
                     )
                 }
@@ -132,6 +149,19 @@ fun GtImagePickerField(
             }
         }
     }
+}
+
+private fun Modifier.dashedBorder(color: Color, radius: Dp): Modifier = drawBehind {
+    val strokeWidth = (Spacing.xxs / 2).toPx()
+    val dash = Spacing.xs.toPx()
+    val inset = strokeWidth / 2
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - strokeWidth, size.height - strokeWidth),
+        cornerRadius = CornerRadius(radius.toPx()),
+        style = Stroke(width = strokeWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
+    )
 }
 
 @Composable

@@ -447,6 +447,51 @@ class AddPlantScreenTest {
         }
     }
 
+    @Test
+    fun sectionHeaders_withEmoji_andPhotoLabel_inEnglish() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openAddPlantForm()
+
+            waitUntilAtLeastOneExists(hasText("💧 Watering"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("Add photo"), TIMEOUT)
+            onNodeWithText("🌱 Fertilizing").assertDoesNotExist()
+
+            clickAt(hasClickAction() and hasSubText("Advanced Care Schedule"))
+            waitUntilAtLeastOneExists(hasText("🌱 Fertilizing"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("🪴 Repotting"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("✂️ Pruning"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun sectionHeaders_areLocalizedOnRuLocale() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
+                        AddPlantScreen(userId = "73", opener = graph.opener, onBack = {})
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("💧 Полив"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("Добавить фото"), TIMEOUT)
+            clickAt(hasClickAction() and hasSubText("Расширенный уход"))
+            waitUntilAtLeastOneExists(hasText("🌱 Удобрение"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("🪴 Пересадка"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("✂️ Обрезка"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
     // ------------------------------------------------------------------
     // VAL-ADDPLANT-002/003: валидная форма → POST → карточка на дашборде
     // ------------------------------------------------------------------

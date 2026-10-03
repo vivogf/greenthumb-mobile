@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -21,6 +22,7 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 fun GtSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
+    titleStyle: TextStyle = MaterialTheme.typography.titleMedium,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
@@ -28,11 +30,13 @@ fun GtSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = scheme.onSurface,
-        )
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = titleStyle,
+                color = scheme.onSurface,
+            )
+        }
         Box(
             modifier = Modifier
                 .weight(1f)

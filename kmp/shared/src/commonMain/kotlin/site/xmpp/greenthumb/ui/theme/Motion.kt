@@ -19,9 +19,10 @@ import androidx.compose.animation.core.Easing
  *   `LinearTransition.springify()` / `.damping(11).stiffness(90)` в `app/(tabs)/index.tsx`
  * - скелетон: `withTiming` 800 мс туда и обратно, easing по умолчанию,
  *   opacity 0.35↔1 — `components/SkeletonPlaceholder.tsx`
- * - сердца полива: 1800 мс `Easing.out(Easing.cubic)`, задержка 0..300 мс —
- *   `components/WaterParticles.tsx`; кнопка ждёт 400 мс до мутации и ещё 800 мс
- *   держит частицы — `components/WaterButtonWithParticles.tsx`
+ * - сердца полива: RN 1800 мс `Easing.out(Easing.cubic)`, задержка 0..300 мс —
+ *   `components/WaterParticles.tsx`; кнопка ждёт 400 мс до мутации —
+ *   `components/WaterButtonWithParticles.tsx`. Длительности всплеска и
+ *   удержания «Полито!» KMP задаёт сам (см. [WaterParticlesMs])
  * - распад: `ANIM_DURATION = 1300`, частицы `Easing.out(Easing.cubic)`,
  *   затухание контента `delay + 250` и `duration * 0.75` с `Easing.in(Easing.quad)`,
  *   сдвиг по X до 450+200 мс — `components/ThanosSnap.tsx`
@@ -49,10 +50,16 @@ object Motion {
     const val SkeletonMinAlpha = 0.35f
     const val SkeletonMaxAlpha = 1f
 
-    const val WaterParticlesMs = 1800
-    const val WaterParticleStaggerMaxMs = 300
+    /**
+     * Всплеск полива короче RN (1800 мс): сердца крупнее и летят дальше, за
+     * 1.1 с серия читается целиком и не повисает над кнопкой.
+     */
+    const val WaterParticlesMs = 1100
+    const val WaterParticleStaggerMaxMs = 200
     const val WaterPressLeadMs = 400
-    const val WaterParticlesHoldMs = 800
+
+    /** Сколько после мутации кнопка остаётся в состоянии «Полито!». */
+    const val WaterParticlesHoldMs = 1100
 
     const val ThanosParticlesMs = 1300
     const val ThanosContentDelayMs = 250

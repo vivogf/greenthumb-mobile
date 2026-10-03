@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -42,6 +44,7 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtCard
+import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtDatePickerField
 import site.xmpp.greenthumb.ui.components.GtImagePickerField
@@ -54,7 +57,9 @@ import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.addPlant_addPhoto
 import site.xmpp.greenthumb.ui.res.addPlant_additionalCare
+import site.xmpp.greenthumb.ui.res.addPlant_back
 import site.xmpp.greenthumb.ui.res.addPlant_additionalCareHint
 import site.xmpp.greenthumb.ui.res.addPlant_add
 import site.xmpp.greenthumb.ui.res.addPlant_adding
@@ -72,12 +77,15 @@ import site.xmpp.greenthumb.ui.res.addPlant_namePlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_notesLabel
 import site.xmpp.greenthumb.ui.res.addPlant_notesPlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_photoLabel
-import site.xmpp.greenthumb.ui.res.addPlant_photoPlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_photoSourceTitle
 import site.xmpp.greenthumb.ui.res.addPlant_pickDate
 import site.xmpp.greenthumb.ui.res.addPlant_prunePlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_pruning
 import site.xmpp.greenthumb.ui.res.addPlant_removePhoto
+import site.xmpp.greenthumb.ui.res.addPlant_sectionFertilizing
+import site.xmpp.greenthumb.ui.res.addPlant_sectionPruning
+import site.xmpp.greenthumb.ui.res.addPlant_sectionRepotting
+import site.xmpp.greenthumb.ui.res.addPlant_sectionWatering
 import site.xmpp.greenthumb.ui.res.addPlant_repotPlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_repotting
 import site.xmpp.greenthumb.ui.res.addPlant_title
@@ -91,6 +99,7 @@ import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
 import site.xmpp.greenthumb.ui.res.common_gallery
+import site.xmpp.greenthumb.ui.theme.GtTypography
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -124,8 +133,7 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * - Ionicons leaf/arrow-back → Canvas-метки (material-icons в пинах нет,
  *   прецедент GtBottomTabs);
  * - RN-заголовки секций с эмодзи («💧 Полив», «🌱 Удобрение») захардкожены
- *   в RN-исходнике вне i18n; KMP рисует hairline-разделители без заголовков
- *   ([GtSectionHeader] с пустым title) и подписи полей из ключей.
+ *   в RN-исходнике вне i18n; KMP берёт их из ключей `addPlant.section*`.
  *
  * Экран живёт под [AppLocalizedContent] (GtAppNavGraph): смена языка
  * перекомпоновывает remember-состояние формы вместе с подписями (правило
@@ -162,7 +170,8 @@ public fun AddPlantScreen(
     val uploadFailed = stringResource(Res.string.addPlant_uploadFailed)
     val cancelText = stringResource(Res.string.common_cancel)
     val photoLabel = stringResource(Res.string.addPlant_photoLabel)
-    val photoPlaceholder = stringResource(Res.string.addPlant_photoPlaceholder)
+    val backLabel = stringResource(Res.string.addPlant_back)
+    val photoPlaceholder = stringResource(Res.string.addPlant_addPhoto)
     val photoSourceTitle = stringResource(Res.string.addPlant_photoSourceTitle)
     val removePhoto = stringResource(Res.string.addPlant_removePhoto)
     val pickDate = stringResource(Res.string.addPlant_pickDate)
@@ -218,13 +227,18 @@ public fun AddPlantScreen(
                             indication = null,
                             role = Role.Button,
                         ) { onBack() }
-                        .padding(Spacing.xs),
+                        .padding(Spacing.xs)
+                        .semantics { contentDescription = backLabel },
                 ) {
-                    GtChevronMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.xl))
+                    GtChevronMark(
+                        tint = scheme.onSurface,
+                        modifier = Modifier.size(Spacing.xl),
+                        direction = GtChevronDirection.Left,
+                    )
                 }
                 Text(
                     text = stringResource(Res.string.addPlant_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = GtTypography.screenTitle,
                     color = scheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
@@ -275,8 +289,10 @@ public fun AddPlantScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // Полив (RN SectionDivider «💧 Полив» — разделитель без заголовка).
-            GtSectionHeader(title = "")
+            GtSectionHeader(
+                title = stringResource(Res.string.addPlant_sectionWatering),
+                titleStyle = GtTypography.sectionTitle,
+            )
             FormLabel(text = stringResource(Res.string.addPlant_wateringLabel))
             GtTextField(
                 value = fields.waterFrequencyText,
@@ -322,7 +338,7 @@ public fun AddPlantScreen(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                     Text(
                         text = stringResource(Res.string.addPlant_additionalCare),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = GtTypography.sectionTitle,
                         color = scheme.onSurface,
                     )
                     Text(
@@ -331,12 +347,16 @@ public fun AddPlantScreen(
                         color = scheme.onSurfaceVariant,
                     )
                 }
-                GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
+                GtChevronMark(
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(Spacing.lg),
+                    direction = if (advancedOpen) GtChevronDirection.Up else GtChevronDirection.Down,
+                )
             }
 
             if (advancedOpen) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                    CareSubSection(title = stringResource(Res.string.addPlant_fertilizing)) {
+                    CareSubSection(title = stringResource(Res.string.addPlant_sectionFertilizing)) {
                         FrequencyField(
                             value = fields.fertilizeFrequencyText,
                             onValueChange = { fields = fields.copy(fertilizeFrequencyText = it) },
@@ -353,7 +373,7 @@ public fun AddPlantScreen(
                             dismissLabel = cancelText,
                         )
                     }
-                    CareSubSection(title = stringResource(Res.string.addPlant_repotting)) {
+                    CareSubSection(title = stringResource(Res.string.addPlant_sectionRepotting)) {
                         FrequencyField(
                             value = fields.repotFrequencyText,
                             onValueChange = { fields = fields.copy(repotFrequencyText = it) },
@@ -370,7 +390,7 @@ public fun AddPlantScreen(
                             dismissLabel = cancelText,
                         )
                     }
-                    CareSubSection(title = stringResource(Res.string.addPlant_pruning)) {
+                    CareSubSection(title = stringResource(Res.string.addPlant_sectionPruning)) {
                         FrequencyField(
                             value = fields.pruneFrequencyText,
                             onValueChange = { fields = fields.copy(pruneFrequencyText = it) },
@@ -436,7 +456,7 @@ public fun AddPlantScreen(
 private fun FormLabel(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = GtTypography.fieldLabel,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -450,7 +470,7 @@ private fun CareSubSection(
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
+            style = GtTypography.sectionTitle,
             color = MaterialTheme.colorScheme.onSurface,
         )
         content()

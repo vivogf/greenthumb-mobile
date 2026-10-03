@@ -134,6 +134,7 @@ import site.xmpp.greenthumb.ui.res.dashboard_wateringAllPending
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_water
+import site.xmpp.greenthumb.ui.res.plant_watered
 import site.xmpp.greenthumb.ui.res.plant_waterToday
 import site.xmpp.greenthumb.ui.theme.Motion
 import site.xmpp.greenthumb.ui.theme.Radii
@@ -1377,6 +1378,7 @@ private fun PlantCard(
                     onWater = { onWater(plant.id) },
                     isWatering = isWatering,
                     label = stringResource(Res.string.plant_water),
+                    successLabel = stringResource(Res.string.plant_watered),
                     contentDescription = waterLabel,
                 )
             }

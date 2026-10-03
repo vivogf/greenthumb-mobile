@@ -150,6 +150,10 @@
     <string name="addPlant_validation_frequencyInvalidNumber">Введите число</string>
     <string name="addPlant_validation_frequencyMinimum">Минимум 1 день</string>
     <string name="addPlant_validation_dateRequired">Выберите дату</string>
+    <string name="addPlant_sectionWatering">💧 Полив</string>
+    <string name="addPlant_sectionFertilizing">🌱 Удобрение</string>
+    <string name="addPlant_sectionRepotting">🪴 Пересадка</string>
+    <string name="addPlant_sectionPruning">✂️ Обрезка</string>
     <string name="plantDetails_back">Назад</string>
     <string name="plantDetails_changePhoto">Изменить фото</string>
     <string name="plantDetails_plantNotFound">Растение не найдено</string>
