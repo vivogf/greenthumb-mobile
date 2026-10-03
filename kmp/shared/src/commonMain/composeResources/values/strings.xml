@@ -142,6 +142,10 @@
     <string name="addPlant_validation_frequencyInvalidNumber">Enter a number</string>
     <string name="addPlant_validation_frequencyMinimum">Minimum 1 day</string>
     <string name="addPlant_validation_dateRequired">Pick a date</string>
+    <string name="addPlant_sectionWatering">💧 Watering</string>
+    <string name="addPlant_sectionFertilizing">🌱 Fertilizing</string>
+    <string name="addPlant_sectionRepotting">🪴 Repotting</string>
+    <string name="addPlant_sectionPruning">✂️ Pruning</string>
     <string name="plantDetails_back">Back</string>
     <string name="plantDetails_changePhoto">Change Photo</string>
     <string name="plantDetails_plantNotFound">Plant not found</string>

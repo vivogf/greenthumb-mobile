@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -54,9 +55,21 @@ fun GtCalendarMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
+/** Куда смотрит [GtChevronMark]; исходный рисунок — [Down]. */
+enum class GtChevronDirection(internal val degrees: Float) {
+    Down(0f),
+    Left(90f),
+    Up(180f),
+    Right(270f),
+}
+
 @Composable
-fun GtChevronMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
+fun GtChevronMark(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    direction: GtChevronDirection = GtChevronDirection.Down,
+) {
+    Canvas(modifier.graphicsLayer { rotationZ = direction.degrees }) {
         val stroke = (Spacing.xxs / 4).toPx()
         val mid = Offset(size.width * 0.5f, size.height * 0.62f)
         drawLine(tint, Offset(size.width * 0.22f, size.height * 0.38f), mid, stroke)
@@ -377,6 +390,17 @@ fun GtCheckMark(tint: Color, modifier: Modifier = Modifier) {
             end = Offset(size.width * 0.72f, size.height * 0.36f),
             strokeWidth = stroke.width,
         )
+    }
+}
+
+/** Галочка без круга: состояние «выполнено» внутри кнопки, где кольцо дало бы двойную рамку. */
+@Composable
+fun GtTickMark(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = (Spacing.xxs / 2).toPx()
+        val elbow = Offset(size.width * 0.4f, size.height * 0.72f)
+        drawLine(tint, Offset(size.width * 0.14f, size.height * 0.5f), elbow, stroke, StrokeCap.Round)
+        drawLine(tint, elbow, Offset(size.width * 0.86f, size.height * 0.24f), stroke, StrokeCap.Round)
     }
 }
 

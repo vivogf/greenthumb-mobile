@@ -64,6 +64,12 @@ KMP_ONLY_KEYS = {
     "addPlant.validation.frequencyInvalidNumber",
     "addPlant.validation.frequencyMinimum",
     "addPlant.validation.dateRequired",
+    # addPlant.section* — RN add-plant.tsx:251 держит заголовки секций с
+    # эмодзи захардкоженными по-русски («💧 Полив»); KMP локализует их.
+    "addPlant.sectionWatering",
+    "addPlant.sectionFertilizing",
+    "addPlant.sectionRepotting",
+    "addPlant.sectionPruning",
     # dashboard.refreshFailed / dashboard.databaseError — полоса ошибки
     # refresh при живом кэше и строка ошибки чтения локальной базы (KMP:
     # Room-источник истины; полноэкранная ошибка RN поверх данных — баг,

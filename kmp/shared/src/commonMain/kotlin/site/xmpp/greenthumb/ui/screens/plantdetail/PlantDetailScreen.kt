@@ -76,6 +76,7 @@ import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
 import site.xmpp.greenthumb.ui.components.GtCameraMark
 import site.xmpp.greenthumb.ui.components.GtCard
+import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtDatePickerField
 import site.xmpp.greenthumb.ui.components.GtGearMark
@@ -138,6 +139,7 @@ import site.xmpp.greenthumb.ui.res.plantDetails_repottingFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_save
 import site.xmpp.greenthumb.ui.res.plantDetails_today
 import site.xmpp.greenthumb.ui.res.plantDetails_waterPlant
+import site.xmpp.greenthumb.ui.res.plant_watered
 import site.xmpp.greenthumb.ui.res.plantDetails_wateringFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_yesterday
 import site.xmpp.greenthumb.ui.theme.Radii
@@ -259,6 +261,7 @@ public fun PlantDetailScreen(
     val careSettingsLabel = stringResource(Res.string.plantDetails_careSettings)
     val lastWateredLabel = stringResource(Res.string.plantDetails_lastWatered)
     val waterPlantLabel = stringResource(Res.string.plantDetails_waterPlant)
+    val wateredSuccessLabel = stringResource(Res.string.plant_watered)
     val advancedCareLabel = stringResource(Res.string.plantDetails_advancedCare)
     val notesLabel = stringResource(Res.string.plantDetails_notes)
     val notesPlaceholder = stringResource(Res.string.plantDetails_notesPlaceholder)
@@ -453,7 +456,11 @@ public fun PlantDetailScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 HeaderIconButton(label = backLabel, onClick = onBack) {
-                                    GtChevronMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
+                                    GtChevronMark(
+                                        tint = Color.White,
+                                        modifier = Modifier.size(Spacing.lg),
+                                        direction = GtChevronDirection.Left,
+                                    )
                                 }
                                 HeaderIconButton(label = changePhotoLabel, onClick = { showPhotoSheet = true }) {
                                     GtCameraMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
@@ -566,6 +573,7 @@ public fun PlantDetailScreen(
                                 onWater = ::waterNow,
                                 isWatering = waterPending,
                                 label = waterPlantLabel,
+                                successLabel = wateredSuccessLabel,
                                 contentDescription = waterPlantA11yLabel,
                             )
                         }

@@ -1,6 +1,9 @@
 package site.xmpp.greenthumb.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,76 +29,82 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import site.xmpp.greenthumb.core.platform.Haptics
+import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Motion
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
 
-/** Частица всплеска полива (RN `WaterParticles.tsx` Particle). */
+/** Частица всплеска полива. */
 internal data class WaterParticleSpec(
     val id: Int,
-    /** Горизонтальный дрейф, dp: −40..+40 (RN `(Math.random() - 0.5) * 80`). */
+    /** Горизонтальный дрейф, dp: веер ±90 вокруг центра кнопки. */
     val xDp: Float,
-    /** Подъём, dp: 40..70 (RN `40 + Math.random() * 30`). */
+    /** Подъём, dp: 70..130. */
     val travelDp: Float,
-    /** Градусы: −30..+30 (RN `(Math.random() - 0.5) * 60`). */
+    /** Градусы: −40..+40. */
     val rotationDeg: Float,
-    /** Сторона иконки, dp: 14..22 (RN `14 + Math.floor(Math.random() * 9)`). */
+    /** Сторона иконки, dp: 21..33 (RN 14..22, ×1.5). */
     val sizeDp: Float,
-    /** Задержка серии, мс: 0..300 (RN `Math.random() * 300`). */
+    /** Задержка серии, мс: 0..[Motion.WaterParticleStaggerMaxMs]. */
     val delayMs: Float,
+    /** Индекс оттенка в палитре всплеска (0..[WaterParticleShades]-1). */
+    val shade: Int,
+    /** Максимальная непрозрачность, 0.65..1: сердца не одинаково яркие. */
+    val peakAlpha: Float,
 )
 
 /** Падение в конце дуги, dp (RN `* 12` — «slight drop at end»). */
 private const val WaterDropBackDp: Float = 12f
 
-/**
- * Генератор серии сердец полива (RN `generateParticles`, `WaterParticles.tsx:24`):
- * 8–12 сердцевин. Внутренняя — для jvmTest инвариантов.
- */
+internal const val WaterParticleShades: Int = 3
+
+/** Серия сердец полива: 14–18 штук (в RN было 8–12). Внутренняя — для jvmTest инвариантов. */
 internal fun generateWaterParticles(random: Random): List<WaterParticleSpec> {
-    val count = 8 + random.nextInt(5) // RN 8 + floor(random * 5) → 8..12
+    val count = 14 + random.nextInt(5)
     return List(count) { id ->
         WaterParticleSpec(
             id = id,
-            xDp = (random.nextFloat() - 0.5f) * 80f,
-            travelDp = 40f + random.nextFloat() * 30f,
-            rotationDeg = (random.nextFloat() - 0.5f) * 60f,
-            sizeDp = (14 + random.nextInt(9)).toFloat(), // RN 14 + floor(random * 9)
+            xDp = (random.nextFloat() - 0.5f) * 180f,
+            travelDp = 70f + random.nextFloat() * 60f,
+            rotationDeg = (random.nextFloat() - 0.5f) * 80f,
+            sizeDp = (21 + random.nextInt(13)).toFloat(),
             delayMs = random.nextFloat() * Motion.WaterParticleStaggerMaxMs,
+            shade = random.nextInt(WaterParticleShades),
+            peakAlpha = 0.65f + random.nextFloat() * 0.35f,
         )
     }
 }
 
 /**
- * Кнопка полива с всплеском сердцевин — порт `components/WaterButtonWithParticles.tsx`
+ * Кнопка полива с всплеском сердец — порт `components/WaterButtonWithParticles.tsx`
  * (+ `WaterParticles.tsx`): compact — круг 40 для списка/сетки, fullWidth — кнопка
  * с подписью для карточки/детали.
  *
- * Ритм RN handlePress: гаптика Medium ([Haptics.medium]), частицы, через
- * [Motion.WaterPressLeadMs] мутация, ещё [Motion.WaterParticlesHoldMs] частицы
- * держатся. Данные и эффект независимы в смысле M4 (architecture.md §7):
- * связка «данные ждут конца анимации» (RN-он successor массового полива
- * ждал 1150 мс) не переносится — полив оптимистичен в репозитории с момента
- * старта мутации; лид — компонентный ритм RN (без него оптимистичный
- * healthy-статус снимает кнопку в тот же кадр — всплеск не виден).
+ * Тап: гаптика Medium ([Haptics.medium]), сразу состояние «полито» (галочка +
+ * [successLabel]), всплеск; через [Motion.WaterPressLeadMs] мутация
+ * ([onWater]), затем состояние держится ещё [Motion.WaterParticlesHoldMs].
+ * Пока запрос в полёте ([isWatering]), кнопка остаётся в «полито» — одинокого
+ * спиннера нет: запись оптимистична в репозитории, при отказе откат и алерт
+ * делает вызывающий экран, а кнопка возвращается в обычный вид.
+ *
+ * Лид перед мутацией нужен потому, что оптимистичный healthy-статус снимает
+ * кнопку со списка в тот же кадр — без него всплеск не виден.
  *
  * Повторный тап во время всплеска/полива игнорируется (RN guard
  * `isWatering || showParticles`).
- *
- * Сердца рисуются на Canvas (Ionicons `heart` → свой Path-глиф, material-icons
- * в пинах миссии нет, прецедент GtMarks).
  */
 @Composable
 public fun GtWaterButton(
@@ -105,123 +113,118 @@ public fun GtWaterButton(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     label: String? = null,
+    successLabel: String? = null,
     contentDescription: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
-    var showParticles by remember { mutableStateOf(false) }
+    var celebrating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    // a11y-имя кнопки (RN accessibilityLabel); particles-оверлей — pointerEvents
-    // none, имя несёт сама кнопка.
     val a11yLabel: String? = contentDescription
+    val watered = celebrating || isWatering
 
     fun handlePress() {
-        if (isWatering || showParticles) return
-        // RN Haptics.impactAsync(Medium) — точка тактильного отклика полива.
+        if (isWatering || celebrating) return
         Haptics.medium()
-        showParticles = true
-        // Ритм RN-компонента (WaterButtonWithParticles.handlePress): 400 мс
-        // лид ([Motion.WaterPressLeadMs]) до мутации — иначе оптимистичная
-        // запись переворачивает статус в тот же кадр и всплеск не виден
-        // (в RN так же: лид держит кнопку смонтированной) — затем мутация и
-        // удержание частиц 800 мс ([Motion.WaterParticlesHoldMs]; на дашборде
-        // кнопку снимает healthy-статус раньше — RN-паритет, в детали играет
-        // целиком). Связки «данные ждут КОНЦА эффекта» нет: запись
-        // оптимистична в репозитории с момента старта мутации (M4),
-        // вкладочный чек VAL-DASH-006 — по массовому поливу.
+        celebrating = true
         scope.launch {
             delay(Motion.WaterPressLeadMs.toLong())
             onWater()
             delay(Motion.WaterParticlesHoldMs.toLong())
-            showParticles = false
+            celebrating = false
         }
     }
 
+    val pop by animateFloatAsState(
+        targetValue = if (watered) 1.04f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "waterPop",
+    )
+
     // Центрируем и кнопку, и область частиц: сердца вылетают за границы
-    // кнопки из её центра (RN left '50%' / top '50%' + overflow visible).
+    // кнопки из её центра.
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (compact) {
-            // Круг 40 (RN compact: 40×40, radius 20 → CircleShape; muted при поливе).
             Box(
                 modifier = Modifier
                     .size(Spacing.xxl + Spacing.lg)
-                    .background(if (isWatering) scheme.surfaceVariant else scheme.primary, CircleShape)
-                    .clickable(enabled = !isWatering, role = Role.Button, onClick = ::handlePress)
+                    .graphicsLayer { scaleX = pop; scaleY = pop }
+                    .background(scheme.primary, CircleShape)
+                    .clickable(enabled = !watered, role = Role.Button, onClick = ::handlePress)
                     .semantics { if (a11yLabel != null) this.contentDescription = a11yLabel },
                 contentAlignment = Alignment.Center,
             ) {
-                if (isWatering) {
-                    CircularProgressIndicator(
-                        color = scheme.onPrimary,
-                        modifier = Modifier.size(Spacing.lg + Spacing.xxs),
-                    )
-                } else {
-                    GtWaterDropMark(
-                        tint = scheme.onPrimary,
-                        modifier = Modifier.size(Spacing.lg + Spacing.xxs),
-                        filled = true,
-                    )
-                }
+                WaterStateIcon(watered = watered, size = Spacing.lg + Spacing.xxs)
             }
         } else {
-            // Полная ширина (RN fullWidth: radius 10 → Radii.md, gap 8 → Spacing.xs).
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { scaleX = pop; scaleY = pop }
                     .background(scheme.primary, RoundedCornerShape(Radii.md))
-                    .clickable(enabled = !isWatering, role = Role.Button, onClick = ::handlePress)
+                    .clickable(enabled = !watered, role = Role.Button, onClick = ::handlePress)
                     .semantics { if (a11yLabel != null) this.contentDescription = a11yLabel }
                     .padding(vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
             ) {
-                if (isWatering) {
-                    CircularProgressIndicator(
-                        color = scheme.onPrimary,
-                        modifier = Modifier.size(Spacing.md + Spacing.xxs),
-                    )
-                } else {
-                    GtWaterDropMark(
-                        tint = scheme.onPrimary,
-                        modifier = Modifier.size(Spacing.md + Spacing.xxs),
-                        filled = true,
-                    )
-                }
-                if (label != null) {
+                WaterStateIcon(watered = watered, size = Spacing.md + Spacing.xxs)
+                val text = if (watered) successLabel ?: label else label
+                if (text != null) {
                     Text(
-                        text = label,
+                        text = text,
                         style = MaterialTheme.typography.labelLarge,
                         color = scheme.onPrimary,
                     )
                 }
             }
         }
-        // Всплеск поверх кнопки (RN WaterParticles sibling-оверлей z-index 999,
-        // pointerEvents none): не кликабелен, вылетает за границы кнопки.
-        if (showParticles) {
-            GtWaterParticles(color = scheme.primary, modifier = Modifier.matchParentSize())
+        // Всплеск поверх кнопки: не кликабелен, вылетает за границы кнопки.
+        if (celebrating) {
+            GtWaterParticles(modifier = Modifier.matchParentSize())
         }
     }
 }
 
+/** Капля в покое; заполненный круг с галочкой после тапа. */
+@Composable
+private fun WaterStateIcon(watered: Boolean, size: Dp) {
+    val scheme = MaterialTheme.colorScheme
+    if (watered) {
+        Box(
+            modifier = Modifier.size(size).background(scheme.onPrimary, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            GtTickMark(tint = scheme.primary, modifier = Modifier.size(size * 0.62f))
+        }
+    } else {
+        GtWaterDropMark(tint = scheme.onPrimary, modifier = Modifier.size(size), filled = true)
+    }
+}
+
 /**
- * Серия сердец из центра кнопки (RN WaterParticles): 8–12 штук, вверх с
- * разбросом, вращением и масштабом; прогресс серии — [Motion.OutCubic] на
- * [Motion.WaterParticlesMs] с задержками до [Motion.WaterParticleStaggerMaxMs].
+ * Серия сердец из центра кнопки: вверх веером с вращением и масштабом;
+ * прогресс серии — [Motion.OutCubic] на [Motion.WaterParticlesMs] с
+ * задержками до [Motion.WaterParticleStaggerMaxMs].
  */
 @Composable
-private fun BoxScope.GtWaterParticles(
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
+private fun BoxScope.GtWaterParticles(modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
     val specs = remember { generateWaterParticles(Random.Default) }
+    val shades = remember(scheme) {
+        listOf(
+            scheme.primary,
+            GreenThumbColors.success,
+            lerp(scheme.primary, scheme.onPrimary, 0.4f),
+        )
+    }
+    val heart = remember { unitHeartPath() }
     val elapsed = remember { Animatable(0f) }
     val totalMs = (Motion.WaterParticlesMs + Motion.WaterParticleStaggerMaxMs).toFloat()
     LaunchedEffect(specs) {
         elapsed.animateTo(1f, tween(durationMillis = totalMs.toInt()))
     }
     Canvas(modifier = modifier) {
-        // Область рисования = размер кнопки (matchParentSize не влияет на
-        // компоновку — RN position:absolute); сердца рисуются за границами
+        // Область рисования = размер кнопки; сердца рисуются за границами
         // канвы (компоновка их не клипует), центр — центр кнопки.
         val centerX = size.width / 2f
         val centerY = size.height / 2f
@@ -236,38 +239,34 @@ private fun BoxScope.GtWaterParticles(
                 p < 0.7f -> 1.1f - ((p - 0.3f) / 0.4f) * 0.4f
                 else -> (0.7f - ((p - 0.7f) / 0.3f) * 0.7f).coerceAtLeast(0f)
             }
-            // Вверх по дуге, в конце лёгкое падение (RN translateY).
             val offsetYDp = if (p < 0.75f) {
                 -(p / 0.75f) * spec.travelDp
             } else {
                 -spec.travelDp + ((p - 0.75f) / 0.25f) * WaterDropBackDp
             }
-            val alpha = if (p < 0.8f) 1f else (1f - (p - 0.8f) / 0.2f).coerceAtLeast(0f)
+            val fade = if (p < 0.8f) 1f else (1f - (p - 0.8f) / 0.2f).coerceAtLeast(0f)
             val side = spec.sizeDp.dp.toPx()
-            val offsetX = spec.xDp.dp.toPx() * p
-            val offsetY = offsetYDp.dp.toPx()
+            val shiftX = centerX + spec.xDp.dp.toPx() * p
+            val shiftY = centerY + offsetYDp.dp.toPx()
             withTransform({
-                translate(left = centerX + offsetX, top = centerY + offsetY)
+                translate(left = shiftX, top = shiftY)
                 rotate(degrees = spec.rotationDeg * p, pivot = Offset.Zero)
-                scale(scaleX = scale, scaleY = scale, pivot = Offset.Zero)
+                scale(scaleX = scale * side, scaleY = scale * side, pivot = Offset.Zero)
             }) {
-                drawHeart(side = side, color = color.copy(alpha = alpha))
+                drawPath(heart, shades[spec.shade].copy(alpha = spec.peakAlpha * fade))
             }
         }
     }
 }
 
-/** Сердце — Ionicons `heart` (заливка), глиф в квадрате [side]×[side] вокруг нуля. */
-private fun DrawScope.drawHeart(side: Float, color: Color) {
-    val path = Path().apply {
-        moveTo(0.5f * side, 0.85f * side)
-        cubicTo(0.2f * side, 0.6f * side, 0.05f * side, 0.42f * side, 0.05f * side, 0.28f * side)
-        cubicTo(0.05f * side, 0.12f * side, 0.2f * side, 0.05f * side, 0.32f * side, 0.05f * side)
-        cubicTo(0.4f * side, 0.05f * side, 0.47f * side, 0.09f * side, 0.5f * side, 0.15f * side)
-        cubicTo(0.53f * side, 0.09f * side, 0.6f * side, 0.05f * side, 0.68f * side, 0.05f * side)
-        cubicTo(0.8f * side, 0.05f * side, 0.95f * side, 0.12f * side, 0.95f * side, 0.28f * side)
-        cubicTo(0.95f * side, 0.42f * side, 0.8f * side, 0.6f * side, 0.5f * side, 0.85f * side)
-        close()
-    }
-    drawPath(path, color)
+/** Сердце — Ionicons `heart` (заливка), глиф в единичном квадрате вокруг нуля. */
+private fun unitHeartPath(): Path = Path().apply {
+    moveTo(0.5f, 0.85f)
+    cubicTo(0.2f, 0.6f, 0.05f, 0.42f, 0.05f, 0.28f)
+    cubicTo(0.05f, 0.12f, 0.2f, 0.05f, 0.32f, 0.05f)
+    cubicTo(0.4f, 0.05f, 0.47f, 0.09f, 0.5f, 0.15f)
+    cubicTo(0.53f, 0.09f, 0.6f, 0.05f, 0.68f, 0.05f)
+    cubicTo(0.8f, 0.05f, 0.95f, 0.12f, 0.95f, 0.28f)
+    cubicTo(0.95f, 0.42f, 0.8f, 0.6f, 0.5f, 0.85f)
+    close()
 }
