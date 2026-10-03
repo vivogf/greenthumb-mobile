@@ -4,6 +4,8 @@ package site.xmpp.greenthumb.ui.screens.addplant
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -465,6 +467,31 @@ class AddPlantScreenTest {
             waitUntilAtLeastOneExists(hasText("🪴 Repotting"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("✂️ Pruning"), TIMEOUT)
 
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun fieldLabels_sitRightAboveTheirFields() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                        AddPlantScreen(userId = "73", opener = graph.opener, onBack = {})
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Plant Name"), TIMEOUT)
+            val editable = onAllNodes(isEditable())
+            // editable[0] = name field, [1] = location, [2] = watering frequency.
+            listOf("Plant Name" to 0, "Location" to 1, "Watering Frequency (days)" to 2).forEach { (label, i) ->
+                val labelBottom = onNodeWithText(label).getBoundsInRoot().bottom
+                val fieldTop = editable[i].getBoundsInRoot().top
+                val gap = fieldTop - labelBottom
+                assertTrue(gap >= 0.dp && gap <= 12.dp, "$label sits $gap above its field")
+            }
             runOnIdle { graph.close() }
         }
     }

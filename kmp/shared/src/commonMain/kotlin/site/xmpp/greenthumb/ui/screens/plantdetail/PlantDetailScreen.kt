@@ -81,6 +81,7 @@ import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtDatePickerField
 import site.xmpp.greenthumb.ui.components.GtGearMark
 import site.xmpp.greenthumb.ui.components.GtGalleryMark
+import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtModal
@@ -683,13 +684,11 @@ public fun PlantDetailScreen(
                             }
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             if (editingNotes) {
-                                GtTextField(
+                                GtInputField(
                                     value = editedNotes,
                                     onValueChange = { editedNotes = it },
-                                    label = "",
                                     placeholder = notesPlaceholder,
                                     singleLine = false,
-                                    modifier = Modifier.fillMaxWidth(),
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1235,12 +1234,10 @@ private fun SettingsFrequencyField(
                 color = scheme.onSurfaceVariant,
             )
         }
-        GtTextField(
+        GtInputField(
             value = value,
             onValueChange = onValueChange,
-            label = "",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

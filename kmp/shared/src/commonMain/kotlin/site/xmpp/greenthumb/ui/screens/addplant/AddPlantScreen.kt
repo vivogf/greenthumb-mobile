@@ -50,7 +50,7 @@ import site.xmpp.greenthumb.ui.components.GtDatePickerField
 import site.xmpp.greenthumb.ui.components.GtImagePickerField
 import site.xmpp.greenthumb.ui.components.GtImageSource
 import site.xmpp.greenthumb.ui.components.GtSectionHeader
-import site.xmpp.greenthumb.ui.components.GtTextField
+import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
@@ -269,40 +269,37 @@ public fun AddPlantScreen(
             }
 
             // Имя (обязательное; подсветка ошибки — рамка error).
-            FormLabel(text = stringResource(Res.string.addPlant_nameLabel))
-            GtTextField(
-                value = fields.name,
-                onValueChange = { fields = fields.copy(name = it) },
-                label = "",
-                placeholder = stringResource(Res.string.addPlant_namePlaceholder),
-                error = errors?.name,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LabeledField(label = stringResource(Res.string.addPlant_nameLabel)) {
+                GtInputField(
+                    value = fields.name,
+                    onValueChange = { fields = fields.copy(name = it) },
+                    placeholder = stringResource(Res.string.addPlant_namePlaceholder),
+                    error = errors?.name,
+                )
+            }
 
             // Локация (опциональная).
-            FormLabel(text = stringResource(Res.string.addPlant_locationLabel))
-            GtTextField(
-                value = fields.location,
-                onValueChange = { fields = fields.copy(location = it) },
-                label = "",
-                placeholder = stringResource(Res.string.addPlant_locationPlaceholder),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LabeledField(label = stringResource(Res.string.addPlant_locationLabel)) {
+                GtInputField(
+                    value = fields.location,
+                    onValueChange = { fields = fields.copy(location = it) },
+                    placeholder = stringResource(Res.string.addPlant_locationPlaceholder),
+                )
+            }
 
             GtSectionHeader(
                 title = stringResource(Res.string.addPlant_sectionWatering),
                 titleStyle = GtTypography.sectionTitle,
             )
-            FormLabel(text = stringResource(Res.string.addPlant_wateringLabel))
-            GtTextField(
-                value = fields.waterFrequencyText,
-                onValueChange = { fields = fields.copy(waterFrequencyText = it) },
-                label = "",
-                placeholder = "7",
-                error = errors?.waterFrequency,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LabeledField(label = stringResource(Res.string.addPlant_wateringLabel)) {
+                GtInputField(
+                    value = fields.waterFrequencyText,
+                    onValueChange = { fields = fields.copy(waterFrequencyText = it) },
+                    placeholder = "7",
+                    error = errors?.waterFrequency,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 FormLabel(text = stringResource(Res.string.addPlant_lastWateredLabel))
                 Text(
@@ -310,16 +307,16 @@ public fun AddPlantScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
+                GtDatePickerField(
+                    value = fields.lastWateredDate,
+                    onValueChange = { date -> fields = fields.copy(lastWateredDate = date) },
+                    placeholder = pickDate,
+                    confirmLabel = doneText,
+                    dismissLabel = cancelText,
+                    languageTag = locale,
+                    errorText = errors?.lastWateredDate,
+                )
             }
-            GtDatePickerField(
-                value = fields.lastWateredDate,
-                onValueChange = { date -> fields = fields.copy(lastWateredDate = date) },
-                placeholder = pickDate,
-                confirmLabel = doneText,
-                dismissLabel = cancelText,
-                languageTag = locale,
-                errorText = errors?.lastWateredDate,
-            )
 
             // Расширенный уход (раскрывающийся блок; RN Pressable chevron).
             GtSectionHeader(title = "")
@@ -411,15 +408,14 @@ public fun AddPlantScreen(
             }
 
             // Заметки (многострочные, опциональные).
-            FormLabel(text = stringResource(Res.string.addPlant_notesLabel))
-            GtTextField(
-                value = fields.notes,
-                onValueChange = { fields = fields.copy(notes = it) },
-                label = "",
-                placeholder = stringResource(Res.string.addPlant_notesPlaceholder),
-                singleLine = false,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LabeledField(label = stringResource(Res.string.addPlant_notesLabel)) {
+                GtInputField(
+                    value = fields.notes,
+                    onValueChange = { fields = fields.copy(notes = it) },
+                    placeholder = stringResource(Res.string.addPlant_notesPlaceholder),
+                    singleLine = false,
+                )
+            }
 
             // Submit (disabled при отправке; RN opacity 0.75 → disabled-цвета).
             PrimaryButton(
@@ -448,6 +444,15 @@ public fun AddPlantScreen(
             buttons = listOf(GtAlertButton(text = "OK")),
             onDismissRequest = { errorDialogMessage = null },
         )
+    }
+}
+
+/** Подпись и поле одной группой: зазор [Spacing.xs] (RN marginBottom 6), без резерва под пустую подпись. */
+@Composable
+private fun LabeledField(label: String, field: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        FormLabel(text = label)
+        field()
     }
 }
 
@@ -491,13 +496,11 @@ private fun FrequencyField(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        GtTextField(
+        GtInputField(
             value = value,
             onValueChange = onValueChange,
-            label = "",
             placeholder = placeholder,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
