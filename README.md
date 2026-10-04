@@ -18,11 +18,14 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/dashboard-light.png" width="170" alt="Plant list, light theme"><br><sub>Plant list</sub></td>
-    <td align="center"><img src="docs/screenshots/plant-detail-dark.png" width="170" alt="Plant card, dark theme"><br><sub>Plant card</sub></td>
-    <td align="center"><img src="docs/screenshots/add-plant.png" width="170" alt="Adding a plant"><br><sub>Add plant</sub></td>
-    <td align="center"><img src="docs/screenshots/profile.png" width="170" alt="Profile and settings"><br><sub>Settings</sub></td>
-    <td align="center"><img src="docs/screenshots/dashboard-ru.png" width="170" alt="Plant list in Russian"><br><sub>Russian localization</sub></td>
+    <td align="center"><img src="docs/store-graphics/01-hero.png" width="160" alt="All your plants, organized"><br><sub>Overview</sub></td>
+    <td align="center"><img src="docs/store-graphics/02-collection.png" width="160" alt="Your collection, at a glance"><br><sub>Collection</sub></td>
+    <td align="center"><img src="docs/store-graphics/03-care.png" width="160" alt="Personalized care schedules"><br><sub>Care schedules</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/store-graphics/04-reminders.png" width="160" alt="Reminders, your time"><br><sub>Reminders</sub></td>
+    <td align="center"><img src="docs/store-graphics/05-privacy.png" width="160" alt="No email, no tracking"><br><sub>Privacy</sub></td>
+    <td align="center"><img src="docs/store-graphics/06-add-plant.png" width="160" alt="Add a plant in 3 simple steps"><br><sub>Add a plant</sub></td>
   </tr>
 </table>
 
