@@ -11,7 +11,8 @@
   - ru-плюрализм: base_0→one, base_1→few, base_2→many, base→other (<plurals>);
   - en-плюрализм: base→one, base_plural→other (<plurals>);
   - интерполяция {{count}} → %1$d, {{любое}} → %1$s;
-  - экранирование как в Android: \\' \\" \\\\ \\n \\t (& → &amp; обязателен XML-правилами).
+  - экранирование: \\\\ \\n \\t (& → &amp; обязателен XML-правилами); \\' и \\" запрещены —
+    Compose Resources показывают обратный слэш буквально, кавычки пишутся как есть.
   - RN_STRINGS_AS_KMP_PLURALS: RN-ключ-строка → KMP <plurals> (см. константу).
 
 Разрешённые надмножества RN (ключи, которых в RN нет):
@@ -164,6 +165,9 @@ def flatten(d, prefix=""):
     return out
 
 
+ESCAPED_QUOTE_RE = re.compile(r"(?<!\\)\\['\"]")
+
+
 def to_res_name(dotted_key):
     return dotted_key.replace(".", "_")
 
@@ -254,6 +258,25 @@ def expected_resources(flat, lang):
     return strings, plurals
 
 
+def find_escaped_quotes(path):
+    """Compose Multiplatform resources keep \\' and \\" literally (no Android
+    unescaping), so the backslash shows up in the UI. Returns offending names."""
+    root = ET.parse(path).getroot()
+    found = []
+    for el in root:
+        texts = []
+        if el.tag == "string":
+            texts.append((el.attrib["name"], el.text or ""))
+        elif el.tag == "plurals":
+            for item in el:
+                if item.tag == "item":
+                    texts.append((f"{el.attrib['name']}#{item.attrib['quantity']}", item.text or ""))
+        for name, raw in texts:
+            if ESCAPED_QUOTE_RE.search(raw):
+                found.append(name)
+    return found
+
+
 def parse_strings_xml(path):
     root = ET.parse(path).getroot()
     strings = {}
@@ -294,6 +317,13 @@ def main():
 
     got_en = parse_strings_xml(file_en)
     got_ru = parse_strings_xml(file_ru)
+
+    for f in (file_en, file_ru):
+        for name in find_escaped_quotes(f):
+            problems.append(
+                f"{f.parent.name}/{f.name}: {name} — backslash-escaped quote (\\' or \\\"); "
+                "Compose resources render the backslash literally, use a plain ' or \""
+            )
 
     def check_locale(lang, exp, got):
         exp_strings, exp_plurals = exp

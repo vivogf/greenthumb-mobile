@@ -28,3 +28,5 @@ name: GreenThumb recovery key QR — open
     timeout: 10000
 - assertVisible: "QR-код с вашим ключом восстановления|QR code with your recovery key"
 - assertVisible: ".*(Снимки экрана на этом экране запрещены|Screenshots are blocked on this screen).*"
+# Plain apostrophe: a backslash-escaped one in strings.xml is shown literally.
+- assertVisible: ".*(Никому его не показывайте|Don't show it to anyone else)\\..*"
