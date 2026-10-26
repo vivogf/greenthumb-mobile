@@ -42,7 +42,18 @@ RES_DIR = (
 # Ключи KMP, которых нет в RN-локалях (не пропуск — осознанное расширение).
 # Каждое имя обязано присутствовать в ОБОИХ strings.xml.
 KMP_ONLY_KEYS = {
-    "session.keyNotFoundTitle",
+    # vault.* — recovery key in Google Password Manager (architecture §5.3);
+    # the RN app has no Credential Manager bridge.
+    "vault.saveToGoogle",
+    "vault.saveNewToGoogle",
+    "vault.saved",
+    "vault.saveFailed",
+    "vault.saveUnavailable",
+    "vault.signInWithSavedKey",
+    "vault.noCredential",
+    "vault.restoreUnavailable",
+    "vault.restoreFailed",
+    "vault.staleKey",    "session.keyNotFoundTitle",
     "session.keyNotFoundBody",
     "session.keyNotFoundEnterKey",
     "session.keyNotFoundCreateAccount",

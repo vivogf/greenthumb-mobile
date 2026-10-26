@@ -81,6 +81,8 @@ import site.xmpp.greenthumb.ui.components.GtSunMark
 import site.xmpp.greenthumb.ui.components.GtSwitch
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.screens.login.SaveKeyToGoogle
+import site.xmpp.greenthumb.ui.screens.login.rememberVaultSaver
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.handoffModal_copy
@@ -224,7 +226,9 @@ public fun ProfileScreen(
     var showSignOutConfirm by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf<SuccessEvent?>(null) }
-
+    val vaultSaver = rememberVaultSaver()
+    // After regeneration the Google entry still holds the old key until saved again.
+    var keyIsNew by remember { mutableStateOf(false) }
     val themePreference by settings.theme.collectAsState(initial = null)
     val languagePreference by settings.language.collectAsState(initial = null)
 
@@ -596,6 +600,14 @@ public fun ProfileScreen(
                         color = scheme.onSurfaceVariant,
                     )
                 }
+                if (user != null) {
+                    SaveKeyToGoogle(
+                        saver = vaultSaver,
+                        userId = user.id,
+                        recoveryKey = user.recoveryKey,
+                        isNewKey = keyIsNew,
+                    )
+                }
             }
         }
 
@@ -887,7 +899,8 @@ public fun ProfileScreen(
                             try {
                                 session.regenerateRecoveryKey()
                                 keyVisible = true
-                                // RN notificationAsync(Success) (profile.tsx:174).
+                                keyIsNew = true
+                                vaultSaver.resetConfirmation()                                // RN notificationAsync(Success) (profile.tsx:174).
                                 Haptics.success()
                                 success = SuccessEvent.KeyRegenerated
                             } catch (cancellation: CancellationException) {

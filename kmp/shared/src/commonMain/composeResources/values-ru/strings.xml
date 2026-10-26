@@ -323,4 +323,14 @@
     <string name="deleteAccount_bulletKey">Ключ восстановления перестанет работать — войти в аккаунт снова будет невозможно.</string>
     <string name="deleteAccount_confirm">Удалить аккаунт</string>
     <string name="deleteAccount_deleting">Удаление аккаунта...</string>
+    <string name="vault_saveToGoogle">Сохранить ключ в Google</string>
+    <string name="vault_saveNewToGoogle">Сохранить новый ключ в Google</string>
+    <string name="vault_saved">Ключ сохранён в Менеджере паролей Google.</string>
+    <string name="vault_saveFailed">Не удалось сохранить ключ в Google. Скопируйте его и храните в надёжном месте.</string>
+    <string name="vault_saveUnavailable">Менеджер паролей Google недоступен на этом устройстве. Скопируйте ключ и храните в надёжном месте.</string>
+    <string name="vault_signInWithSavedKey">Войти сохранённым ключом</string>
+    <string name="vault_noCredential">На этом устройстве нет сохранённого ключа. Введите ключ вручную.</string>
+    <string name="vault_restoreUnavailable">Менеджер паролей Google недоступен на этом устройстве. Введите ключ вручную.</string>
+    <string name="vault_restoreFailed">Не удалось получить сохранённый ключ. Введите ключ вручную.</string>
+    <string name="vault_staleKey">Сохранённый ключ устарел. Введите текущий ключ вручную.</string>
 </resources>

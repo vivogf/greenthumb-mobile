@@ -25,6 +25,7 @@ room = "2.8.5"
 sqliteBundled = "2.7.1"
 datastore = "1.2.1"
 activityCompose = "1.13.0"
+credentials = "1.6.0"
 # Firebase (M9 push-android, architecture.md §4 «Firebase Android … актуальный BoM»):
 # BoM задаёт версии firebase-messaging; плагин активирует google-services.json.
 # Последние стабильные на Google Maven (проверено 2026-09-28).
@@ -70,6 +71,8 @@ androidxActivityCompose = { module = "androidx.activity:activity-compose", versi
 # Тот же пин 1.13.0: runtime-разрешения и ActivityResultRegistry для пикера
 # изображения в shared androidMain (Stage 8 п.1).
 androidxActivity = { module = "androidx.activity:activity", version.ref = "activityCompose" }
+androidxCredentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+androidxCredentialsPlayServicesAuth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 ktorClientCore = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktorClientOkhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }

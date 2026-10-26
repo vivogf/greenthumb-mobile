@@ -72,7 +72,10 @@ kotlin {
             // зависимостей не резолвится.
             implementation(project.dependencies.platform(libs.firebaseBom))
             implementation(libs.firebaseMessaging)
-            // Firebase Remote Config (M12 kill-switch, Stage 12 п.1): параметр
+            // Recovery key in Google Password Manager (architecture §5.3):
+            // play-services-auth is the provider bridge for API 33 and lower.
+            implementation(libs.androidxCredentials)
+            implementation(libs.androidxCredentialsPlayServicesAuth)            // Firebase Remote Config (M12 kill-switch, Stage 12 п.1): параметр
             // min_supported_build. Версию задаёт та же BoM (architecture.md §4);
             // сам actual — RemoteKillSwitch.android.kt.
             implementation(libs.firebaseConfig)

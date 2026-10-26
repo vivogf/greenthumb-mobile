@@ -43,6 +43,7 @@ import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
+import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteErrorState
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteNotice
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
@@ -129,6 +130,8 @@ public fun GtAppNavGraph(
      * login.tsx:82-85/89-90 — мимо choose). Ветка welcome — default.
      */
     initialLoginMode: LoginMode = LoginMode.Choose,
+    /** Saved-key outcome from Key not found (e.g. stale key), shown in login mode. */
+    initialLoginNotice: SavedKeyOutcome? = null,
     /**
      * Push-подсистема (Stage 7 п.4, экран профиля; каркас — тумблер/тест
      * активной реализации ждут M9). Ветка welcome/login — dev-заглушка.
@@ -181,6 +184,7 @@ public fun GtAppNavGraph(
                     session = session,
                     onAccountCreated = onAccountCreated,
                     initialMode = initialLoginMode,
+                    initialNotice = initialLoginNotice,
                 )
             }
         }

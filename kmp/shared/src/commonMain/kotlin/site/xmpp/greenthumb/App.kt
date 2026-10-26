@@ -35,6 +35,7 @@ import site.xmpp.greenthumb.ui.nav.StartRoute
 import site.xmpp.greenthumb.ui.nav.resolveStartRoute
 import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
+import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
 
@@ -156,6 +157,7 @@ fun App(
     // найден» после действия пользователя больше не показывается.
     var keyNotFoundToLoginMode by remember { mutableStateOf(false) }
     var keyNotFoundToCreateMode by remember { mutableStateOf(false) }
+    var keyNotFoundLoginNotice by remember { mutableStateOf<SavedKeyOutcome?>(null) }
     // Потеря сессии (выход/явный 401) закрывает окно и сбрасывает поверхность:
     // ключ нового входа (если пользователь войдёт снова) обязан быть свежим —
     // stale-ключ старого аккаунта не показывается. RN-паритет: после потери
@@ -205,6 +207,7 @@ fun App(
                 // сессии: RN mode тоже терялся).
                 keyNotFoundToLoginMode = false
                 keyNotFoundToCreateMode = false
+                keyNotFoundLoginNotice = null
             }
             // Окно после входа активно, только пока пользователь действительно
             // вошёл и маршрутизация ведёт на вкладки (RN: user && mode ==
@@ -216,6 +219,7 @@ fun App(
                 // состояния — окно не теряется.
                 PostSignInHost(
                     surface = postSignIn!!,
+                    userId = (state as SessionState.SignedIn).user.id,
                     push = push,
                     pushLanguage = pushLanguage,
                     onDone = { postSignIn = null },
@@ -242,6 +246,7 @@ fun App(
                         // выбранном режиме; смена состояния на SignedIn сама
                         // сменяет маршрутизацию.
                         GtKeyNotFoundScreen(
+                            session = session,
                             onEnterLogin = {
                                 keyNotFoundToCreateMode = false
                                 keyNotFoundToLoginMode = true
@@ -249,6 +254,11 @@ fun App(
                             onEnterCreate = {
                                 keyNotFoundToLoginMode = false
                                 keyNotFoundToCreateMode = true
+                            },
+                            onStaleSavedKey = {
+                                keyNotFoundToCreateMode = false
+                                keyNotFoundToLoginMode = true
+                                keyNotFoundLoginNotice = SavedKeyOutcome.StaleKey
                             },
                         )
                     StartRoute.Dashboard -> GtAppNavGraph(
@@ -295,6 +305,7 @@ fun App(
                             keyNotFoundToCreateMode -> LoginMode.Create
                             else -> LoginMode.Choose
                         },
+                        initialLoginNotice = keyNotFoundLoginNotice,
                         onAccountCreated = { recoveryKey ->
                             postSignIn = PostSignInSurface.ShowKey(recoveryKey)
                         },

@@ -42,6 +42,7 @@ public sealed class PostSignInSurface {
 @Composable
 public fun PostSignInHost(
     surface: PostSignInSurface,
+    userId: String,
     push: PushTokens,
     pushLanguage: String,
     onDone: () -> Unit,
@@ -52,6 +53,7 @@ public fun PostSignInHost(
             is PostSignInSurface.ShowKey ->
                 ShowKeySurface(
                     recoveryKey = s.recoveryKey,
+                    userId = userId,
                     onContinue = { current = PostSignInSurface.Enable },
                 )
             PostSignInSurface.Enable ->

@@ -44,6 +44,13 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="default" />
 
+        <!-- Credential Manager (architecture §5.3): links the app to
+             greenthumb.xmpp.site so the saved recovery key is shared with
+             the site's assetlinks.json entry. -->
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
         <!-- configChanges uiMode (Stage 6 п.3): смена системной темы НЕ
              пересоздаёт Activity (как у Expo-активности RN), и Compose
              обновляет LocalConfiguration на месте — автотема перечитывается

@@ -11,9 +11,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
+import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface
+import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
+import site.xmpp.greenthumb.ui.screens.login.signInWithSavedKey
 import site.xmpp.greenthumb.ui.screens.update.UpdateRequiredScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -52,10 +62,33 @@ public fun GtSplash() {
  */
 @Composable
 public fun GtKeyNotFoundScreen(
+    session: SessionManager,
     onEnterLogin: () -> Unit,
     onEnterCreate: () -> Unit,
+    onStaleSavedKey: () -> Unit,
 ) {
-    KeyNotFoundSurface(onEnterLogin = onEnterLogin, onEnterCreate = onEnterCreate)
+    val vault = LocalRecoveryKeyVault.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<SavedKeyOutcome?>(null) }
+    KeyNotFoundSurface(
+        onEnterLogin = onEnterLogin,
+        onEnterCreate = onEnterCreate,
+        onSignInWithSavedKey = {
+            if (!busy) {
+                busy = true
+                notice = null
+                scope.launch {
+                    val outcome = signInWithSavedKey(vault, session)
+                    // A stale key leaves the session signed out: login mode shows the message.
+                    if (outcome == SavedKeyOutcome.StaleKey) onStaleSavedKey() else notice = outcome
+                    busy = false
+                }
+            }
+        },
+        notice = notice,
+        busy = busy,
+    )
 }
 
 /**

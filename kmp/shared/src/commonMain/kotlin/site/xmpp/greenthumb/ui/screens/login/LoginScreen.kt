@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Haptics
+import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
@@ -135,8 +136,11 @@ public fun LoginScreen(
     session: SessionManager,
     onAccountCreated: (recoveryKey: String) -> Unit = {},
     initialMode: LoginMode = LoginMode.Choose,
+    /** Outcome of a saved-key attempt made before this screen (Key not found), shown in login mode. */
+    initialNotice: SavedKeyOutcome? = null,
 ) {
-    var mode by remember { mutableStateOf(initialMode) }
+    // Keyed: Key not found can switch the start mode after this screen is already composed.
+    var mode by remember(initialMode) { mutableStateOf(initialMode) }
     when (mode) {
         LoginMode.Choose -> ChooseMode(onChoose = { mode = LoginMode.Create }, onLogin = { mode = LoginMode.Login })
         LoginMode.Create -> CreateMode(
@@ -147,6 +151,7 @@ public fun LoginScreen(
         LoginMode.Login -> LoginKeyMode(
             session = session,
             onBack = { mode = LoginMode.Choose },
+            initialNotice = initialNotice,
         )
     }
 }
@@ -390,12 +395,15 @@ private fun CreateMode(
 private fun LoginKeyMode(
     session: SessionManager,
     onBack: () -> Unit,
+    initialNotice: SavedKeyOutcome?,
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val vault = LocalRecoveryKeyVault.current
     var key by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var savedKeyOutcome by remember(initialNotice) { mutableStateOf(initialNotice) }
     val errorTitle = stringResource(Res.string.common_error)
     // Тексты ошибок — ДО корутины (stringResource композабелен; catch — нет).
     val invalidKeyText = stringResource(Res.string.login_errors_invalidRecoveryKey)
@@ -490,6 +498,22 @@ private fun LoginKeyMode(
                 CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
             }
         }
+
+        SavedKeySignInBlock(
+            onClick = {
+                if (loading) return@SavedKeySignInBlock
+                loading = true
+                savedKeyOutcome = null
+                scope.launch {
+                    val outcome = signInWithSavedKey(vault, session)
+                    if (outcome == SavedKeyOutcome.SignedIn) Haptics.success()
+                    savedKeyOutcome = outcome
+                    loading = false
+                }
+            },
+            outcome = savedKeyOutcome,
+            enabled = !loading,
+        )
 
         // Назад.
         Text(

@@ -81,9 +81,11 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 @Composable
 public fun ShowKeySurface(
     recoveryKey: String,
+    userId: String,
     onContinue: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val vaultSaver = rememberVaultSaver()
     // RN copied-состояние 2 с (RN setTimeout login.tsx:134).
     var copied by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -189,6 +191,8 @@ public fun ShowKeySurface(
                     }
                 }
             }
+
+            SaveKeyToGoogle(saver = vaultSaver, userId = userId, recoveryKey = recoveryKey)
 
             // «Я сохранил» — единственный выход из шлюза (RN handleContinue
             // login.tsx:88 → router.replace на enable-notifications).
