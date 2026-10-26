@@ -2,6 +2,7 @@ package site.xmpp.greenthumb.ui.screens.addplant
 
 import site.xmpp.greenthumb.catalog.SpeciesEntry
 import site.xmpp.greenthumb.core.network.InsertPlantDto
+import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 
 /**
  * Состояние формы добавления растения — порт formSchema/zod из RN
@@ -150,6 +151,24 @@ public object AddPlantForm {
             repotFrequencyText = species.repotIntervalMonths?.toString() ?: "",
             speciesId = species.id,
             speciesName = species.scientificName,
+        )
+    }
+
+    /**
+     * Choosing an identification candidate (architecture §5.4). A catalog
+     * match behaves like [applySpecies]. Any other candidate sets only
+     * `species_name` (and an empty or auto-filled name); the intervals stay
+     * as the user left them and no catalog id survives from an earlier choice.
+     */
+    public fun applyCandidate(fields: AddPlantFields, candidate: IdentifyCandidate, language: String): AddPlantFields {
+        candidate.catalogEntry?.let { return applySpecies(fields, it, language) }
+        val nameIsAuto = fields.name.isBlank() || fields.name == fields.speciesAutoName
+        val autoName = candidate.commonName ?: candidate.scientificName
+        return fields.copy(
+            name = if (nameIsAuto) autoName else fields.name,
+            speciesAutoName = if (nameIsAuto) autoName else null,
+            speciesId = null,
+            speciesName = candidate.scientificName,
         )
     }
 

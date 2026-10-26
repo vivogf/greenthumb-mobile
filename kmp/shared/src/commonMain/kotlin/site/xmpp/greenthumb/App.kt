@@ -24,6 +24,7 @@ import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
+import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
 import site.xmpp.greenthumb.ui.nav.GtKeyNotFoundScreen
 import site.xmpp.greenthumb.ui.nav.GtSplash
@@ -120,6 +121,8 @@ fun App(
      * leave null and get a loader without a network fetcher.
      */
     apiClient: ApiClient? = null,
+    /** Identification by photo in Add Plant; production passes [ApiSpeciesIdentifier]. */
+    speciesIdentifier: SpeciesIdentifier? = null,
 ) {
     // Singleton Coil loader (core/network/Images.kt): https photos through the
     // ApiClient Ktor client + disk cache, data URIs keyed by SHA-256
@@ -277,6 +280,7 @@ fun App(
                         // Отложенный id потребляется графом после входа.
                         pendingPlantId = if (state is SessionState.SignedIn) launchPlantId else null,
                         onPendingPlantIdConsumed = onLaunchPlantIdConsumed,
+                        speciesIdentifier = speciesIdentifier,
                     )
                     StartRoute.Welcome -> GtAppNavGraph(
                         startDestination = NavRoutes.WELCOME,

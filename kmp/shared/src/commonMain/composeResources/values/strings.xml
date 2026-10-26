@@ -350,4 +350,20 @@
     <string name="species_tip">Care tip</string>
     <string name="species_notSet">Not chosen</string>
     <string name="species_prefilledHint">Care intervals are filled in from the species. You can change them.</string>
+    <string name="species_identify">Identify by photo</string>
+    <string name="species_identifyTitle">Identify species</string>
+    <string name="species_identifySourceTitle">Photo of the plant</string>
+    <string name="species_identifyLoading">Identifying the species…</string>
+    <string name="species_identifyChooseHint">Tap a species to fill in the form.</string>
+    <string name="species_identifyConfidence">Confidence: %1$s</string>
+    <string name="species_confidenceHigh">high</string>
+    <string name="species_confidenceMedium">medium</string>
+    <string name="species_confidenceLow">low</string>
+    <string name="species_inCatalog">In the catalog</string>
+    <string name="species_identifyQuota">Daily identification limit reached</string>
+    <string name="species_identifyUnavailable">Identification is unavailable</string>
+    <string name="species_identifyEmpty">No species recognized. Try another photo or search the catalog.</string>
+    <string name="species_searchCatalog">Search the catalog</string>
+    <string name="species_poweredBy">Powered by Pl@ntNet</string>
+    <string name="species_plantNetLogo">Pl@ntNet logo</string>
 </resources>

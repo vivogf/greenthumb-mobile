@@ -100,6 +100,23 @@ class GreenThumbApi(private val client: ApiClient) {
         request<MassActionResult>(HttpMethod.Post, "/api/plants/postpone-all")
 
     // ------------------------------------------------------------------
+    // Species
+    // ------------------------------------------------------------------
+
+    /** POST /api/species/identify { photos, lang } → { results, remainingToday }, 25 s deadline. */
+    suspend fun identifySpecies(photoDataUri: String, lang: String): IdentifyResponse =
+        json.decodeFromString(
+            decodeBody(
+                client.request(
+                    HttpMethod.Post,
+                    "/api/species/identify",
+                    json.encodeToString(IdentifyRequest(photos = listOf(photoDataUri), lang = lang)),
+                    timeoutMillis = IDENTIFY_TIMEOUT_MILLIS,
+                ),
+            ),
+        )
+
+    // ------------------------------------------------------------------
     // Push (8)
     // ------------------------------------------------------------------
 

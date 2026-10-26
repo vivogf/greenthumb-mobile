@@ -50,6 +50,7 @@ import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
+import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -163,6 +164,8 @@ public fun GtAppNavGraph(
      * [PlantDeleteErrorState]; вкладка дашборда не обязана знать.
      */
     deleteErrorState: PlantDeleteErrorState = remember { PlantDeleteErrorState() },
+    /** Identification by photo in Add Plant (architecture §5.4). */
+    speciesIdentifier: SpeciesIdentifier? = null,
 ) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = startDestination) {
@@ -251,6 +254,7 @@ public fun GtAppNavGraph(
                         userId = sessionUserId,
                         opener = plants,
                         onBack = { navController.popBackStack() },
+                        identifier = speciesIdentifier,
                     )
                 }
             }

@@ -58,6 +58,23 @@ KMP_ONLY_KEYS = {
     "species.tip",
     "species.notSet",
     "species.prefilledHint",
+    # species identification by photo (architecture §5.4, §8.4).
+    "species.identify",
+    "species.identifyTitle",
+    "species.identifySourceTitle",
+    "species.identifyLoading",
+    "species.identifyChooseHint",
+    "species.identifyConfidence",
+    "species.confidenceHigh",
+    "species.confidenceMedium",
+    "species.confidenceLow",
+    "species.inCatalog",
+    "species.identifyQuota",
+    "species.identifyUnavailable",
+    "species.identifyEmpty",
+    "species.searchCatalog",
+    "species.poweredBy",
+    "species.plantNetLogo",
     # vault.* — recovery key in Google Password Manager (architecture §5.3);
     # the RN app has no Credential Manager bridge.
     "vault.saveToGoogle",

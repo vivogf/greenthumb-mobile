@@ -352,4 +352,20 @@
     <string name="species_tip">Совет по уходу</string>
     <string name="species_notSet">Не выбран</string>
     <string name="species_prefilledHint">Интервалы ухода заполнены по виду. Их можно изменить.</string>
+    <string name="species_identify">Определить по фото</string>
+    <string name="species_identifyTitle">Определение вида</string>
+    <string name="species_identifySourceTitle">Фото растения</string>
+    <string name="species_identifyLoading">Определяем вид…</string>
+    <string name="species_identifyChooseHint">Нажмите на вид, чтобы заполнить форму.</string>
+    <string name="species_identifyConfidence">Уверенность: %1$s</string>
+    <string name="species_confidenceHigh">высокая</string>
+    <string name="species_confidenceMedium">средняя</string>
+    <string name="species_confidenceLow">низкая</string>
+    <string name="species_inCatalog">Есть в каталоге</string>
+    <string name="species_identifyQuota">Лимит распознаваний на сегодня исчерпан</string>
+    <string name="species_identifyUnavailable">Распознавание недоступно</string>
+    <string name="species_identifyEmpty">Вид не распознан. Попробуйте другое фото или найдите вид в каталоге.</string>
+    <string name="species_searchCatalog">Искать в каталоге</string>
+    <string name="species_poweredBy">Powered by Pl@ntNet</string>
+    <string name="species_plantNetLogo">Логотип Pl@ntNet</string>
 </resources>

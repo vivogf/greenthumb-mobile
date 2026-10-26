@@ -26,10 +26,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -42,6 +44,8 @@ import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
+import site.xmpp.greenthumb.core.platform.pickImage
+import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
@@ -102,11 +106,22 @@ import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
 import site.xmpp.greenthumb.ui.res.common_gallery
+import site.xmpp.greenthumb.ui.res.common_cameraPermissionDenied
+import site.xmpp.greenthumb.ui.res.common_error
+import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
+import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
 import site.xmpp.greenthumb.ui.res.species_change
+import site.xmpp.greenthumb.ui.res.species_identify
 import site.xmpp.greenthumb.ui.res.species_choose
 import site.xmpp.greenthumb.ui.res.species_clear
 import site.xmpp.greenthumb.ui.res.species_prefilledHint
 import site.xmpp.greenthumb.ui.res.species_title
+import site.xmpp.greenthumb.ui.screens.species.IdentifyController
+import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
+import site.xmpp.greenthumb.ui.screens.species.IdentifySourceDialog
+import site.xmpp.greenthumb.ui.screens.species.IdentifyState
+import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
+import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifyDialog
 import site.xmpp.greenthumb.ui.screens.species.SpeciesPickerDialog
 import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
 import site.xmpp.greenthumb.ui.theme.GtTypography
@@ -158,6 +173,8 @@ public fun AddPlantScreen(
     userId: String,
     opener: PlantRepositoryOpener,
     onBack: () -> Unit,
+    /** Identification by photo; null hides the action (UI tests without a network seam). */
+    identifier: SpeciesIdentifier? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     val scheme = MaterialTheme.colorScheme
@@ -173,6 +190,17 @@ public fun AddPlantScreen(
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
     var speciesPickerOpen by remember { mutableStateOf(false) }
     val catalog = rememberSpeciesCatalog()
+    val currentCatalog by rememberUpdatedState(catalog)
+    var identifySourceOpen by remember { mutableStateOf(false) }
+    val identify = remember(identifier) {
+        identifier?.let { seam ->
+            IdentifyController(
+                identifier = seam,
+                pick = { source -> pickImage(source) },
+                resize = { bytes -> resizeJpeg(bytes, maxSide = IdentifyLogic.PHOTO_MAX_SIDE, quality = 0.85) },
+            )
+        }
+    }
 
     // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → data-URI в форму.
     // rememberUpdatedState внутри не даёт рекомпозиции потерять открытый кроп.
@@ -283,9 +311,9 @@ public fun AddPlantScreen(
                 )
             }
 
-            // Species from the offline catalog (architecture §5.4).
+            // Species from the offline catalog or by photo (architecture §5.4).
             val chosenSpecies = catalog?.byId(fields.speciesId)
-            if (fields.speciesId == null) {
+            if (fields.speciesId == null && fields.speciesName == null) {
                 SecondaryButton(
                     text = stringResource(Res.string.species_choose),
                     onClick = { speciesPickerOpen = true },
@@ -305,12 +333,14 @@ public fun AddPlantScreen(
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = scheme.onSurface,
                                 )
-                                Text(
-                                    text = fields.speciesName.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontStyle = FontStyle.Italic,
-                                    color = scheme.onSurfaceVariant,
-                                )
+                                if (chosenSpecies != null) {
+                                    Text(
+                                        text = fields.speciesName.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontStyle = FontStyle.Italic,
+                                        color = scheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                             TextAction(text = stringResource(Res.string.species_change), color = scheme.primary) {
                                 speciesPickerOpen = true
@@ -319,14 +349,23 @@ public fun AddPlantScreen(
                                 fields = AddPlantForm.clearSpecies(fields)
                             }
                         }
-                        Text(
-                            text = stringResource(Res.string.species_prefilledHint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = Spacing.xs),
-                        )
+                        if (chosenSpecies != null) {
+                            Text(
+                                text = stringResource(Res.string.species_prefilledHint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.xs),
+                            )
+                        }
                     }
                 }
+            }
+            if (identify != null) {
+                SecondaryButton(
+                    text = stringResource(Res.string.species_identify),
+                    onClick = { identifySourceOpen = true },
+                    modifier = Modifier.gtButtonWidth().testTag("addPlant_identify"),
+                )
             }
 
             // Имя (обязательное; подсветка ошибки — рамка error).
@@ -509,6 +548,56 @@ public fun AddPlantScreen(
                 }
             },
             onDismiss = { speciesPickerOpen = false },
+        )
+    }
+
+    if (identifySourceOpen && identify != null) {
+        IdentifySourceDialog(
+            onPick = { source ->
+                identifySourceOpen = false
+                identify.start(scope, source, IdentifyLogic.wireLanguage(locale)) { currentCatalog }
+            },
+            onDismiss = { identifySourceOpen = false },
+        )
+    }
+
+    if (identify != null && identify.state != IdentifyState.Idle) {
+        SpeciesIdentifyDialog(
+            state = identify.state,
+            language = locale,
+            onPick = { candidate ->
+                identify.dismiss()
+                fields = AddPlantForm.applyCandidate(fields, candidate, locale)
+                if (fields.fertilizeFrequencyText.isNotEmpty() || fields.repotFrequencyText.isNotEmpty()) {
+                    advancedOpen = true
+                }
+            },
+            onSearchCatalog = {
+                identify.dismiss()
+                speciesPickerOpen = true
+            },
+            onDismiss = { identify.dismiss() },
+        )
+    }
+
+    identify?.deniedSource?.let { source ->
+        GtAlertDialog(
+            title = stringResource(Res.string.common_permissionDeniedTitle),
+            message = stringResource(
+                when (source) {
+                    PickSource.Camera -> Res.string.common_cameraPermissionDenied
+                    PickSource.Gallery -> Res.string.common_galleryPermissionDenied
+                },
+            ),
+            onDismissRequest = identify::dismissDenied,
+        )
+    }
+
+    identify?.pickErrorMessage?.let { message ->
+        GtAlertDialog(
+            title = stringResource(Res.string.common_error),
+            message = message,
+            onDismissRequest = identify::dismissPickError,
         )
     }
 

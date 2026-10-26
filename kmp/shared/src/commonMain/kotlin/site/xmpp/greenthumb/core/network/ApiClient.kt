@@ -11,6 +11,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.cookies.CookiesStorage
@@ -151,11 +152,12 @@ class ApiClient(
         method: HttpMethod,
         path: String,
         body: String? = null,
+        timeoutMillis: Long? = null,
     ): HttpResponse {
         val stamp = session.current()
         return withContext(requests + CookieEpoch(stamp)) {
             val first = try {
-                requestVia(client, method, path, body)
+                requestVia(client, method, path, body, timeoutMillis)
             } catch (cancellation: CancellationException) {
                 throw mapTransportException(cancellation)
             } catch (cause: Throwable) {
@@ -165,7 +167,7 @@ class ApiClient(
 
             // Восстановление сессии (только на 401): re-login сохранённым ключом,
             // затем повтор исходного запроса. Не retry — сетевые ошибки сюда не входят.
-            recoverAndRetry(method, path, body) ?: first
+            recoverAndRetry(method, path, body, timeoutMillis) ?: first
         }
     }
 
@@ -179,8 +181,9 @@ class ApiClient(
         method: HttpMethod,
         path: String,
         body: String? = null,
+        timeoutMillis: Long? = null,
     ): HttpResponse {
-        val response = raw(method, path, body)
+        val response = raw(method, path, body, timeoutMillis)
         val status = response.status.value
         if (status in 200..299) return response
         val text =
@@ -252,6 +255,7 @@ class ApiClient(
         method: HttpMethod,
         path: String,
         body: String?,
+        timeoutMillis: Long?,
     ): HttpResponse? = recoveryMutex.withLock {
         val key = recoveryProvider.getRecoveryKey() ?: return@withLock null
         val login = try {
@@ -263,7 +267,7 @@ class ApiClient(
         }
         when (login.status.value) {
             in 200..299 -> {
-                val retry = retryAfterRelogin(method, path, body)
+                val retry = retryAfterRelogin(method, path, body, timeoutMillis)
                 if (retry.status.value == 401) {
                     // Второй 401 (вторая ветка): re-login удался, но повтор снова
                     // 401 — сессия не ожила: сброс сессии, экран входа.
@@ -297,8 +301,9 @@ class ApiClient(
         method: HttpMethod,
         path: String,
         body: String?,
+        timeoutMillis: Long?,
     ): HttpResponse = try {
-        requestVia(client, method, path, body)
+        requestVia(client, method, path, body, timeoutMillis)
     } catch (cancellation: CancellationException) {
         throw mapTransportException(cancellation)
     } catch (cause: Throwable) {
@@ -368,7 +373,8 @@ class ApiClient(
             method: HttpMethod,
             path: String,
             body: String? = null,
-        ): HttpResponse = client.request { applyRequest(method, path, body) }
+            timeoutMillis: Long? = null,
+        ): HttpResponse = client.request { applyRequest(method, path, body, timeoutMillis) }
 
         /**
          * Маппинг транспортных исключений в [ApiError] — порт catch-блока `baseFetch`
@@ -411,14 +417,24 @@ class ApiClient(
         /**
          * Общая механика запроса: метод, путь (URL сливается с базой в DefaultRequest),
          * тело и Content-Type. Выделена, чтобы raw/request и тесты не расходились.
+         * [timeoutMillis] replaces the default deadline for this one request. It also
+         * sets the socket timeout: OkHttp's own 10 s read timeout would otherwise cut
+         * a slow response first.
          */
         internal fun HttpRequestBuilder.applyRequest(
             method: HttpMethod,
             path: String,
             body: String?,
+            timeoutMillis: Long? = null,
         ) {
             this.method = method
             url(path)
+            if (timeoutMillis != null) {
+                timeout {
+                    requestTimeoutMillis = timeoutMillis
+                    socketTimeoutMillis = timeoutMillis
+                }
+            }
             if (body != null) {
                 setBody(body)
                 contentType(ContentType.Application.Json)
