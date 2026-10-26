@@ -42,7 +42,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,7 +49,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +84,7 @@ import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.GtPencilMark
+import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTextField
@@ -207,7 +206,7 @@ public class PlantDeleteErrorState {
  * - WaterButtonWithParticles → [GtWaterButton] (частицы + Medium-гаптика — m10);
  * - LinearGradient → [Brush.verticalGradient] от [Color.Black]/[Color.Transparent]
  *   (литералы RN-экрана `#fff`/rgba — свойство-константа, K5 не матчит);
- * - фото: data-URI через Coil [AsyncImage] (Coil запинен миссией; Keyer —
+ * - фото: https (R2) или data-URI через Coil [GtPlantPhoto] (Coil запинен миссией; Keyer —
  *   m8-coil-keyer); без фото — контур листа (Ionicons leaf RN);
  * - смена фото: модалка камера/галерея → [photoPicker] (Stage 8 п.1:
  *   platform-пикер + свой квадратный кроп + алерт отказа, молчание отмены);
@@ -420,21 +419,11 @@ public fun PlantDetailScreen(
                             .aspectRatio(1f / 0.75f)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        if (plant.photoUrl.isBlank()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                GtLeafMark(
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(Spacing.xxl * 2),
-                                )
-                            }
-                        } else {
-                            AsyncImage(
-                                model = plant.photoUrl,
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                            )
-                        }
+                        GtPlantPhoto(
+                            photoUrl = plant.photoUrl,
+                            leafSize = Spacing.xxl * 2,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                         // Затемнение (LinearGradient RN: 0.35 black → transparent → 0.7 black).
                         Box(
                             modifier = Modifier

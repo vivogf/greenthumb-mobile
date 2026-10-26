@@ -1,0 +1,27 @@
+# Photo rendering in list/card/grid and the detail header (feature
+# m1-coil-https-photos, VAL-APP-006/007). Keyless: sign in first with
+# photos-signin.yaml. PLANT is the plant name, e.g. -e PLANT=ValMagenta.
+# Screenshots land in --test-output-dir; count pixels outside Maestro.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb photos — view modes and detail
+---
+- extendedWaitUntil:
+    visible: "Open plant card ${PLANT}"
+    timeout: 30000
+- tapOn: "List view"
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: photos-list
+- tapOn: "Card view"
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: photos-card
+- tapOn: "Grid view"
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: photos-grid
+- tapOn: "Open plant card ${PLANT}"
+- waitForAnimationToEnd:
+    timeout: 10000
+- takeScreenshot: photos-detail
+- tapOn: Back

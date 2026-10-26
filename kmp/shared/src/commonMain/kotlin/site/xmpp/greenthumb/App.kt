@@ -7,13 +7,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
+import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.buildImageLoader
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
 import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.Connectivity
-import site.xmpp.greenthumb.core.platform.DataUriKeyer
 import site.xmpp.greenthumb.core.platform.KillSwitchVerdict
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushTokens
@@ -113,17 +113,19 @@ fun App(
      * вердикт на процесс, переживает пересоздание Activity.
      */
     killSwitch: KillSwitchGate = KillSwitchGate(RemoteKillSwitch(), AppVersion.code),
+    /**
+     * Process-wide API client: https photos load through its Ktor client
+     * (rule K1). Production entry points pass [SessionGraph.client]; UI tests
+     * leave null and get a loader without a network fetcher.
+     */
+    apiClient: ApiClient? = null,
 ) {
-    // Stage 8 п.4 (VAL-PHOTO-005): singleton-лоадер Coil с Keyer'ом, делающим
-    // ключом кэша SHA-256 от data-URI фото, а не саму строку в сотни килобайт.
-    // Вызов — в теле корня ДО первой композиции AsyncImage (любой вложенный
-    // AsyncImage резолвит лоадер через SingletonImageLoader.get; вызов setSafe
-    // после создания дефолтного лоадера бросает IllegalStateException).
-    setSingletonImageLoaderFactory { context ->
-        ImageLoader.Builder(context)
-            .components { add(DataUriKeyer()) }
-            .build()
-    }
+    // Singleton Coil loader (core/network/Images.kt): https photos through the
+    // ApiClient Ktor client + disk cache, data URIs keyed by SHA-256
+    // (VAL-PHOTO-005). Must run in the root body before the first AsyncImage:
+    // a nested AsyncImage would otherwise create the default loader first and
+    // this factory would be ignored.
+    setSingletonImageLoaderFactory { context -> buildImageLoader(context, apiClient) }
     // M6b (VAL-I18N-007): синхронизация выбранной локали с платформой в корне
     // тела — до детей. Android: чтение LocalConfiguration делает корень
     // реактивным к каждой доставке конфигурации (в т.ч. display-ступеням

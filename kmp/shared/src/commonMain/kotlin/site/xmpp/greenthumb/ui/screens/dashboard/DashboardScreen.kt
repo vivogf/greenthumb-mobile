@@ -45,7 +45,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,7 +57,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
-import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.PlantDto
@@ -88,8 +86,8 @@ import site.xmpp.greenthumb.ui.components.GtEmptyState
 import site.xmpp.greenthumb.ui.components.GtFunnelMark
 import site.xmpp.greenthumb.ui.components.GtGridViewMark
 import site.xmpp.greenthumb.ui.components.GtIconButton
-import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtListViewMark
+import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtCardViewMark
 import site.xmpp.greenthumb.ui.components.GtPlusMark
@@ -1515,25 +1513,11 @@ private fun PlantPhoto(
 ) {
     val scheme = MaterialTheme.colorScheme
     val sized = if (side != null) modifier.size(side) else modifier.fillMaxSize()
-    if (plant.photoUrl.isBlank()) {
-        Box(
-            modifier = sized
-                .background(scheme.surfaceVariant, RoundedCornerShape(Radii.md)),
-            contentAlignment = Alignment.Center,
-        ) {
-            GtLeafMark(
-                tint = scheme.onSurfaceVariant,
-                modifier = Modifier.size(iconSize),
-            )
-        }
-    } else {
-        AsyncImage(
-            model = plant.photoUrl,
-            contentDescription = null,
-            modifier = sized
-                .background(scheme.surfaceVariant, RoundedCornerShape(Radii.md))
-                .clip(RoundedCornerShape(Radii.md)),
-            contentScale = ContentScale.Crop,
-        )
-    }
+    GtPlantPhoto(
+        photoUrl = plant.photoUrl,
+        leafSize = iconSize,
+        modifier = sized
+            .background(scheme.surfaceVariant, RoundedCornerShape(Radii.md))
+            .clip(RoundedCornerShape(Radii.md)),
+    )
 }

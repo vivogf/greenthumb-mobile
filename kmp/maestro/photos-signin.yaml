@@ -1,0 +1,39 @@
+# Sign-in helper for photo checks (feature m1-coil-https-photos).
+# Run only through render-smoke.sh: it replaces ${GT_RECOVERY_KEY} in a 0600
+# copy and redacts Maestro output. No screenshots while the key is on screen.
+#   GT_FLOW=photos-signin.yaml GT_KEY_FILE=<throwaway key file> \
+#     bash kmp/maestro/render-smoke.sh run
+# Then run photos-modes.yaml (keyless) for screenshots.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb photos — sign in
+---
+- launchApp:
+    clearState: true
+- repeat:
+    times: 15
+    while:
+      notVisible: "Welcome Back"
+    commands:
+      - runFlow:
+          when:
+            visible: "Your plants, organized"
+          commands:
+            - tapOn: Skip
+      - runFlow:
+          when:
+            visible: "Key not found"
+          commands:
+            - tapOn: "Enter recovery key"
+      - runFlow:
+          when:
+            visible: "I Have a Key"
+          commands:
+            - tapOn: "I Have a Key"
+- assertVisible: Welcome Back
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: ${GT_RECOVERY_KEY}
+- hideKeyboard
+- tapOn: Sign In
+- extendedWaitUntil:
+    visible: "My Plants"
+    timeout: 30000

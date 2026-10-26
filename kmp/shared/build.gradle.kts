@@ -56,6 +56,8 @@ kotlin {
             // Coil 3 (запинен миссией): data-URI фото на экране деталей
             // (Stage 7 п.6, шапка). Keyer кэша — m8-coil-keyer.
             implementation(libs.coilCompose)
+            // https photos (R2) through the ApiClient Ktor client — core/network/Images.kt.
+            implementation(libs.coilNetworkKtor3)
         }
         androidMain.dependencies {
             implementation(libs.ktorClientOkhttp)
