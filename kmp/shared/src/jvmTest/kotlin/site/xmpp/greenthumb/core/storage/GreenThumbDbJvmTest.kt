@@ -195,7 +195,7 @@ class GreenThumbDbJvmTest {
 
     @Test
     fun exported_schema_has_three_tables_and_no_drop() {
-        assertTrue(GreenThumbMigrations.ALL.isEmpty(), "v1 has no migrations; additions only later")
+        assertEquals(GREEN_THUMB_DB_VERSION - 1, GreenThumbMigrations.ALL.size, "one migration per version step")
         val schemas = File("schemas")
         val jsonFiles = if (schemas.isDirectory) {
             schemas.walkTopDown().filter { it.isFile && it.extension == "json" }.toList()
@@ -206,6 +206,7 @@ class GreenThumbDbJvmTest {
             jsonFiles.isNotEmpty(),
             "schemaDirectory did not export JSON. dirExists=${schemas.isDirectory}",
         )
+        assertTrue(jsonFiles.any { it.name == "$GREEN_THUMB_DB_VERSION.json" }, "current schema not exported")
         jsonFiles.forEach { file ->
             val text = file.readText()
             assertTrue(text.contains("\"plants\""), "${file.path} missing plants")
@@ -213,7 +214,8 @@ class GreenThumbDbJvmTest {
             assertTrue(text.contains("pending_mutations"), "${file.path} missing pending_mutations")
             assertTrue(text.contains("updated_at_millis"), "${file.path} missing updated_at_millis")
             assertTrue(text.contains("snapshot_json"), "${file.path} missing snapshot_json")
-            assertTrue(Regex("\"version\"\\s*:\\s*1").containsMatchIn(text), "${file.path} version")
+            val version = file.nameWithoutExtension
+            assertTrue(Regex("\"version\"\\s*:\\s*$version").containsMatchIn(text), "${file.path} version")
             assertFalse(text.contains("DROP TABLE", ignoreCase = true), "${file.path} drops a table")
             assertFalse(text.contains("DROP COLUMN", ignoreCase = true), "${file.path} drops a column")
         }

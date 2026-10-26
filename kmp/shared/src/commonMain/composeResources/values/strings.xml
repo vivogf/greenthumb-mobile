@@ -336,4 +336,18 @@
     <string name="keyQr_hint">The code holds only your recovery key. Scan it to move the key to another device. Don't show it to anyone else.</string>
     <string name="keyQr_imageDescription">QR code with your recovery key</string>
     <string name="keyQr_screenshotsBlocked">Screenshots are blocked on this screen.</string>
+    <string name="species_choose">Choose species</string>
+    <string name="species_change">Change</string>
+    <string name="species_clear">Remove</string>
+    <string name="species_title">Species</string>
+    <string name="species_searchHint">Name or scientific name</string>
+    <string name="species_noResults">No species found</string>
+    <string name="species_light">Light</string>
+    <string name="species_lightLow">Low light</string>
+    <string name="species_lightMedium">Medium light</string>
+    <string name="species_lightBrightIndirect">Bright indirect light</string>
+    <string name="species_lightDirect">Direct sun</string>
+    <string name="species_tip">Care tip</string>
+    <string name="species_notSet">Not chosen</string>
+    <string name="species_prefilledHint">Care intervals are filled in from the species. You can change them.</string>
 </resources>

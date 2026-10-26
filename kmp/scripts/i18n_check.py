@@ -43,6 +43,21 @@ RES_DIR = (
 # Ключи KMP, которых нет в RN-локалях (не пропуск — осознанное расширение).
 # Каждое имя обязано присутствовать в ОБОИХ strings.xml.
 KMP_ONLY_KEYS = {
+    # species.* — offline species catalog (architecture §5.4); RN has none.
+    "species.choose",
+    "species.change",
+    "species.clear",
+    "species.title",
+    "species.searchHint",
+    "species.noResults",
+    "species.light",
+    "species.lightLow",
+    "species.lightMedium",
+    "species.lightBrightIndirect",
+    "species.lightDirect",
+    "species.tip",
+    "species.notSet",
+    "species.prefilledHint",
     # vault.* — recovery key in Google Password Manager (architecture §5.3);
     # the RN app has no Credential Manager bridge.
     "vault.saveToGoogle",

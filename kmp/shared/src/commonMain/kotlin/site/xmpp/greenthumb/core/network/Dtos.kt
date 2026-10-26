@@ -48,6 +48,12 @@ data class PlantDto(
     val notes: String = "",
     @SerialName("created_at")
     val createdAt: String,
+    /** Catalog slug; absent in pre-M3 responses. */
+    @SerialName("species_id")
+    val speciesId: String? = null,
+    /** Scientific name of the species (not a translated name). */
+    @SerialName("species_name")
+    val speciesName: String? = null,
 )
 
 /** Пользователь в ответах auth-эндпоинтов — порт `User` из RN `shared/schema.ts:14-21`. */
@@ -115,6 +121,10 @@ data class InsertPlantDto(
     val pruneFrequencyMonths: Int? = null,
     @SerialName("last_pruned_date")
     val lastPrunedDate: String? = null,
+    @SerialName("species_id")
+    val speciesId: String? = null,
+    @SerialName("species_name")
+    val speciesName: String? = null,
 )
 
 /**
@@ -145,6 +155,10 @@ data class PatchPlantDto(
     @SerialName("last_pruned_date")
     val lastPrunedDate: Patch<String> = Patch.Absent,
     val notes: Patch<String> = Patch.Absent,
+    @SerialName("species_id")
+    val speciesId: Patch<String> = Patch.Absent,
+    @SerialName("species_name")
+    val speciesName: Patch<String> = Patch.Absent,
 ) {
     companion object
 }

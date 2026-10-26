@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -142,6 +143,17 @@ import site.xmpp.greenthumb.ui.res.plantDetails_waterPlant
 import site.xmpp.greenthumb.ui.res.plant_watered
 import site.xmpp.greenthumb.ui.res.plantDetails_wateringFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_yesterday
+import site.xmpp.greenthumb.ui.res.species_change
+import site.xmpp.greenthumb.ui.res.species_choose
+import site.xmpp.greenthumb.ui.res.species_clear
+import site.xmpp.greenthumb.ui.res.species_light
+import site.xmpp.greenthumb.ui.res.species_notSet
+import site.xmpp.greenthumb.ui.res.species_tip
+import site.xmpp.greenthumb.ui.res.species_title
+import site.xmpp.greenthumb.ui.screens.species.SpeciesPickerDialog
+import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
+import site.xmpp.greenthumb.ui.screens.species.speciesLightLabel
+import site.xmpp.greenthumb.catalog.CatalogRepository
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
@@ -302,6 +314,8 @@ public fun PlantDetailScreen(
     var deleteConfirmOpen by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
+    var speciesPickerOpen by remember { mutableStateOf(false) }
+    val catalog = rememberSpeciesCatalog()
 
     when (val current = state) {
         PlantState.Loading -> LoadingScreen()
@@ -638,6 +652,12 @@ public fun PlantDetailScreen(
                             }
                         }
 
+                        // ── Species (shown only when the plant has one) ──
+                        val speciesInfo = plantSpeciesInfo(plant, catalog)
+                        if (speciesInfo != PlantSpeciesInfo.None) {
+                            SpeciesCard(info = speciesInfo, language = locale)
+                        }
+
                         // ── Кнопка настроек ухода ──
                         SettingsRow(
                             label = careSettingsLabel,
@@ -774,12 +794,26 @@ public fun PlantDetailScreen(
                     saveText = saveText,
                     doneText = doneText,
                     locale = locale,
+                    catalog = catalog,
+                    onChooseSpecies = { speciesPickerOpen = true },
                     onFormChange = { settingsForm = it },
                     onSave = {
                         showSettings = false
                         update(CareSettingsPatch.build(plant, openForm))
                     },
                     onDismiss = { showSettings = false },
+                )
+            }
+
+            if (speciesPickerOpen) {
+                SpeciesPickerDialog(
+                    catalog = catalog,
+                    language = locale,
+                    onPick = { entry ->
+                        speciesPickerOpen = false
+                        settingsForm = settingsForm?.withSpecies(entry)
+                    },
+                    onDismiss = { speciesPickerOpen = false },
                 )
             }
 
@@ -1094,6 +1128,8 @@ private fun CareSettingsModal(
     saveText: String,
     doneText: String,
     locale: String,
+    catalog: CatalogRepository?,
+    onChooseSpecies: () -> Unit,
     onFormChange: (CareSettingsForm) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -1134,6 +1170,13 @@ private fun CareSettingsModal(
                 .padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
+            SettingsSpeciesRow(
+                form = form,
+                catalog = catalog,
+                locale = locale,
+                onChoose = onChooseSpecies,
+                onClear = { onFormChange(form.withoutSpecies()) },
+            )
             SettingsFrequencyField(
                 label = waterFrequencyLabel,
                 hint = null,
@@ -1197,6 +1240,106 @@ private fun CareSettingsModal(
                 cancelText = cancelText,
                 locale = locale,
             )
+        }
+    }
+}
+
+/** Species line of the care settings modal: current species, change and remove. */
+@Composable
+private fun SettingsSpeciesRow(
+    form: CareSettingsForm,
+    catalog: CatalogRepository?,
+    locale: String,
+    onChoose: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val name = catalog?.byId(form.speciesId)?.names?.forLanguage(locale) ?: form.speciesName
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        Text(
+            text = stringResource(Res.string.species_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onSurface,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(
+                text = name ?: stringResource(Res.string.species_notSet),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (name == null) scheme.onSurfaceVariant else scheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(if (form.speciesId == null) Res.string.species_choose else Res.string.species_change),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.primary,
+                modifier = Modifier.clickableNoIndication(onChoose).padding(Spacing.xs),
+            )
+            if (form.speciesId != null || form.speciesName != null) {
+                Text(
+                    text = stringResource(Res.string.species_clear),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.error,
+                    modifier = Modifier.clickableNoIndication(onClear).padding(Spacing.xs),
+                )
+            }
+        }
+    }
+}
+
+/** Species card on the detail screen: name, scientific name, light and tip. */
+@Composable
+private fun SpeciesCard(info: PlantSpeciesInfo, language: String) {
+    val scheme = MaterialTheme.colorScheme
+    GtCard {
+        Text(
+            text = stringResource(Res.string.species_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = scheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        when (info) {
+            is PlantSpeciesInfo.Catalog -> {
+                val entry = info.entry
+                Text(
+                    text = entry.names.forLanguage(language),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = scheme.onSurface,
+                )
+                Text(
+                    text = entry.scientificName,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic,
+                    color = scheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = stringResource(Res.string.species_light) + ": " + speciesLightLabel(entry.light),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = stringResource(Res.string.species_tip),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurfaceVariant,
+                )
+                Text(
+                    text = entry.tip.forLanguage(language),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface,
+                )
+            }
+            is PlantSpeciesInfo.NameOnly -> Text(
+                text = info.scientificName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontStyle = FontStyle.Italic,
+                color = scheme.onSurface,
+            )
+            PlantSpeciesInfo.None -> Unit
         }
     }
 }

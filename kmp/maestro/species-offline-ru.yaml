@@ -1,0 +1,66 @@
+# Offline species search and typed-name rule in the Russian UI (feature
+# m3-species-catalog, VAL-CATALOG-003/006). Keyless, signed in; airplane
+# mode is switched by the caller. Switches the app language to Russian.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb species catalog — offline search (RU)
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+- tapOn: "Profile|Профиль"
+- scrollUntilVisible:
+    element: "Language|Язык"
+    direction: DOWN
+- tapOn: "Language|Язык"
+- tapOn: "Русский"
+- extendedWaitUntil:
+    visible: "Мой профиль"
+    timeout: 5000
+- tapOn: "Растения"
+- tapOn: "Добавить новое растение|Добавить растение"
+- tapOn: "Выбрать вид"
+# 1. Russian name
+- tapOn: "Название или латинское имя"
+- inputText: "Монстера деликатесная"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+- takeScreenshot: ru-q1-russian-name
+# 2. Russian alias with ё/е folding: "Тёщин язык" typed with е
+- eraseText: 40
+- inputText: "тещин"
+- extendedWaitUntil:
+    visible: "Dracaena trifasciata"
+    timeout: 2000
+- takeScreenshot: ru-q2-yo-folding
+# 3. Russian alias of A
+- eraseText: 40
+- inputText: "монстера"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+- takeScreenshot: ru-q3-ru-alias
+- tapOn: "Monstera deliciosa"
+- extendedWaitUntil:
+    visible: "Монстера деликатесная"
+    timeout: 2000
+- assertVisible: "Интервалы ухода заполнены по виду. Их можно изменить."
+- takeScreenshot: ru-a-filled
+# Typed name is never overwritten
+- back
+- tapOn: "Добавить новое растение|Добавить растение"
+- tapOn: "например, Монстера Деликатесная"
+- inputText: "Val Fern 42"
+- hideKeyboard
+- tapOn: "Выбрать вид"
+- tapOn: "Название или латинское имя"
+- inputText: "Snake"
+- tapOn: "Dracaena trifasciata"
+- extendedWaitUntil:
+    visible: "Val Fern 42"
+    timeout: 2000
+- assertVisible: "18"
+- takeScreenshot: ru-typed-name-kept
+- back

@@ -58,6 +58,8 @@ public fun PlantDto.toEntity(): PlantEntity = PlantEntity(
     lastPrunedDate = lastPrunedDate,
     notes = notes,
     createdAt = createdAt,
+    speciesId = speciesId,
+    speciesName = speciesName,
 )
 
 public fun PlantEntity.toDto(): PlantDto = PlantDto(
@@ -76,6 +78,8 @@ public fun PlantEntity.toDto(): PlantDto = PlantDto(
     lastPrunedDate = lastPrunedDate,
     notes = notes ?: "",
     createdAt = createdAt,
+    speciesId = speciesId,
+    speciesName = speciesName,
 )
 
 public fun InsertPlantDto.toOptimisticEntity(
@@ -98,6 +102,8 @@ public fun InsertPlantDto.toOptimisticEntity(
     lastPrunedDate = lastPrunedDate,
     notes = notes,
     createdAt = createdAt,
+    speciesId = speciesId,
+    speciesName = speciesName,
 )
 
 /**
@@ -118,6 +124,8 @@ public fun PlantEntity.applying(patch: PatchPlantDto): PlantEntity = copy(
     pruneFrequencyMonths = patch.pruneFrequencyMonths.keepNullable(pruneFrequencyMonths),
     lastPrunedDate = patch.lastPrunedDate.keepNullable(lastPrunedDate),
     notes = patch.notes.keepNullable(notes),
+    speciesId = patch.speciesId.keepNullable(speciesId),
+    speciesName = patch.speciesName.keepNullable(speciesName),
 )
 
 private fun <T> Patch<T>.keepRequired(current: T): T = when (this) {

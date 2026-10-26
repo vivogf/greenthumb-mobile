@@ -1,5 +1,6 @@
 package site.xmpp.greenthumb.ui.screens.addplant
 
+import site.xmpp.greenthumb.catalog.SpeciesEntry
 import site.xmpp.greenthumb.core.network.InsertPlantDto
 
 /**
@@ -31,6 +32,16 @@ public data class AddPlantFields(
     public val lastPrunedDate: String? = null,
     /** data-URI фото; сам пикер — M8, до него поле остаётся "". */
     public val photoUrl: String = "",
+    /** Catalog slug of the chosen species, or null. */
+    public val speciesId: String? = null,
+    /** Scientific name of the chosen species, or null. */
+    public val speciesName: String? = null,
+    /**
+     * The name this form last filled in from a species. While [name] still
+     * equals it, choosing another species may replace it; once the user
+     * edits the name, it is theirs and is never overwritten.
+     */
+    public val speciesAutoName: String? = null,
 )
 
 /** Локализованные тексты ошибок (stringResource решает композиция, функция чистая). */
@@ -117,8 +128,34 @@ public object AddPlantForm {
             lastRepottedDate = parseOptionalDate(fields.lastRepottedDate),
             pruneFrequencyMonths = parseFrequency(fields.pruneFrequencyText),
             lastPrunedDate = parseOptionalDate(fields.lastPrunedDate),
+            speciesId = fields.speciesId,
+            speciesName = fields.speciesName,
         )
     }
+
+    /**
+     * Choosing a catalog species (architecture §5.4): sets the species,
+     * replaces the watering/fertilizing/repotting intervals with the
+     * species values (a null interval empties its field) and fills the
+     * name only when it is empty or was filled by a previous species.
+     */
+    public fun applySpecies(fields: AddPlantFields, species: SpeciesEntry, language: String): AddPlantFields {
+        val nameIsAuto = fields.name.isBlank() || fields.name == fields.speciesAutoName
+        val speciesName = species.names.forLanguage(language)
+        return fields.copy(
+            name = if (nameIsAuto) speciesName else fields.name,
+            speciesAutoName = if (nameIsAuto) speciesName else null,
+            waterFrequencyText = species.waterIntervalDays.toString(),
+            fertilizeFrequencyText = species.fertilizeIntervalDays?.toString() ?: "",
+            repotFrequencyText = species.repotIntervalMonths?.toString() ?: "",
+            speciesId = species.id,
+            speciesName = species.scientificName,
+        )
+    }
+
+    /** Removes the species; the name and intervals stay as they are. */
+    public fun clearSpecies(fields: AddPlantFields): AddPlantFields =
+        fields.copy(speciesId = null, speciesName = null, speciesAutoName = null)
 
     private fun parseOptionalDate(date: String?): String? =
         date?.trim()?.takeIf { it.isNotEmpty() }

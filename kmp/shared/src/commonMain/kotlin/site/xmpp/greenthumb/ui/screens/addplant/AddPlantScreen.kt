@@ -29,9 +29,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -53,6 +55,7 @@ import site.xmpp.greenthumb.ui.components.GtSectionHeader
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
+import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
@@ -99,6 +102,13 @@ import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
 import site.xmpp.greenthumb.ui.res.common_gallery
+import site.xmpp.greenthumb.ui.res.species_change
+import site.xmpp.greenthumb.ui.res.species_choose
+import site.xmpp.greenthumb.ui.res.species_clear
+import site.xmpp.greenthumb.ui.res.species_prefilledHint
+import site.xmpp.greenthumb.ui.res.species_title
+import site.xmpp.greenthumb.ui.screens.species.SpeciesPickerDialog
+import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
 import site.xmpp.greenthumb.ui.theme.GtTypography
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -161,6 +171,8 @@ public fun AddPlantScreen(
     var submitting by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
+    var speciesPickerOpen by remember { mutableStateOf(false) }
+    val catalog = rememberSpeciesCatalog()
 
     // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → data-URI в форму.
     // rememberUpdatedState внутри не даёт рекомпозиции потерять открытый кроп.
@@ -269,6 +281,52 @@ public fun AddPlantScreen(
                     },
                     onRemove = { fields = fields.copy(photoUrl = "") },
                 )
+            }
+
+            // Species from the offline catalog (architecture §5.4).
+            val chosenSpecies = catalog?.byId(fields.speciesId)
+            if (fields.speciesId == null) {
+                SecondaryButton(
+                    text = stringResource(Res.string.species_choose),
+                    onClick = { speciesPickerOpen = true },
+                    modifier = Modifier.gtButtonWidth(),
+                )
+            } else {
+                LabeledField(label = stringResource(Res.string.species_title)) {
+                    GtCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                                Text(
+                                    text = chosenSpecies?.names?.forLanguage(locale) ?: fields.speciesName.orEmpty(),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = scheme.onSurface,
+                                )
+                                Text(
+                                    text = fields.speciesName.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontStyle = FontStyle.Italic,
+                                    color = scheme.onSurfaceVariant,
+                                )
+                            }
+                            TextAction(text = stringResource(Res.string.species_change), color = scheme.primary) {
+                                speciesPickerOpen = true
+                            }
+                            TextAction(text = stringResource(Res.string.species_clear), color = scheme.error) {
+                                fields = AddPlantForm.clearSpecies(fields)
+                            }
+                        }
+                        Text(
+                            text = stringResource(Res.string.species_prefilledHint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Spacing.xs),
+                        )
+                    }
+                }
             }
 
             // Имя (обязательное; подсветка ошибки — рамка error).
@@ -438,6 +496,22 @@ public fun AddPlantScreen(
         PhotoPickerHost(photoPicker)
     }
 
+    if (speciesPickerOpen) {
+        SpeciesPickerDialog(
+            catalog = catalog,
+            language = locale,
+            onPick = { entry ->
+                speciesPickerOpen = false
+                fields = AddPlantForm.applySpecies(fields, entry, locale)
+                // Species fertilize/repot values live in the collapsed block; show them.
+                if (fields.fertilizeFrequencyText.isNotEmpty() || fields.repotFrequencyText.isNotEmpty()) {
+                    advancedOpen = true
+                }
+            },
+            onDismiss = { speciesPickerOpen = false },
+        )
+    }
+
     // Ошибка загрузки (RN showAlert(t('addPlant.uploadFailed'), err.message)).
     val dialogMessage = errorDialogMessage
     if (dialogMessage != null) {
@@ -448,6 +522,24 @@ public fun AddPlantScreen(
             onDismissRequest = { errorDialogMessage = null },
         )
     }
+}
+
+/** Small text button inside a row. */
+@Composable
+private fun TextAction(text: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = color,
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(Spacing.xs),
+    )
 }
 
 /** Подпись и поле одной группой: зазор [Spacing.xs] (RN marginBottom 6), без резерва под пустую подпись. */

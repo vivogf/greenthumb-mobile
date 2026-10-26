@@ -1,0 +1,111 @@
+# Offline species catalog search and pre-fill (feature m3-species-catalog,
+# VAL-CATALOG-003/004/005/006). Keyless: the app must already be signed in.
+# Airplane mode is switched by the caller with adb before this flow runs.
+# Entries: A monstera-deliciosa (8/21), B dracaena-trifasciata (18/90),
+# C dionaea-muscipula (3/null). English UI.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb species catalog — offline search (EN)
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Add a new plant|Add Plant"
+    timeout: 30000
+- tapOn: "Add a new plant|Add Plant"
+- tapOn: "Choose species"
+- assertNotVisible: ".*[Oo]ffline.*"
+# 1. English name
+- tapOn: "Name or scientific name"
+- inputText: "Swiss cheese"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+- takeScreenshot: en-q1-english-name
+# 2. English alias
+- eraseText: 40
+- inputText: "Split-leaf"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+# 3. Scientific name
+- eraseText: 40
+- inputText: "Monstera deliciosa"
+- extendedWaitUntil:
+    visible: "Swiss cheese plant"
+    timeout: 2000
+# 4. Mixed case spot-check (VAL-CATALOG-004)
+- eraseText: 40
+- inputText: "sWiSs ChEeSe"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+- takeScreenshot: en-q4-mixed-case
+# 5. Russian alias typed in the English UI
+- eraseText: 40
+- inputText: "Монстера"
+- extendedWaitUntil:
+    visible: "Monstera deliciosa"
+    timeout: 2000
+- takeScreenshot: en-q5-ru-alias
+# Pick A into an empty form
+- tapOn: "Monstera deliciosa"
+- extendedWaitUntil:
+    visible: "Swiss cheese plant"
+    timeout: 2000
+- assertVisible: "8"
+- assertVisible: "Care intervals are filled in from the species. You can change them."
+- takeScreenshot: en-a-filled
+- scrollUntilVisible:
+    element: "21"
+    direction: DOWN
+- takeScreenshot: en-a-fertilize
+- scrollUntilVisible:
+    element: "Change"
+    direction: UP
+# Switch to B: auto name and every interval replaced
+- tapOn: "Change"
+- tapOn: "Name or scientific name"
+- inputText: "Snake plant"
+- tapOn: "Dracaena trifasciata"
+- extendedWaitUntil:
+    visible: "Snake plant"
+    timeout: 2000
+- assertNotVisible: "Swiss cheese plant"
+- assertVisible: "18"
+- takeScreenshot: en-b-filled
+- scrollUntilVisible:
+    element: "90"
+    direction: DOWN
+- takeScreenshot: en-b-fertilize
+- scrollUntilVisible:
+    element: "Change"
+    direction: UP
+# Switch to C: fertilizing has no value, the field is empty again
+- tapOn: "Change"
+- tapOn: "Name or scientific name"
+- inputText: "flytrap"
+- tapOn: "Dionaea muscipula"
+- extendedWaitUntil:
+    visible: "Venus flytrap"
+    timeout: 2000
+- scrollUntilVisible:
+    element: "e.g., 30"
+    direction: DOWN
+- assertNotVisible: "90"
+- takeScreenshot: en-c-fertilize-empty
+# Typed name is never overwritten (VAL-CATALOG-006)
+- back
+- tapOn: "Add a new plant|Add Plant"
+- tapOn: "e.g., Monstera Deliciosa"
+- inputText: "Val Fern 42"
+- hideKeyboard
+- tapOn: "Choose species"
+- tapOn: "Name or scientific name"
+- inputText: "monstera"
+- tapOn: "Monstera deliciosa"
+- extendedWaitUntil:
+    visible: "Val Fern 42"
+    timeout: 2000
+- assertVisible: "8"
+- takeScreenshot: en-typed-name-kept
+- back

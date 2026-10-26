@@ -338,4 +338,18 @@
     <string name="keyQr_hint">В коде только ваш ключ восстановления. Отсканируйте его, чтобы перенести ключ на другое устройство. Никому его не показывайте.</string>
     <string name="keyQr_imageDescription">QR-код с вашим ключом восстановления</string>
     <string name="keyQr_screenshotsBlocked">Снимки экрана на этом экране запрещены.</string>
+    <string name="species_choose">Выбрать вид</string>
+    <string name="species_change">Сменить</string>
+    <string name="species_clear">Убрать</string>
+    <string name="species_title">Вид</string>
+    <string name="species_searchHint">Название или латинское имя</string>
+    <string name="species_noResults">Ничего не найдено</string>
+    <string name="species_light">Освещение</string>
+    <string name="species_lightLow">Тень</string>
+    <string name="species_lightMedium">Полутень</string>
+    <string name="species_lightBrightIndirect">Яркий рассеянный свет</string>
+    <string name="species_lightDirect">Прямое солнце</string>
+    <string name="species_tip">Совет по уходу</string>
+    <string name="species_notSet">Не выбран</string>
+    <string name="species_prefilledHint">Интервалы ухода заполнены по виду. Их можно изменить.</string>
 </resources>

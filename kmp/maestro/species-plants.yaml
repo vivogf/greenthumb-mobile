@@ -1,0 +1,169 @@
+# Species on saved plants (feature m3-species-catalog, VAL-CATALOG-007..011).
+# Keyless, signed in. STEP selects one stage; the caller checks the server
+# with curl between stages and toggles airplane mode where noted.
+#   add-ru     online, RU UI: add a plant with A (monstera-deliciosa), detail in RU
+#   detail-en  airplane mode: relaunch, switch to EN, detail shows A in EN
+#   change-en  online, EN UI: refresh, change species to B (dracaena-trifasciata)
+#   clear-en   online: clear the species, then water the plant
+#   plain-en   online: plant without species, edit care settings, water
+appId: com.greenthumbplantcare.debug
+name: GreenThumb species catalog — saved plants (${STEP})
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'add-ru'}
+    commands:
+      - tapOn: "Добавить новое растение|Добавить растение"
+      - tapOn: "Выбрать вид"
+      - tapOn: "Название или латинское имя"
+      - inputText: "Swiss cheese"
+      - tapOn: "Monstera deliciosa"
+      - extendedWaitUntil:
+          visible: "Монстера деликатесная"
+          timeout: 2000
+      - scrollUntilVisible:
+          element: "Добавить растение"
+          direction: DOWN
+      - tapOn: "Добавить растение"
+      - extendedWaitUntil:
+          visible: "Открыть карточку растения Монстера деликатесная"
+          timeout: 15000
+      - tapOn: "Открыть карточку растения Монстера деликатесная"
+      - scrollUntilVisible:
+          element: "Дайте опору из мохового столбика: на ней листья крупнее и получают больше разрезов."
+          direction: DOWN
+      - assertVisible: "Освещение: Яркий рассеянный свет"
+      - assertVisible: "Monstera deliciosa"
+      - takeScreenshot: ru-detail-a
+
+- runFlow:
+    when:
+      true: ${STEP == 'detail-en'}
+    commands:
+      - tapOn: "Profile|Профиль"
+      - scrollUntilVisible:
+          element: "Language|Язык"
+          direction: DOWN
+      - tapOn: "Language|Язык"
+      - tapOn: "English"
+      - extendedWaitUntil:
+          visible: "My Profile"
+          timeout: 5000
+      - tapOn: "Plants"
+      - tapOn: "Open plant card Монстера деликатесная"
+      - scrollUntilVisible:
+          element: "Give it a moss pole to climb: leaves grow larger and develop more splits when the stem has support."
+          direction: DOWN
+      - assertVisible: "Swiss cheese plant"
+      - assertVisible: "Light: Bright indirect light"
+      - takeScreenshot: en-detail-a-offline
+
+- runFlow:
+    when:
+      true: ${STEP == 'change-en'}
+    commands:
+      - swipe:
+          start: 50%, 25%
+          end: 50%, 75%
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - tapOn: "Open plant card Монстера деликатесная"
+      - scrollUntilVisible:
+          element: "Swiss cheese plant"
+          direction: DOWN
+      - takeScreenshot: en-detail-a-after-refresh
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - tapOn: "Care Settings"
+      - tapOn: "Change"
+      - tapOn: "Name or scientific name"
+      - inputText: "Snake"
+      - tapOn: "Dracaena trifasciata"
+      - extendedWaitUntil:
+          visible: "Snake plant"
+          timeout: 2000
+      - tapOn: "Save"
+      - scrollUntilVisible:
+          element: "Light: Low light"
+          direction: DOWN
+      - assertVisible: "Water only after the mix is fully dry, about once a month in winter. Roots rot when water stands."
+      - assertNotVisible: "Give it a moss pole to climb: leaves grow larger and develop more splits when the stem has support."
+      - takeScreenshot: en-detail-b
+
+- runFlow:
+    when:
+      true: ${STEP == 'clear-en'}
+    commands:
+      - tapOn: "Open plant card Монстера деликатесная"
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - tapOn: "Care Settings"
+      - tapOn: "Remove"
+      - assertVisible: "Not chosen"
+      - tapOn: "Save"
+      - swipe:
+          start: 50%, 70%
+          end: 50%, 30%
+      - assertNotVisible: "Light:.*"
+      - assertNotVisible: "Care tip"
+      - assertNotVisible: "Snake plant"
+      - takeScreenshot: en-detail-cleared
+      - scrollUntilVisible:
+          element: "Water Plant"
+          direction: UP
+      - tapOn: "Water Plant"
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - takeScreenshot: en-detail-cleared-watered
+
+- runFlow:
+    when:
+      true: ${STEP == 'plain-en'}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "Open plant card Val Plain"
+          commands:
+            - tapOn: "Add a new plant|Add Plant"
+            - tapOn: "e.g., Monstera Deliciosa"
+            - inputText: "Val Plain"
+            - hideKeyboard
+            - tapOn: "7"
+            - inputText: "7"
+            - hideKeyboard
+            - scrollUntilVisible:
+                element: "Add Plant"
+                direction: DOWN
+            - tapOn: "Add Plant"
+      - extendedWaitUntil:
+          visible: "Open plant card Val Plain"
+          timeout: 15000
+      - takeScreenshot: en-dashboard-plain
+      - tapOn: "Open plant card Val Plain"
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - assertNotVisible: "Light:.*"
+      - assertNotVisible: "Care tip"
+      - takeScreenshot: en-detail-plain
+      - tapOn: "Care Settings"
+      - assertVisible: "Not chosen"
+      - tapOn: "7"
+      - eraseText: 5
+      - inputText: "6"
+      - tapOn: "Save"
+      - scrollUntilVisible:
+          element: "Water Plant"
+          direction: UP
+      - tapOn: "Water Plant"
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - takeScreenshot: en-detail-plain-edited-watered

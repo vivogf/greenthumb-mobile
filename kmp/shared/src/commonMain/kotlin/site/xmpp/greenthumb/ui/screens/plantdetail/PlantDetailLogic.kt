@@ -3,6 +3,8 @@ package site.xmpp.greenthumb.ui.screens.plantdetail
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
+import site.xmpp.greenthumb.catalog.CatalogRepository
+import site.xmpp.greenthumb.catalog.SpeciesEntry
 import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
@@ -146,6 +148,23 @@ public fun wateredAgoLabel(lastWateredDate: String, today: LocalDate): WateredAg
     }
 }
 
+/** What the detail screen can say about a plant's species. */
+public sealed interface PlantSpeciesInfo {
+    public data object None : PlantSpeciesInfo
+
+    /** Known catalog entry: name, light level and tip. */
+    public data class Catalog(public val entry: SpeciesEntry) : PlantSpeciesInfo
+
+    /** Only a saved scientific name (not in the catalog, or catalog not loaded yet). */
+    public data class NameOnly(public val scientificName: String) : PlantSpeciesInfo
+}
+
+public fun plantSpeciesInfo(plant: PlantDto, catalog: CatalogRepository?): PlantSpeciesInfo {
+    catalog?.byId(plant.speciesId)?.let { return PlantSpeciesInfo.Catalog(it) }
+    val name = plant.speciesName?.takeIf { it.isNotBlank() }
+    return if (name != null) PlantSpeciesInfo.NameOnly(name) else PlantSpeciesInfo.None
+}
+
 /**
  * Состояние формы модалки настроек ухода — порт `settingsForm` (RN
  * `app/plant/[id].tsx:66-76`) и `openSettings` (строки в поля ввода,
@@ -160,7 +179,15 @@ public data class CareSettingsForm(
     public val lastRepottedDate: String?,
     public val pruneFrequencyText: String,
     public val lastPrunedDate: String?,
+    public val speciesId: String? = null,
+    public val speciesName: String? = null,
 ) {
+    /** Picks another catalog species; intervals are left to the user. */
+    public fun withSpecies(species: SpeciesEntry): CareSettingsForm =
+        copy(speciesId = species.id, speciesName = species.scientificName)
+
+    public fun withoutSpecies(): CareSettingsForm = copy(speciesId = null, speciesName = null)
+
     public companion object {
         /** Порт RN openSettings (`app/plant/[id].tsx:232-247`). */
         public fun of(plant: PlantDto): CareSettingsForm = CareSettingsForm(
@@ -172,6 +199,8 @@ public data class CareSettingsForm(
             lastRepottedDate = plant.lastRepottedDate,
             pruneFrequencyText = plant.pruneFrequencyMonths?.toString() ?: "",
             lastPrunedDate = plant.lastPrunedDate,
+            speciesId = plant.speciesId,
+            speciesName = plant.speciesName,
         )
     }
 }
@@ -233,6 +262,14 @@ public object CareSettingsPatch {
         }
         parseDate(form.lastPrunedDate)?.let {
             patch = patch.copy(lastPrunedDate = Patch.Value(it))
+        }
+        // Both species fields travel together so the server never holds an
+        // id from one species and a name from another.
+        if (form.speciesId != plant.speciesId || form.speciesName != plant.speciesName) {
+            patch = patch.copy(
+                speciesId = form.speciesId?.let { Patch.Value(it) } ?: Patch.Null,
+                speciesName = form.speciesName?.let { Patch.Value(it) } ?: Patch.Null,
+            )
         }
         return patch
     }

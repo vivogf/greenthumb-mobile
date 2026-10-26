@@ -46,6 +46,11 @@ public data class PlantEntity(
     val notes: String?,
     @ColumnInfo(name = "created_at")
     val createdAt: String,
+    /** Added in schema v2 ([GreenThumbMigrations.MIGRATION_1_2]). */
+    @ColumnInfo(name = "species_id")
+    val speciesId: String? = null,
+    @ColumnInfo(name = "species_name")
+    val speciesName: String? = null,
 )
 
 /**
