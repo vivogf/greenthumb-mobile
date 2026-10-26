@@ -20,17 +20,6 @@ android {
     // CMP 1.12.0 (androidx-маппировка compose-артефактов) требует compileSdk 37.
     compileSdk = 37
 
-    // Debug-сборка подписывается тем же keystore, что и локальная Expo-сборка
-    // (android/app/debug.keystore) — иначе `adb install -r` поверх Expo-APK падает
-    // INSTALL_FAILED_UPDATE_INCOMPATIBLE (матрица обновления, VAL-HANDOFF-IMP-001/003).
-    signingConfigs {
-        create("debugProject") {
-            storeFile = rootProject.file("../android/app/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
 
     defaultConfig {
         applicationId = "com.greenthumbplantcare"
@@ -40,11 +29,18 @@ android {
         // миграции: KMP-сборка всегда ставится обновлением поверх установленной базы.
         versionCode = 6
         versionName = "0.1.0"
+        manifestPlaceholders["appLabel"] = "GreenThumb"
     }
 
     buildTypes {
+        // Debug — отдельный пакет рядом с продовым: подписывается AGP-дефолтом
+        // ~/.android/debug.keystore этого Mac. Публичный keystore RN-шаблона
+        // (SHA1 5E:8F:16:…) не использовать: его ключ общеизвестен, а
+        // debug-сертификат стоит в assetlinks прод-домена.
         getByName("debug") {
-            signingConfig = signingConfigs.getByName("debugProject")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            manifestPlaceholders["appLabel"] = "GreenThumb Debug"
         }
         // Crashlytics-символы (M12 release-rollout-prep, VAL-REL-006).
         // mappingFileUploadEnabled задан ЯВНО: AGP 9.3.1 сам не регистрирует

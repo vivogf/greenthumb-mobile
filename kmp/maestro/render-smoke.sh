@@ -22,14 +22,18 @@
 #   render-smoke.sh selftest # проверить фильтр на фиктивном значении
 set -euo pipefail
 
-SRC="$(cd "$(dirname "$0")" && pwd)/smoke.yaml"
-KEY_FILE="/tmp/gt-utval/m8ut.key"
+# GT_FLOW — имя другого флоу из этого каталога с тем же плейсхолдером ключа.
+SRC="$(cd "$(dirname "$0")" && pwd)/${GT_FLOW:-smoke.yaml}"
+# GT_KEY_FILE — путь к key-файлу throwaway-аккаунта (путь, не ключ).
+KEY_FILE="${GT_KEY_FILE:-/tmp/gt-utval/m8ut.key}"
 OUT_DIR="/tmp/gt-m11"
 OUT_FLOW="$OUT_DIR/smoke.rendered.yaml"
 DEBUG_OUT="$OUT_DIR/maestro-debug"
 RUN_LOG="$OUT_DIR/maestro-run.log"
 MAESTRO="/opt/homebrew/bin/maestro"
-EMULATOR="emulator-5554"
+# GT_DEVICE — serial устройства (по умолчанию эмулятор). Флоу таргетит только
+# com.greenthumbplantcare.debug, прод-пакет на телефоне не трогается.
+EMULATOR="${GT_DEVICE:-emulator-5554}"
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 cleanup() {

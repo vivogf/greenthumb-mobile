@@ -22,7 +22,8 @@ DEBUG_OUT="$OUT_DIR/maestro-debug"
 PRESERVE_DIR="${GT_EVIDENCE_DIR:-}"
 RUN_LOG="$OUT_DIR/maestro-run.log"
 MAESTRO="/opt/homebrew/bin/maestro"
-EMULATOR="emulator-5554"
+# GT_DEVICE — serial устройства (по умолчанию эмулятор).
+EMULATOR="${GT_DEVICE:-emulator-5554}"
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 cleanup() {

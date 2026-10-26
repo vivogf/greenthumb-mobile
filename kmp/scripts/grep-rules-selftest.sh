@@ -335,7 +335,7 @@ else
 
   BROKEN_FLOW="/tmp/gt-m11-selftest-broken.yaml"
   cat > "$BROKEN_FLOW" <<'EOF'
-appId: com.greenthumbplantcare
+appId: com.greenthumbplantcare.debug
 name: deliberately broken (selftest)
 ---
 - assertVisible:

@@ -1,0 +1,65 @@
+# Maestro flow: вход по recovery key throwaway-аккаунта и включение пушей в
+# Профиле (FCM-подписка debug-пакета, architecture §8.3). Цель — POCO
+# UWUKIZ6TNZZL8TBE (ru-RU, Play services) или эмулятор (en-US); селекторы —
+# регулярки «ru|en» (матчер Maestro — полное совпадение).
+#
+# СЕКРЕТ. `${GT_RECOVERY_KEY}` — плейсхолдер. Прогон только через рендер:
+#   GT_FLOW=push-enable.yaml GT_KEY_FILE=<key-file> GT_DEVICE=UWUKIZ6TNZZL8TBE \
+#     bash kmp/maestro/render-smoke.sh run
+# Скриншоты — только после ухода с экрана ввода ключа.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb push enable (debug, ru/en)
+---
+- launchApp:
+    clearState: true
+- repeat:
+    times: 15
+    while:
+      notVisible: "С возвращением|Welcome Back"
+    commands:
+      - runFlow:
+          when:
+            visible: "Все растения в одном месте|Your plants, organized"
+          commands:
+            - tapOn: "Пропустить|Skip"
+      - runFlow:
+          when:
+            visible: "Ключ не найден|Key not found"
+          commands:
+            - tapOn: "Ввести ключ|Enter recovery key"
+      - runFlow:
+          when:
+            visible: "У меня есть ключ|I Have a Key"
+          commands:
+            - tapOn: "У меня есть ключ|I Have a Key"
+- assertVisible: "С возвращением|Welcome Back"
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: ${GT_RECOVERY_KEY}
+- hideKeyboard
+- tapOn: "Войти|Sign In"
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 30000
+- tapOn: "Профиль|Profile"
+- extendedWaitUntil:
+    visible: "Мой профиль|My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Напоминания о поливе|Watering Reminders"
+    direction: DOWN
+# Подпись строки и сам переключатель несут один и тот же текст (у GtSwitch
+# contentDescription = profile_notifications); переключатель — последний узел.
+- tapOn:
+    text: "Напоминания о поливе|Watering Reminders"
+    index: 1
+# Системный диалог POST_NOTIFICATIONS (API 33+); на повторном прогоне его нет.
+- runFlow:
+    when:
+      visible: "Разрешить|Allow"
+    commands:
+      - tapOn: "Разрешить|Allow"
+- extendedWaitUntil:
+    visible: "Уведомления включены|Notifications enabled"
+    timeout: 30000
+- takeScreenshot: push-enabled

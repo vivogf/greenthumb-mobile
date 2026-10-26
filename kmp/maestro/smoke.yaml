@@ -29,7 +29,7 @@
 #     на экране Add Plant).
 #
 # СПОСОБ УСТАНОВКИ ПЕРЕД ПРОГОНОМ — обе ветки валидны:
-#   * «свежая»: adb -s emulator-5554 uninstall com.greenthumbplantcare;
+#   * «свежая»: adb -s emulator-5554 uninstall com.greenthumbplantcare.debug;
 #     sleep 3; adb -s emulator-5554 install <debug.apk> (firstInstallTime ==
 #     lastUpdateTime → интро);
 #   * «поверх старого»: adb install -r <debug.apk> (firstInstallTime !=
@@ -56,7 +56,7 @@
 # Язык флоу: селекторы на АНГЛИЙСКИХ строках. Эмулятор `elt_test` живёт в
 # `en-US`, а дефолт Compose Resources — `values/` = en. На ru-локали
 # эмулятора селекторы придётся заменить на русские строки.
-appId: com.greenthumbplantcare
+appId: com.greenthumbplantcare.debug
 name: GreenThumb smoke (Stage 11b — VAL-TEST-006)
 ---
 # 0. Чистый старт: без состояния прошлых прогонов и без handoff-файла.

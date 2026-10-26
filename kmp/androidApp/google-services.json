@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1057247868457:android:ab6f4a191ece40750fce38",
+        "mobilesdk_app_id": "1:1057247868457:android:4e1da60a6cbb14b40fce38",
         "android_client_info": {
-          "package_name": "com.greenthumb.plantcare"
+          "package_name": "com.greenthumbplantcare"
         }
       },
       "oauth_client": [],
@@ -26,9 +26,9 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1057247868457:android:4e1da60a6cbb14b40fce38",
+        "mobilesdk_app_id": "1:1057247868457:android:d58b7a3491972d090fce38",
         "android_client_info": {
-          "package_name": "com.greenthumbplantcare"
+          "package_name": "com.greenthumbplantcare.debug"
         }
       },
       "oauth_client": [],

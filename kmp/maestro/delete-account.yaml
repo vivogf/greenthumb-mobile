@@ -21,7 +21,7 @@
 #
 # Язык флоу: селекторы на АНГЛИЙСКИХ строках (эмулятор elt_test — en-US,
 # дефолт Compose Resources — en).
-appId: com.greenthumbplantcare
+appId: com.greenthumbplantcare.debug
 name: GreenThumb account deletion (Stage 12 — VAL-REL-003)
 ---
 # 0. Чистый старт. Стартовый экран зависит от способа установки (свежая —
