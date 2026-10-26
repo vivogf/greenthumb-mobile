@@ -233,6 +233,7 @@ public fun ProfileScreen(
     val vaultSaver = rememberVaultSaver()
     // After regeneration the Google entry still holds the old key until saved again.
     var keyIsNew by remember { mutableStateOf(false) }
+
     val themePreference by settings.theme.collectAsState(initial = null)
     val languagePreference by settings.language.collectAsState(initial = null)
 
@@ -923,7 +924,8 @@ public fun ProfileScreen(
                                 session.regenerateRecoveryKey()
                                 keyVisible = true
                                 keyIsNew = true
-                                vaultSaver.resetConfirmation()                                // RN notificationAsync(Success) (profile.tsx:174).
+                                vaultSaver.resetConfirmation()
+                                // RN notificationAsync(Success) (profile.tsx:174).
                                 Haptics.success()
                                 success = SuccessEvent.KeyRegenerated
                             } catch (cancellation: CancellationException) {

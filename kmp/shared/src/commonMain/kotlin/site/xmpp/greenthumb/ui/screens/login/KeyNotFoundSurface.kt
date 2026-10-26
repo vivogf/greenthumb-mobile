@@ -49,7 +49,8 @@ public fun KeyNotFoundSurface(
     onSignInWithSavedKey: () -> Unit = {},
     notice: SavedKeyOutcome? = null,
     busy: Boolean = false,
-) {    val scheme = MaterialTheme.colorScheme
+) {
+    val scheme = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = scheme.background,
@@ -83,7 +84,8 @@ public fun KeyNotFoundSurface(
                 )
                 SavedKeySignInBlock(onClick = onSignInWithSavedKey, outcome = notice, enabled = !busy)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                SecondaryButton(                    text = stringResource(Res.string.session_keyNotFoundCreateAccount),
+                SecondaryButton(
+                    text = stringResource(Res.string.session_keyNotFoundCreateAccount),
                     onClick = onEnterCreate,
                     modifier = Modifier.gtButtonWidth(),
                 )
