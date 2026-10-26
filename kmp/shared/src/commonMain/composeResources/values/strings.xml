@@ -331,4 +331,9 @@
     <string name="vault_restoreUnavailable">Google Password Manager isn't available on this device. Enter your recovery key manually.</string>
     <string name="vault_restoreFailed">Couldn't get the saved key. Enter your recovery key manually.</string>
     <string name="vault_staleKey">This saved key is out of date. Enter your current recovery key manually.</string>
+    <string name="profile_showKeyQr">Show key as QR code</string>
+    <string name="keyQr_title">Recovery key QR code</string>
+    <string name="keyQr_hint">The code holds only your recovery key. Scan it to move the key to another device. Don\'t show it to anyone else.</string>
+    <string name="keyQr_imageDescription">QR code with your recovery key</string>
+    <string name="keyQr_screenshotsBlocked">Screenshots are blocked on this screen.</string>
 </resources>

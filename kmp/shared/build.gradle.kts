@@ -75,7 +75,10 @@ kotlin {
             // Recovery key in Google Password Manager (architecture §5.3):
             // play-services-auth is the provider bridge for API 33 and lower.
             implementation(libs.androidxCredentials)
-            implementation(libs.androidxCredentialsPlayServicesAuth)            // Firebase Remote Config (M12 kill-switch, Stage 12 п.1): параметр
+            implementation(libs.androidxCredentialsPlayServicesAuth)
+            // ZXing is JVM-only, so the QR encoder is an androidMain/jvmMain actual.
+            implementation(libs.zxingCore)
+            // Firebase Remote Config (M12 kill-switch, Stage 12 п.1): параметр
             // min_supported_build. Версию задаёт та же BoM (architecture.md §4);
             // сам actual — RemoteKillSwitch.android.kt.
             implementation(libs.firebaseConfig)
@@ -86,6 +89,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.ktorClientCio)
+            implementation(libs.zxingCore)
             // datastore-core-okio-jvm: PreferenceDataStoreFactory на jvmMain
             // (та же логика, что и в androidMain).
             implementation(libs.datastorePreferencesCore)
@@ -106,6 +110,8 @@ kotlin {
             // Явно, как datastore выше: jvmTest видит Room-типы и sqlite-bundled.
             implementation(libs.roomRuntime)
             implementation(libs.sqliteBundled)
+            // QrCodeTest decodes with ZXing QRCodeReader.
+            implementation(libs.zxingCore)
         }
     }
 }

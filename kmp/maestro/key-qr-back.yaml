@@ -1,0 +1,18 @@
+# Recovery key QR export: leave the QR screen with system Back
+# (VAL-CROSS-013). Run right after key-qr-open.yaml, while the QR screen is
+# shown. Back → Profile (session kept) → Back → dashboard with the plant list.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb recovery key QR — back
+---
+- assertVisible: "QR-код ключа восстановления|Recovery key QR code"
+- back
+- extendedWaitUntil:
+    visible: "Мой профиль|My Profile"
+    timeout: 10000
+- assertNotVisible: "QR-код ключа восстановления|Recovery key QR code"
+- takeScreenshot: key-qr-profile-after
+- back
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 10000
+- takeScreenshot: key-qr-dashboard-after

@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -118,6 +119,7 @@ import site.xmpp.greenthumb.ui.res.profile_recoveryKeyHint
 import site.xmpp.greenthumb.ui.res.profile_regenerateWarning
 import site.xmpp.greenthumb.ui.res.profile_settingsSaved
 import site.xmpp.greenthumb.ui.res.profile_show
+import site.xmpp.greenthumb.ui.res.profile_showKeyQr
 import site.xmpp.greenthumb.ui.res.profile_signOut
 import site.xmpp.greenthumb.ui.res.profile_signOutConfirm
 import site.xmpp.greenthumb.ui.res.profile_signOutWarning
@@ -200,6 +202,8 @@ public fun ProfileScreen(
     onAddPlant: () -> Unit = {},
     /** Удаление аккаунта (Stage 12 п.4): открывает экран подтверждения. */
     onDeleteAccount: () -> Unit = {},
+    /** Opens the recovery key QR screen. */
+    onShowKeyQr: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -601,6 +605,25 @@ public fun ProfileScreen(
                     )
                 }
                 if (user != null) {
+                    Row(
+                        modifier = Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                role = Role.Button,
+                            ) { onShowKeyQr() }
+                            .padding(vertical = Spacing.xxs)
+                            .testTag("profile_showKeyQr"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        GtKeyMark(tint = scheme.primary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
+                        Text(
+                            text = stringResource(Res.string.profile_showKeyQr),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.primary,
+                        )
+                    }
                     SaveKeyToGoogle(
                         saver = vaultSaver,
                         userId = user.id,

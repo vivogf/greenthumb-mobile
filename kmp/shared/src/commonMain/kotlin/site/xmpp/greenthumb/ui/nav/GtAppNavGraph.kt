@@ -49,6 +49,7 @@ import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDeleteNotice
 import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
+import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -75,6 +76,8 @@ public object NavRoutes {
     public const val PLANT: String = "plant/{id}"
     /** Экран подтверждения удаления аккаунта (Stage 12 п.4; в RN нет). */
     public const val DELETE_ACCOUNT: String = "profile/delete-account"
+    /** Recovery key as a QR code (architecture §5.3). */
+    public const val KEY_QR: String = "profile/recovery-key-qr"
 
     /** Имя аргумента маршрута растения. */
     public const val PLANT_ARG: String = "id"
@@ -216,6 +219,7 @@ public fun GtAppNavGraph(
                         pushLanguage = { pushLanguage() },
                         onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
                         onDeleteAccount = { navController.navigate(NavRoutes.DELETE_ACCOUNT) },
+                        onShowKeyQr = { navController.navigate(NavRoutes.KEY_QR) },
                     )
                 }
             }
@@ -227,6 +231,14 @@ public fun GtAppNavGraph(
         composable(NavRoutes.DELETE_ACCOUNT) {
             AppLocalizedContent {
                 DeleteAccountScreen(
+                    session = session,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+        composable(NavRoutes.KEY_QR) {
+            AppLocalizedContent {
+                RecoveryKeyQrScreen(
                     session = session,
                     onBack = { navController.popBackStack() },
                 )

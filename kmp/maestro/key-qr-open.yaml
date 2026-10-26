@@ -1,0 +1,30 @@
+# Recovery key QR export (architecture §5.3, VAL-CRED-015 / VAL-CROSS-013):
+# signed-in dashboard → Profile → "Show key as QR code" → QR screen.
+# Starts from the signed-in app (sign in first with photos-signin.yaml through
+# render-smoke.sh). Keyless: the only screenshot is taken before the QR opens.
+# The flow stops on the QR screen so the caller can check the secure window:
+#   adb shell dumpsys window windows | grep -A3 com.greenthumbplantcare.debug
+#   adb exec-out screencap -p   (app window must be black)
+# Then run key-qr-back.yaml. Selectors are ru|en regexes.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb recovery key QR — open
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 30000
+- tapOn: "Профиль|Profile"
+- extendedWaitUntil:
+    visible: "Мой профиль|My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Показать ключ QR-кодом|Show key as QR code"
+    direction: DOWN
+- takeScreenshot: key-qr-profile-before
+- tapOn: "Показать ключ QR-кодом|Show key as QR code"
+- extendedWaitUntil:
+    visible: "QR-код ключа восстановления|Recovery key QR code"
+    timeout: 10000
+- assertVisible: "QR-код с вашим ключом восстановления|QR code with your recovery key"
+- assertVisible: ".*(Снимки экрана на этом экране запрещены|Screenshots are blocked on this screen).*"
