@@ -18,6 +18,8 @@ import site.xmpp.greenthumb.ui.nav.GtBottomTabs
 import site.xmpp.greenthumb.ui.nav.GtTab
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.dashboard_lastSynced
+import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
+import site.xmpp.greenthumb.ui.res.dashboard_unsaved
 import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.privacy_bugBody
@@ -112,6 +114,32 @@ class I18nResourcesTest {
             onNodeWithText("3 days overdue").assertExists()
             onNodeWithText("5 days overdue").assertExists()
             onNodeWithText("21 days overdue").assertExists()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    /** VAL-APP-009: no literal backslash in the banner; pending tag localized. */
+    @Test
+    fun banner_and_pending_tag_render_clean_in_en_and_ru() = try {
+        rememberLocale()
+        listOf(
+            "en" to listOf("Couldn’t refresh — showing saved data", "not saved yet"),
+            "ru" to listOf("Не удалось обновить — показаны сохранённые данные", "не сохранено"),
+        ).forEach { (locale, expected) ->
+            runDesktopComposeUiTest {
+                setContent {
+                    AppEnvironment(customAppLocale = locale) {
+                        GreenThumbTheme(darkTheme = false) {
+                            Column {
+                                Text(stringResource(Res.string.dashboard_refreshFailed))
+                                Text(stringResource(Res.string.dashboard_unsaved))
+                            }
+                        }
+                    }
+                }
+                expected.forEach { onNodeWithText(it).assertExists() }
+            }
         }
     } finally {
         restoreLocale()

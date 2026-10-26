@@ -195,6 +195,7 @@ class AddPlantScreenTest {
         var plantsCount = 0
         var createCount = 0
         var addPlantStatus: HttpStatusCode = HttpStatusCode.OK
+        var addPlantOffline = false
         var lastAddBody: String? = null
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
@@ -226,6 +227,7 @@ class AddPlantScreenTest {
                         plantsCount++
                         val body = (request.body as? TextContent)?.text
                         lastAddBody = body
+                        if (addPlantOffline) throw java.io.IOException("airplane mode")
                         respond(createdPlantJson(body ?: ""), addPlantStatus, JSON_HEADERS)
                     }
                     else -> respond("{}", HttpStatusCode.NotFound, JSON_HEADERS)
@@ -577,6 +579,35 @@ class AddPlantScreenTest {
             waitUntilAtLeastOneExists(hasText("Upload failed"), TIMEOUT)
             // Форма осталась открытой (не ушли назад).
             onNodeWithText("Add New Plant").assertExists()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /**
+     * VAL-APP-009: offline submit is queued by the journal, so the form
+     * closes without an error dialog and the dashboard tile carries the
+     * localized pending tag.
+     */
+    @Test
+    fun offlineSubmit_closesForm_andShowsPendingTag_withoutErrorDialog() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        graph.server.addPlantOffline = true
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openAddPlantForm()
+
+            fillForm(name = "ValOffline", frequency = "7")
+
+            clickSubmit("Add Plant")
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            waitUntilDoesNotExist(hasText("Add New Plant"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("ValOffline"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("not saved yet"), TIMEOUT)
+            onNodeWithText("Upload failed").assertDoesNotExist()
+            onNodeWithText("не сохранено").assertDoesNotExist()
 
             runOnIdle { graph.close() }
         }

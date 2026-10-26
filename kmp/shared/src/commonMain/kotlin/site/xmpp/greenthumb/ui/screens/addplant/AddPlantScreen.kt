@@ -119,7 +119,9 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * Submit: валидная форма → [PlantRepository.add] (оптимистичная запись +
  * POST /api/plants; invalidate дашборда не нужен — Room сам рекомпонирует
  * список; VAL-ADDPLANT-002 — карточка появляется немедленно) → назад.
- * Ошибка сети/сервера — локализованный алерт (RN showAlert uploadFailed).
+ * Нет сети — растение остаётся в журнале с меткой «не сохранено», экран
+ * закрывается (VAL-APP-009). Ошибка сервера — локализованный алерт
+ * (RN showAlert uploadFailed).
  *
  * Отличия от RN, осознанные по parity-файлу:
  * - react-hook-form+zod → ручная [AddPlantForm.validate] (план Stage 7 п.5);
@@ -190,7 +192,8 @@ public fun AddPlantScreen(
         submitting = true
         scope.launch {
             try {
-                repo.add(AddPlantForm.toInsertPlantDto(fields))
+                // Saved or queued offline: the dashboard already shows the plant.
+                repo.addOrQueue(AddPlantForm.toInsertPlantDto(fields))
                 onBack()
             } catch (cancellation: CancellationException) {
                 throw cancellation

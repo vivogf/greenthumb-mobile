@@ -318,7 +318,7 @@ public fun PlantDetailScreen(
             fun update(patch: PatchPlantDto) {
                 scope.launch {
                     try {
-                        repo.update(plant.id, patch)
+                        repo.updateOrQueue(plant.id, patch)
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (error: Throwable) {
@@ -374,7 +374,7 @@ public fun PlantDetailScreen(
                 waterPending = true
                 scope.launch {
                     try {
-                        repo.update(plant.id, PatchPlantDto(lastWateredDate = Patch.Value(today.toString())))
+                        repo.updateOrQueue(plant.id, PatchPlantDto(lastWateredDate = Patch.Value(today.toString())))
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (error: Throwable) {

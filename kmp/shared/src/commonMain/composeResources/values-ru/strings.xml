@@ -83,6 +83,7 @@
     </plurals>
     <string name="dashboard_plantsPostponed">растений отложено</string>
     <string name="dashboard_refreshFailed">Не удалось обновить — показаны сохранённые данные</string>
+    <string name="dashboard_unsaved">не сохранено</string>
     <string name="dashboard_databaseError">Ошибка чтения локальной базы</string>
     <string name="plant_water">Полить</string>
     <string name="plant_watered">Полито!</string>

@@ -71,7 +71,7 @@ import site.xmpp.greenthumb.data.RefreshCoordinator
 import site.xmpp.greenthumb.data.RefreshOutcome
 import site.xmpp.greenthumb.data.SyncBanner
 import site.xmpp.greenthumb.data.SyncMetaSource
-import site.xmpp.greenthumb.data.UnsavedMutation
+import site.xmpp.greenthumb.data.isHeldForReplay
 import site.xmpp.greenthumb.data.WateringStatus
 import site.xmpp.greenthumb.data.daysUntilWatering
 import site.xmpp.greenthumb.data.wateringStatus
@@ -123,6 +123,7 @@ import site.xmpp.greenthumb.ui.res.dashboard_noPlantsFound
 import site.xmpp.greenthumb.ui.res.dashboard_plantsWatered
 import site.xmpp.greenthumb.ui.res.dashboard_postponeAll
 import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
+import site.xmpp.greenthumb.ui.res.dashboard_unsaved
 import site.xmpp.greenthumb.ui.res.dashboard_search
 import site.xmpp.greenthumb.ui.res.dashboard_startTracking
 import site.xmpp.greenthumb.ui.res.dashboard_tryDifferentFilter
@@ -185,7 +186,7 @@ private const val BulkBannerBorderAlpha: Float = 36f / 255f
  * - анимации отвязаны от данных (architecture.md §7): репозиторий пишет
  *   Room немедленно, поэтому per-card «Watering…» массового полива RN
  *   (артефакт «кэш ещё не обновлён») не переносится — состояние несёт
- *   баннер; карточка при незакрытом журнале помечена [UnsavedMutation.LABEL].
+ *   баннер; карточка при незакрытом журнале помечена строкой `dashboard_unsaved`.
  *   ThanosSnap — эффект одноразовым набором снап-id (M10); кнопки полива —
  *   [GtWaterButton] (частицы + Medium-гаптика внутри, RN-паритет);
  * -Ionicons → Canvas-метки (прецедент GtBottomTabs); «#ff6b6b»/«#fbbf24»
@@ -435,7 +436,11 @@ public fun DashboardScreen(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
-                errorDialogMessage = error.message ?: error.toString()
+                // With due plants the journal already holds the bulk watering:
+                // offline it is queued (pending tag), not failed.
+                if (!(isHeldForReplay(error) && dueIds.isNotEmpty())) {
+                    errorDialogMessage = error.message ?: error.toString()
+                }
                 snapHeldIds = emptySet()
                 snapOrderIds = emptyList()
             } finally {
@@ -1241,7 +1246,7 @@ private fun PlantListItem(
             StatusPill(text = statusText, color = statusColor, bg = statusBg)
             if (unsaved) {
                 Text(
-                    text = UnsavedMutation.LABEL,
+                    text = stringResource(Res.string.dashboard_unsaved),
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant,
                 )
@@ -1363,7 +1368,7 @@ private fun PlantCard(
             }
             if (unsaved) {
                 Text(
-                    text = UnsavedMutation.LABEL,
+                    text = stringResource(Res.string.dashboard_unsaved),
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant,
                 )
@@ -1464,7 +1469,7 @@ private fun PlantGridCell(
             }
             if (unsaved) {
                 Text(
-                    text = UnsavedMutation.LABEL,
+                    text = stringResource(Res.string.dashboard_unsaved),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
                     modifier = Modifier

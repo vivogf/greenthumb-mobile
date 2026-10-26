@@ -76,6 +76,9 @@ KMP_ONLY_KEYS = {
     # не переносится — VAL-DASH-009/VAL-DATA-001). В RN полосы нет.
     "dashboard.refreshFailed",
     "dashboard.databaseError",
+    # dashboard.unsaved — метка карточки с открытым офлайн-журналом (M4);
+    # в RN офлайн-журнала нет (VAL-APP-009: раньше был ru-литерал в коде).
+    "dashboard.unsaved",
     # plantDetails.deleteQueued* — честный статус отложенного удаления при
     # Network/Timeout (VAL-DETAIL-004, решение пользователя 2026-09-27): M4
     # досылает удаление после подключения, RN-алерта на такую ситуацию нет

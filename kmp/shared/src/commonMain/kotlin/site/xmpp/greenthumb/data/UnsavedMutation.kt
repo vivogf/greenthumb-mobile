@@ -7,16 +7,14 @@ import site.xmpp.greenthumb.core.storage.PendingMutationEntity
  * Метка «не сохранено» для экранов (Stage 4 п.4 и п.6, VAL-OFF-002).
  *
  * Строка журнала `pending_mutations` значит: локальная правка ещё не
- * подтверждена сервером. Экраны M7 не хардкодят текст — берут [LABEL]
- * и множество id из [plantIds] (или [PlantRepository.observeUnsavedPlantIds]).
+ * подтверждена сервером. Текст метки — ресурс `dashboard_unsaved` (ru/en),
+ * множество id — [plantIds] (или [PlantRepository.observeUnsavedPlantIds]).
  *
  * В множество входят `plant_id` строки и, для `water_all`, id из payload:
  * у массового полива `plant_id` пустой. Битый payload не роняет список —
  * помечается только то, что разобралось.
  */
 public object UnsavedMutation {
-    public const val LABEL: String = "не сохранено"
-
     public fun plantIds(pending: List<PendingMutationEntity>): Set<String> {
         val ids = linkedSetOf<String>()
         for (entry in pending) {

@@ -102,8 +102,8 @@ public class PlantRepository(
         observeWhileOpen { db.pendingMutations().observeAll() }
 
     /**
-     * Id растений с открытым журналом. Экраны рисуют [UnsavedMutation.LABEL]
-     * на этих карточках и не выдумывают свою строку.
+     * Id растений с открытым журналом. Экраны рисуют локализованную метку
+     * `dashboard_unsaved` на этих карточках.
      */
     public fun observeUnsavedPlantIds(): Flow<Set<String>> =
         observePending().map { unsavedPlantIds(it) }
@@ -299,6 +299,36 @@ public class PlantRepository(
             },
         )
     }
+
+    /**
+     * Like [add], but a network/timeout failure after the journal row is
+     * written is [SaveOutcome.Queued]: the plant is already on the dashboard
+     * and [replayPending] sends it later. Confirmed failures still throw.
+     */
+    public suspend fun addOrQueue(plant: InsertPlantDto): SaveOutcome {
+        val localId = newId()
+        return plantQueues.withPlant(localId) {
+            queuedOnHold(localId) { addQueued(plant, localId) }
+        }
+    }
+
+    /** [update] with the [addOrQueue] rule. */
+    public suspend fun updateOrQueue(plantId: String, patch: PatchPlantDto): SaveOutcome =
+        plantQueues.withPlant(plantId) {
+            queuedOnHold(plantId) { updateQueued(plantId, patch) }
+        }
+
+    private suspend fun queuedOnHold(plantId: String, save: suspend () -> PlantDto): SaveOutcome =
+        try {
+            SaveOutcome.Saved(save())
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Throwable) {
+            val queued = keepForReplay(error) &&
+                db.pendingMutations().listOldestFirst().any { it.plantId == plantId }
+            if (!queued) throw error
+            SaveOutcome.Queued(plantId)
+        }
 
     public suspend fun update(plantId: String, patch: PatchPlantDto): PlantDto {
         return plantQueues.withPlant(plantId) {
@@ -578,6 +608,15 @@ public class PlantRepository(
  */
 public fun isHeldForReplay(error: Throwable): Boolean =
     error is ApiError.Network || error is ApiError.Timeout
+
+/** Result of a save that may wait in the offline journal. */
+public sealed interface SaveOutcome {
+    /** The server confirmed the save. */
+    public data class Saved(public val plant: PlantDto) : SaveOutcome
+
+    /** No connection: the journal holds the save under [plantId] until replay. */
+    public data class Queued(public val plantId: String) : SaveOutcome
+}
 
 /** Шаг разбора одной журнальной строки. Снаружи репозитория не виден. */
 private sealed class DrainStep {

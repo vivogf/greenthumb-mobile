@@ -102,7 +102,7 @@ case "${1:-}" in
         # Каталог задаётся через GT_EVIDENCE_DIR; без него шаг — no-op.
         if [ -n "$PRESERVE_DIR" ]; then
             mkdir -p "$PRESERVE_DIR"
-            found_shots=$(find "$DEBUG_OUT" -type f \( -name 'delete-confirm-screen.png' -o -name 'login-after-delete.png' \) 2>/dev/null || true)
+            found_shots=$(find "$DEBUG_OUT" -type f \( -name 'delete-confirm-screen.png' -o -name 'intro-after-delete.png' \) 2>/dev/null || true)
             if [ -n "$found_shots" ]; then
                 echo "$found_shots" | while IFS= read -r shot; do cp -f "$shot" "$PRESERVE_DIR"/; done
                 echo "скриншоты сохранены: $PRESERVE_DIR"

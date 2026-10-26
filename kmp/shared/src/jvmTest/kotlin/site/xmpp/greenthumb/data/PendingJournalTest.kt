@@ -25,8 +25,7 @@ import kotlin.test.assertTrue
 class PendingJournalTest {
 
     @Test
-    fun unsaved_label_is_exported_and_includes_water_all_ids() {
-        assertEquals("не сохранено", UnsavedMutation.LABEL)
+    fun unsaved_ids_include_water_all_ids() {
         val ids = unsavedPlantIds(
             listOf(
                 PendingMutationEntity(
