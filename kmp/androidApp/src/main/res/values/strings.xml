@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget texts (architecture §5.8). values-ru/strings.xml holds the same keys
+     (scripts/i18n_check.py checks the parity). -->
+<resources>
+    <string name="widget_name">GreenThumb: watering</string>
+    <string name="widget_description">Plants that need water today</string>
+    <string name="widget_title">Water today</string>
+    <string name="widget_all_watered">All plants are watered</string>
+    <string name="widget_no_plants">Add your first plant</string>
+    <string name="widget_signed_out">Open the app</string>
+    <string name="widget_due_today">Today</string>
+    <string name="widget_overdue">%1$d d overdue</string>
+    <string name="widget_more">+%1$d more</string>
+</resources>

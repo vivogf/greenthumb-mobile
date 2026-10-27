@@ -1,0 +1,83 @@
+# Home-screen widget (architecture §5.8, VAL-WIDGET-*): device steps on the Pixel launcher of elt_test.
+#
+# STEP=signin  sign in with ${GT_RECOVERY_KEY} (rendered copy only, see render-smoke.sh:
+#              GT_FLOW=widget.yaml GT_STEP=signin GT_KEY_FILE=<key file> bash render-smoke.sh run).
+#              The key screen is never captured.
+#              With maestro -e CLEAR=yes the app data is wiped first; otherwise the app keeps its language,
+#              Room cache and WorkManager jobs (the widget's periodic job lives in that data).
+# STEP=place   open the launcher widget picker and expand "GreenThumb Debug". The Pixel launcher
+#              on elt_test has no "Add" button, so finish with an adb drag from the preview:
+#              adb -s emulator-5554 shell input draganddrop 720 2700 720 1000 2500
+# STEP=remove  check the widget is on the home screen. The launcher removes it by a drag to the
+#              "Remove" target at the top, which Maestro cannot hold, so finish with:
+#              adb -s emulator-5554 shell "input motionevent DOWN 870 1000; sleep 1.5;
+#                input motionevent MOVE 800 600; sleep 0.3; input motionevent MOVE 720 340; sleep 0.5;
+#                input motionevent MOVE 720 300; sleep 1; input motionevent UP 720 300"
+#
+# Selectors are bilingual (ru|en): the app language persisted on elt_test may be either.
+# The widget itself is read from the launcher hierarchy by text (RemoteViews are plain TextViews there).
+appId: com.greenthumbplantcare.debug
+name: GreenThumb widget (VAL-WIDGET)
+---
+- runFlow:
+    when:
+      true: ${STEP == 'signin'}
+    commands:
+      - runFlow:
+          when:
+            true: ${CLEAR == 'yes'}
+          commands:
+            - clearState
+      - launchApp
+      - repeat:
+          times: 15
+          while:
+            notVisible: "Welcome Back|С возвращением"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Your plants, organized|Все растения в одном месте"
+                commands:
+                  - tapOn: "Skip|Пропустить"
+            - runFlow:
+                when:
+                  visible: "Key not found|Ключ не найден"
+                commands:
+                  - tapOn: "Enter recovery key|Ввести ключ"
+            - runFlow:
+                when:
+                  visible: "I Have a Key|У меня есть ключ"
+                commands:
+                  - tapOn: "I Have a Key|У меня есть ключ"
+      - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      - inputText: ${GT_RECOVERY_KEY}
+      - hideKeyboard
+      - tapOn: "Sign In|Войти"
+      - extendedWaitUntil:
+          visible: "My Plants|Мои растения"
+          timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'place'}
+    commands:
+      - pressKey: Home
+      - longPressOn:
+          point: "50%, 45%"
+      - tapOn: "Widgets"
+      - scrollUntilVisible:
+          element:
+            text: "GreenThumb Debug"
+          direction: DOWN
+          timeout: 30000
+      - tapOn: "GreenThumb Debug"
+      - extendedWaitUntil:
+          visible: "GreenThumb: watering"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'remove'}
+    commands:
+      - pressKey: Home
+      - assertVisible: "Water today|Полить сегодня"

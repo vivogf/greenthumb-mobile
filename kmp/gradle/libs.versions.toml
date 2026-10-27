@@ -39,6 +39,11 @@ googleServices = "4.5.0"
 # (firebase-android-sdk #8545, фикс AGP только с 9.3.3 — пин 9.3.1 не бампаем):
 # обход — явный mappingFileUploadEnabled = true в release-типе :androidApp.
 crashlyticsGradle = "3.0.8"
+# Home-screen widget (architecture §5.8, library/android-tech.md §3): androidApp only.
+glance = "1.2.0"
+# The WorkManager that glance-appwidget 1.2.0 already pulls at runtime; declared for the
+# widget's periodic refresh worker (CoroutineWorker lives in -ktx at this version).
+work = "2.7.1"
 foojayResolver = "1.0.0"
 
 [plugins]
@@ -88,6 +93,8 @@ kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serializati
 kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinTest = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+# JUnit 4 binding of kotlin-test for androidApp unit tests (KMP jvmTest picks it automatically).
+kotlinTestJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 koinCore = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koinCompose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koinComposeViewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
@@ -111,3 +118,8 @@ firebaseConfig = { module = "com.google.firebase:firebase-config" }
 # BoM с 34.0.0, а на старых ktx-версиях mapping_file_id теряется — #8564).
 # Версию задаёт BoM.
 firebaseCrashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+# Glance widget (androidApp only); testing artifacts run the widget content on the JVM.
+glanceAppwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+glanceTesting = { module = "androidx.glance:glance-testing", version.ref = "glance" }
+glanceAppwidgetTesting = { module = "androidx.glance:glance-appwidget-testing", version.ref = "glance" }
+workRuntimeKtx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }

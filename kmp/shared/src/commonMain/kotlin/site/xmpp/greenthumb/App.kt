@@ -291,11 +291,16 @@ fun App(
                         settings = settings,
                         push = push,
                         pushLanguage = { pushLanguage },
-                        // Deep-link пуша (Stage 9 п.7): id получает ТОЛЬКО
-                        // SignedIn-ветка (без сессии вход не обходится —
-                        // welcome/login/graph поверх офлайна extra не читают).
-                        // Отложенный id потребляется графом после входа.
-                        pendingPlantId = if (state is SessionState.SignedIn) launchPlantId else null,
+                        // Deep-link пуша и виджета (Stage 9 п.7, §5.8): id
+                        // получает только ветка с аккаунтом — SignedIn или
+                        // Offline (сохранённый ключ + cached_user, карточка из
+                        // Room). Без сессии вход не обходится: welcome/login
+                        // extra не читают, id ждёт входа.
+                        pendingPlantId = if (state is SessionState.SignedIn || state is SessionState.Offline) {
+                            launchPlantId
+                        } else {
+                            null
+                        },
                         onPendingPlantIdConsumed = onLaunchPlantIdConsumed,
                         speciesIdentifier = speciesIdentifier,
                         plantDiagnoser = plantDiagnoser,

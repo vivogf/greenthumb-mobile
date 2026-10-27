@@ -101,6 +101,20 @@
             </intent-filter>
         </service>
 
+        <!-- Home-screen widget (architecture §5.8): reads the signed-in account's Room data only.
+             System broadcasts reach a non-exported receiver. -->
+        <receiver
+            android:name=".widget.PlantsWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/plants_widget_info" />
+        </receiver>
+
         <!-- content:// для EXTRA_OUTPUT камеры (Stage 8 п.1): кадр пишется в
              cacheDir/gt-pick-*.jpg и читается приложением же; пути —
              res/xml/file_paths.xml (cache-path gt-pick). -->

@@ -59,7 +59,9 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  *    старт ушёл на карточку раньше первого sync дашборда);
  * 2. БЕЗ сессии extra не открывает данные и не обходит вход (экран входа,
  *    plants-запросов нет), а переход ОТКЛАДЫВАЕТСЯ до SignedIn: после входа
- *    отложенный id потребляется (отложенный переход).
+ *    отложенный id потребляется (отложенный переход);
+ * 3. в Offline (сохранённый ключ + cached_user, сети нет) карточка
+ *    открывается из Room — тап по строке виджета без сети.
  */
 @OptIn(ExperimentalTestApi::class)
 class PushDeepLinkRoutingTest {
@@ -171,6 +173,9 @@ class PushDeepLinkRoutingTest {
         /** Живая сессия на me (false → 401: SignedOut, ключа нет). */
         var meAuthorized: Boolean = true
 
+        /** Every request fails like airplane mode (IOException → ApiError.Network). */
+        var offline: Boolean = false
+
         /** Растения, отдаваемые GET /api/plants (для карточки deep-link). */
         var plantsJson: String = "[]"
 
@@ -181,6 +186,7 @@ class PushDeepLinkRoutingTest {
                 """"created_at":"2026-09-28T10:00:00.000Z"}}"""
 
         val handler: MockRequestHandler = { request ->
+            if (offline) throw java.io.IOException("airplane mode")
             when (request.url.encodedPath) {
                 "/api/auth/me" -> {
                     meCount++
@@ -357,6 +363,53 @@ class PushDeepLinkRoutingTest {
             waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
             assertEquals(1, consumeCalls, "отложенный переход ровно один")
             assertTrue(graph.server.plantsCount >= 1, "после входа данные доступны")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Offline (saved key + cached user, no network) + pending plant_id → card
+    // ------------------------------------------------------------------
+
+    @Test
+    fun pendingPlantId_navigatesToCard_whenOffline() {
+        val graph = newHarness()
+        graph.server.plantsJson = "[${plantJson("plant-9", "Fern")}]"
+        runBlocking {
+            graph.settings.setLanguage(AppLanguage.En)
+            graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "key-deeplink-61")
+            graph.settings.setCachedUser(
+                UserDto(id = "61", recoveryKey = "key-deeplink-61", createdAt = "2026-09-28T10:00:00.000Z"),
+            )
+            // The plant is already in this account's Room cache from an earlier sync.
+            graph.opener.open("61").refresh()
+        }
+        graph.server.offline = true
+        var pendingPlantId by mutableStateOf<String?>("plant-9")
+        var consumeCalls = 0
+        runDesktopComposeUiTest {
+            setContent {
+                App(
+                    graph.session,
+                    graph.connectivity,
+                    graph.opener,
+                    graph.settings,
+                    PushTokens(),
+                    launchPlantId = pendingPlantId,
+                    onLaunchPlantIdConsumed = {
+                        consumeCalls++
+                        pendingPlantId = null
+                    },
+                )
+            }
+
+            // me fails on the network → Offline; the card opens from the cached row, no refresh.
+            waitUntil(timeoutMillis = TIMEOUT) { consumeCalls >= 1 }
+            waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
+            assertEquals(1, consumeCalls, "id consumed once")
+            assertEquals(1, graph.server.plantsCount, "only the seeding sync reached the server")
+            assertTrue(graph.session.state.value is site.xmpp.greenthumb.core.storage.SessionState.Offline)
 
             runOnIdle { graph.close() }
         }

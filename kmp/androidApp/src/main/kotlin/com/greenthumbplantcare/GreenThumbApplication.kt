@@ -3,6 +3,7 @@ package com.greenthumbplantcare
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.greenthumbplantcare.widget.WidgetUpdates
 import site.xmpp.greenthumb.SessionGraph
 import site.xmpp.greenthumb.core.platform.gtNotificationSmallIconResId
 import site.xmpp.greenthumb.core.storage.AppSettings
@@ -11,6 +12,8 @@ import site.xmpp.greenthumb.core.storage.PlantDatabases
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.registerAppContext
 import site.xmpp.greenthumb.data.AccountPlantGate
+import site.xmpp.greenthumb.data.AccountWidgetSource
+import site.xmpp.greenthumb.data.PlantWidgetSource
 import site.xmpp.greenthumb.data.accountGate
 
 /**
@@ -50,6 +53,8 @@ class GreenThumbApplication : Application() {
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = false
         }
+        // Placed widgets follow in-app changes in this process (architecture §5.8).
+        WidgetUpdates.startIfPlaced(this)
     }
 
     /** Один граф сессии на процесс: хранилища DataStore уникальны на процесс. */
@@ -66,4 +71,7 @@ class GreenThumbApplication : Application() {
     val plantGate: AccountPlantGate by lazy {
         PlantDatabases(this).accountGate(sessionGraph.api, sessionGraph.accountSession)
     }
+
+    /** Read-only account data of the home-screen widget (same DataStore and gate as the app). */
+    val widgetSource: PlantWidgetSource by lazy { AccountWidgetSource(sessionGraph.settings, plantGate) }
 }

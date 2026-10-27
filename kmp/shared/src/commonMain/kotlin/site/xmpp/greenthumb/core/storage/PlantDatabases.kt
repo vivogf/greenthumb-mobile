@@ -18,4 +18,7 @@ public expect class PlantDatabases(appContext: Any) {
 
     /** Абсолютный путь файла `plants_${userId}.db` (без создания). */
     public fun absolutePath(userId: String): String
+
+    /** True when `plants_${userId}.db` exists. */
+    public fun exists(userId: String): Boolean
 }

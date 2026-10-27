@@ -56,6 +56,12 @@ android {
             }
         }
     }
+
+    // runGlanceAppWidgetUnitTest stores widget options in an android.os.Bundle; on the plain JVM
+    // (no Robolectric) the stubbed framework methods must return defaults instead of throwing.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin {
@@ -70,5 +76,15 @@ kotlin {
         // Crashlytics (M12 release-rollout-prep, VAL-REL-006): телеметрия
         // крашей/ANR, crash-базлайн перед раскаткой. Версию задаёт BoM.
         implementation(libs.firebaseCrashlytics)
+        // Home-screen widget (architecture §5.8): Glance + its WorkManager runtime.
+        implementation(libs.glanceAppwidget)
+        implementation(libs.workRuntimeKtx)
     }
+}
+
+dependencies {
+    testImplementation(libs.kotlinTest)
+    testImplementation(libs.kotlinTestJunit)
+    testImplementation(libs.glanceTesting)
+    testImplementation(libs.glanceAppwidgetTesting)
 }

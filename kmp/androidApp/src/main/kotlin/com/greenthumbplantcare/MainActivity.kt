@@ -139,8 +139,8 @@ class MainActivity : ComponentActivity() {
         else -> value.toString()
     }
 
-    private companion object {
-        /** Ключ полезной нагрузки пуша (backend `data.plant_id`, RN-паритет). */
+    companion object {
+        /** Ключ полезной нагрузки пуша (backend `data.plant_id`, RN-паритет) и строки виджета. */
         const val EXTRA_PLANT_ID = "plant_id"
     }
 }

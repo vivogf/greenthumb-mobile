@@ -16,6 +16,8 @@ public actual class PlantDatabases actual constructor(appContext: Any) {
     actual fun delete(userId: String) = delegate.delete(userId)
 
     actual fun absolutePath(userId: String): String = delegate.absolutePath(userId)
+
+    actual fun exists(userId: String): Boolean = delegate.exists(userId)
 }
 
 /**
@@ -49,6 +51,8 @@ public class AndroidPlantDatabases(
     }
 
     public fun absolutePath(userId: String): String = databaseFile(userId).absolutePath
+
+    public fun exists(userId: String): Boolean = databaseFile(userId).exists()
 
     private fun databaseFile(userId: String): File =
         appContext.getDatabasePath(plantDatabaseFileName(userId))

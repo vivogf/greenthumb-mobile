@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Гейт kmp-кода: компиляция Android+JVM+desktop, :shared:jvmTest, grep-правила,
+# Гейт kmp-кода: компиляция Android+JVM+desktop, :shared:jvmTest, unit-тесты
+# :androidApp (виджет), grep-правила,
 # синтаксис Maestro-флоу, i18n-паритет.
 # Замена npm run check для kmp/ (Expo-гейт живёт отдельно: scripts/check.mjs, job check).
 # Вызывается: mission-check.sh, CI job kmp (.github/workflows/check.yml), вручную.
@@ -250,8 +251,8 @@ if [ "${1:-}" = "--grep-only" ]; then
   exit $?
 fi
 
-echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest =="
-if ! ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest; then
+echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest =="
+if ! ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest; then
   echo
   echo "FAIL: gradle — ошибки компиляции/тестов выше (упавший task виден в выводе)."
   exit 1

@@ -16,6 +16,8 @@ public actual class PlantDatabases actual constructor(appContext: Any) {
     actual fun delete(userId: String) = delegate.delete(userId)
 
     actual fun absolutePath(userId: String): String = delegate.absolutePath(userId)
+
+    actual fun exists(userId: String): Boolean = delegate.exists(userId)
 }
 
 /**
@@ -44,4 +46,6 @@ public class JvmPlantDatabases(
 
     public fun absolutePath(userId: String): String =
         File(directory, plantDatabaseFileName(userId)).absolutePath
+
+    public fun exists(userId: String): Boolean = File(absolutePath(userId)).exists()
 }

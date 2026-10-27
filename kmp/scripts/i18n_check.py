@@ -19,6 +19,10 @@
   - session.* — экран «ключ не найден» (SessionState.KeyNotFound, Stage 3 п.6;
     в RN-версии экрана нет). Требуются в ОБОИХ локалях.
 
+Ещё одна пара — kmp/androidApp/src/main/res/values{,-ru}/*.xml (тексты виджета,
+architecture §5.8): одинаковые переводимые ключи, без пустых текстов, с теми же
+плейсхолдерами. RN-аналогов у них нет.
+
 Любое расхождение (пропуск, лишний ключ, несовпадение текста/интерполяции,
 несимметричность en/ru) — exit 1 со списком проблем.
 """
@@ -439,6 +443,54 @@ def parse_strings_xml(path):
     return strings, plurals
 
 
+ANDROID_APP_RES = SCRIPT_DIR.parent / "androidApp" / "src" / "main" / "res"
+PLACEHOLDER_RE = re.compile(r"%(\d+\$)?[sd]")
+
+
+def android_app_strings(values_dir):
+    """Translatable <string>/<plurals> of every XML file in an androidApp values dir.
+
+    Returns {name: [texts]} (one text per string, one per plural quantity)."""
+    found = {}
+    for path in sorted(values_dir.glob("*.xml")):
+        root = ET.parse(path).getroot()
+        for el in root:
+            if el.get("translatable") == "false":
+                continue
+            if el.tag == "string":
+                found[el.attrib["name"]] = [unescape_android(el.text or "")]
+            elif el.tag == "plurals":
+                found[el.attrib["name"]] = [
+                    unescape_android(item.text or "") for item in el if item.tag == "item"
+                ]
+    return found
+
+
+def check_android_app_res(problems):
+    """androidApp/src/main/res (widget texts, architecture §5.8): values/ and values-ru/ hold the
+    same translatable keys, none empty, with the same placeholders."""
+    en_dir = ANDROID_APP_RES / "values"
+    ru_dir = ANDROID_APP_RES / "values-ru"
+    if not ru_dir.is_dir():
+        problems.append(f"androidApp: нет каталога {ru_dir}")
+        return 0
+    en = android_app_strings(en_dir)
+    ru = android_app_strings(ru_dir)
+    for name in sorted(set(en) - set(ru)):
+        problems.append(f"androidApp ru: нет <string name=\"{name}\"> (есть в values/)")
+    for name in sorted(set(ru) - set(en)):
+        problems.append(f"androidApp en: нет <string name=\"{name}\"> (есть в values-ru/)")
+    for name in sorted(set(en) & set(ru)):
+        for lang, texts in (("en", en[name]), ("ru", ru[name])):
+            if not texts or any(not t.strip() for t in texts):
+                problems.append(f"androidApp {lang}: пустой текст {name}")
+        en_ph = sorted(set(PLACEHOLDER_RE.findall(" ".join(en[name]))))
+        ru_ph = sorted(set(PLACEHOLDER_RE.findall(" ".join(ru[name]))))
+        if en_ph != ru_ph:
+            problems.append(f"androidApp: плейсхолдеры {name} не совпадают: en={en_ph} ru={ru_ph}")
+    return len(en)
+
+
 def main():
     problems = []
 
@@ -540,6 +592,8 @@ def main():
             f"ru-only={sorted(set(ru_plurals) - set(en_plurals))}"
         )
 
+    android_app_count = check_android_app_res(problems)
+
     total_rn = len(rn_en) + len(rn_ru)
     if problems:
         for p in problems:
@@ -550,7 +604,8 @@ def main():
     print(
         "OK: i18n паритет — RN-ключей en="
         f"{len(rn_en)}, ru={len(rn_ru)}; строк в XML en={len(en_strings)}, ru={len(ru_strings)}; "
-        f"плюралов en={len(en_plurals)}, ru={len(ru_plurals)}; KMP-ключей session={len(KMP_ONLY_KEYS)}"
+        f"плюралов en={len(en_plurals)}, ru={len(ru_plurals)}; KMP-ключей session={len(KMP_ONLY_KEYS)}; "
+        f"androidApp/res en=ru={android_app_count}"
     )
 
 

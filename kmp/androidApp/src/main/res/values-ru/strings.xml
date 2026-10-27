@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_name">GreenThumb: полив</string>
+    <string name="widget_description">Растения, которые пора полить</string>
+    <string name="widget_title">Полить сегодня</string>
+    <string name="widget_all_watered">Все растения политы</string>
+    <string name="widget_no_plants">Добавьте первое растение</string>
+    <string name="widget_signed_out">Откройте приложение</string>
+    <string name="widget_due_today">Сегодня</string>
+    <string name="widget_overdue">Просрочено: %1$d дн.</string>
+    <string name="widget_more">ещё %1$d</string>
+</resources>
