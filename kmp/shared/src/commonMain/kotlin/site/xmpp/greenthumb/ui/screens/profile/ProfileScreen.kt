@@ -64,6 +64,7 @@ import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
 import site.xmpp.greenthumb.ui.components.GtBellOutlineMark
 import site.xmpp.greenthumb.ui.components.GtCheckMark
 import site.xmpp.greenthumb.ui.components.GtChevronMark
+import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtClockMark
 import site.xmpp.greenthumb.ui.components.GtContrastMark
 import site.xmpp.greenthumb.ui.components.GtCopyMark
@@ -133,6 +134,7 @@ import site.xmpp.greenthumb.ui.res.profile_themeAuto
 import site.xmpp.greenthumb.ui.res.profile_themeDark
 import site.xmpp.greenthumb.ui.res.profile_themeLight
 import site.xmpp.greenthumb.ui.res.profile_title
+import site.xmpp.greenthumb.ui.res.progress_entry
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -205,6 +207,8 @@ public fun ProfileScreen(
     onDeleteAccount: () -> Unit = {},
     /** Opens the recovery key QR screen. */
     onShowKeyQr: () -> Unit = {},
+    /** Opens streaks and achievements; null hides the entry (no account). */
+    onOpenProgress: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -633,6 +637,34 @@ public fun ProfileScreen(
                         recoveryKey = user.recoveryKey,
                         isNewKey = keyIsNew,
                     )
+                }
+            }
+        }
+
+        // Streaks and achievements (architecture §5.8; RN has none).
+        if (onOpenProgress != null) {
+            SectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Button,
+                        ) { onOpenProgress() }
+                        .padding(vertical = Spacing.xxs)
+                        .testTag("profile_progress"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    GtLeafMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    Text(
+                        text = stringResource(Res.string.progress_entry),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
                 }
             }
         }

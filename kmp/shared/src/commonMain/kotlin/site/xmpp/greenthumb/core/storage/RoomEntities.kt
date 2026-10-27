@@ -137,6 +137,25 @@ public data class CareEventEntity(
 )
 
 /**
+ * Last `GET /api/progress` body of this account (architecture §5.8), one row
+ * under [PROGRESS_KEY]. Added in schema v4 ([GreenThumbMigrations.MIGRATION_3_4]).
+ */
+@Entity(tableName = "progress_cache")
+public data class ProgressCacheEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "key")
+    val key: String,
+    @ColumnInfo(name = "payload")
+    val payload: String,
+    @ColumnInfo(name = "updated_at_millis")
+    val updatedAtMillis: Long,
+) {
+    public companion object {
+        public const val PROGRESS_KEY: String = "progress"
+    }
+}
+
+/**
  * Cached timeline photo (server `plant_photos`). Added in schema v3 together
  * with [CareEventEntity] so the timeline needs no further schema bump.
  */

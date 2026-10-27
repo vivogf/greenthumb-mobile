@@ -191,6 +191,14 @@ class GreenThumbApi(private val client: ApiClient) {
         )
 
     // ------------------------------------------------------------------
+    // Progress
+    // ------------------------------------------------------------------
+
+    /** GET /api/progress → { streak, achievements } (architecture §2.11). */
+    suspend fun getProgress(): ProgressDto =
+        request<ProgressDto>(HttpMethod.Get, "/api/progress")
+
+    // ------------------------------------------------------------------
     // Push (8)
     // ------------------------------------------------------------------
 

@@ -11,7 +11,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 
 /** Версия схемы. Следующая — только через [GreenThumbMigrations], без удаления данных. */
-public const val GREEN_THUMB_DB_VERSION: Int = 3
+public const val GREEN_THUMB_DB_VERSION: Int = 4
 
 /**
  * Зарегистрированные миграции. Каждая может только ДОБАВЛЯТЬ колонки или
@@ -54,7 +54,19 @@ public object GreenThumbMigrations {
         }
     }
 
-    public val ALL: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
+    /** v3 → v4: progress cache (M7). Equals the `createSql` of the exported `4.json`. */
+    public val SQL_3_4: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `progress_cache` (`key` TEXT NOT NULL, `payload` TEXT NOT NULL, " +
+            "`updated_at_millis` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+    )
+
+    public val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+        override fun migrate(connection: SQLiteConnection) {
+            SQL_3_4.forEach { connection.execSQL(it) }
+        }
+    }
+
+    public val ALL: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }
 
 /**
@@ -70,6 +82,7 @@ public object GreenThumbMigrations {
         PendingMutationEntity::class,
         CareEventEntity::class,
         PlantPhotoEntity::class,
+        ProgressCacheEntity::class,
     ],
     version = GREEN_THUMB_DB_VERSION,
     exportSchema = true,
@@ -85,6 +98,8 @@ public abstract class GreenThumbDb : RoomDatabase() {
     public abstract fun careEvents(): CareEventDao
 
     public abstract fun plantPhotos(): PlantPhotoDao
+
+    public abstract fun progressCache(): ProgressCacheDao
 
     /** Транзакционные записи репозитория (Room KMP не имеет withTransaction). */
     public abstract fun store(): PlantStoreDao

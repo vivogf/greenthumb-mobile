@@ -53,6 +53,7 @@ import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
+import site.xmpp.greenthumb.ui.screens.progress.ProgressScreen
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -84,6 +85,8 @@ public object NavRoutes {
     public const val DELETE_ACCOUNT: String = "profile/delete-account"
     /** Recovery key as a QR code (architecture §5.3). */
     public const val KEY_QR: String = "profile/recovery-key-qr"
+    /** Streaks and achievements (architecture §5.8). */
+    public const val PROGRESS: String = "profile/progress"
 
     /** Имя аргумента маршрута растения. */
     public const val PLANT_ARG: String = "id"
@@ -234,6 +237,7 @@ public fun GtAppNavGraph(
                         onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
                         onDeleteAccount = { navController.navigate(NavRoutes.DELETE_ACCOUNT) },
                         onShowKeyQr = { navController.navigate(NavRoutes.KEY_QR) },
+                        onOpenProgress = sessionUserId?.let { { navController.navigate(NavRoutes.PROGRESS) } },
                     )
                 }
             }
@@ -256,6 +260,18 @@ public fun GtAppNavGraph(
                     session = session,
                     onBack = { navController.popBackStack() },
                 )
+            }
+        }
+        composable(NavRoutes.PROGRESS) {
+            AppLocalizedContent {
+                if (sessionUserId != null) {
+                    ProgressScreen(
+                        userId = sessionUserId,
+                        opener = plants,
+                        isOnline = connectivity.isOnline,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
         }
         composable(NavRoutes.ADD_PLANT) {

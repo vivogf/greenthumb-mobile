@@ -22,7 +22,7 @@ import kotlin.test.assertTrue
  * Room migrations on real fixtures: a database written by an exported
  * schema (`schemas/.../N.json`) opens with the current code and keeps every
  * plant, pending mutation and sync row. v1 goes through the whole chain
- * 1→2→3; v2 goes through 2→3 only.
+ * 1→2→3→4; v2 and v3 go through the remaining steps only.
  */
 @OptIn(ExperimentalPathApi::class)
 class GreenThumbDbMigrationTest {
@@ -119,9 +119,39 @@ class GreenThumbDbMigrationTest {
         assertEquals(listOf("ph1"), db.plantPhotos().listForPlant("p1").map { it.id })
     }
 
+    private suspend fun assertProgressCacheUsable(db: GreenThumbDb) {
+        assertNull(db.progressCache().get(ProgressCacheEntity.PROGRESS_KEY))
+        db.progressCache().upsert(ProgressCacheEntity(ProgressCacheEntity.PROGRESS_KEY, "{}", 5L))
+        assertEquals("{}", db.progressCache().get(ProgressCacheEntity.PROGRESS_KEY)?.payload)
+    }
+
     @Test
-    fun current_version_is_3() {
-        assertEquals(3, GREEN_THUMB_DB_VERSION)
+    fun current_version_is_4() {
+        assertEquals(4, GREEN_THUMB_DB_VERSION)
+    }
+
+    @Test
+    fun v3_database_migrates_to_v4_and_keeps_the_journal() = runBlocking {
+        val path = databases.absolutePath("u1")
+        createFixture(path, version = 3)
+        val connection = BundledSQLiteDriver().open(path)
+        try {
+            connection.execSQL(
+                "INSERT INTO care_events (id, plant_id, user_id, type, occurred_on, note, photo_id, created_at) " +
+                    "VALUES ('e0', 'p1', 'u1', 'note', '2026-10-02', 'kept', NULL, '2026-10-02T10:00:00.000000Z')",
+            )
+        } finally {
+            connection.close()
+        }
+
+        val db = databases.open("u1")
+        try {
+            assertCommonRowsKept(db)
+            assertEquals(listOf("kept"), db.careEvents().observeForPlant("p1").first().map { it.note })
+            assertProgressCacheUsable(db)
+        } finally {
+            db.close()
+        }
     }
 
     @Test
@@ -138,6 +168,7 @@ class GreenThumbDbMigrationTest {
             db.plants().upsert(plant.copy(speciesId = "a", speciesName = "Sci a"))
             assertEquals("a", db.plants().getById("p1")?.speciesId)
             assertJournalTablesUsable(db)
+            assertProgressCacheUsable(db)
         } finally {
             db.close()
         }
@@ -191,15 +222,27 @@ class GreenThumbDbMigrationTest {
     }
 
     @Test
+    fun sql_3_4_matches_exported_v4_schema() {
+        val entities = Json.parseToJsonElement(
+            File("schemas/site.xmpp.greenthumb.core.storage.GreenThumbDb/4.json").readText(),
+        ).jsonObject.getValue("database").jsonObject.getValue("entities").jsonArray
+        val expected = entities
+            .map { it.jsonObject }
+            .filter { it.getValue("tableName").jsonPrimitive.content == "progress_cache" }
+            .map { it.getValue("createSql").jsonPrimitive.content.replace("\${TABLE_NAME}", "progress_cache") }
+        assertEquals(expected, GreenThumbMigrations.SQL_3_4)
+    }
+
+    @Test
     fun migrations_are_additive_steps() {
         GreenThumbMigrations.ALL.forEach { migration ->
             assertEquals(migration.startVersion + 1, migration.endVersion)
         }
-        assertEquals(listOf(1 to 2, 2 to 3), GreenThumbMigrations.ALL.map { it.startVersion to it.endVersion })
+        assertEquals(listOf(1 to 2, 2 to 3, 3 to 4), GreenThumbMigrations.ALL.map { it.startVersion to it.endVersion })
         GreenThumbMigrations.SQL_1_2.forEach { statement ->
             assertTrue(statement.startsWith("ALTER TABLE plants ADD COLUMN"), statement)
         }
-        GreenThumbMigrations.SQL_2_3.forEach { statement ->
+        (GreenThumbMigrations.SQL_2_3 + GreenThumbMigrations.SQL_3_4).forEach { statement ->
             assertTrue(
                 statement.startsWith("CREATE TABLE IF NOT EXISTS") || statement.startsWith("CREATE INDEX IF NOT EXISTS"),
                 statement,

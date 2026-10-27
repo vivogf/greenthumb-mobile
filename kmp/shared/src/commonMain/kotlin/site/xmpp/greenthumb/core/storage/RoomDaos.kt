@@ -48,6 +48,18 @@ public interface SyncMetaDao {
 }
 
 @Dao
+public interface ProgressCacheDao {
+    @Query("SELECT * FROM progress_cache WHERE `key` = :key")
+    public suspend fun get(key: String): ProgressCacheEntity?
+
+    @Query("SELECT * FROM progress_cache WHERE `key` = :key")
+    public fun observe(key: String): Flow<ProgressCacheEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsert(entity: ProgressCacheEntity)
+}
+
+@Dao
 public interface PendingMutationDao {
     @Query("SELECT * FROM pending_mutations ORDER BY created_at ASC, id ASC")
     public suspend fun listOldestFirst(): List<PendingMutationEntity>

@@ -441,4 +441,37 @@
     <string name="diagnosis_retry">Retry</string>
     <string name="diagnosis_newDiagnosis">New diagnosis</string>
     <string name="diagnosis_backToPlant">Back to plant</string>
+    <!-- progress.* + achievement.* — streaks and achievements (architecture §5.8). -->
+    <string name="progress_entry">Progress and achievements</string>
+    <string name="progress_title">Progress</string>
+    <string name="progress_currentStreak">Current streak</string>
+    <string name="progress_bestStreak">Best streak</string>
+    <string name="progress_streakHint">Days in a row with no overdue plants.</string>
+    <string name="progress_achievements">Achievements</string>
+    <string name="progress_unlocked">Unlocked</string>
+    <string name="progress_locked">Locked</string>
+    <string name="progress_cellDescription">%1$s. %2$s. %3$s</string>
+    <string name="progress_loading">Loading progress…</string>
+    <string name="progress_offline">No network. Showing saved progress from %1$s.</string>
+    <string name="progress_refreshFailed">Couldn’t update. Showing saved progress from %1$s.</string>
+    <string name="progress_needsNetwork">Progress needs a network connection. Connect to the internet and try again.</string>
+    <string name="progress_retry">Try again</string>
+    <string name="achievement_first_plant_title">First plant</string>
+    <string name="achievement_first_plant_description">Add your first plant.</string>
+    <string name="achievement_plants_5_title">Green corner</string>
+    <string name="achievement_plants_5_description">Have 5 plants at the same time.</string>
+    <string name="achievement_first_water_title">First watering</string>
+    <string name="achievement_first_water_description">Water a plant for the first time.</string>
+    <string name="achievement_waterings_25_title">Caring gardener</string>
+    <string name="achievement_waterings_25_description">Water plants 25 times.</string>
+    <string name="achievement_waterings_100_title">Watering master</string>
+    <string name="achievement_waterings_100_description">Water plants 100 times.</string>
+    <string name="achievement_streak_7_title">A week on time</string>
+    <string name="achievement_streak_7_description">Keep every plant on time for 7 days in a row.</string>
+    <string name="achievement_streak_30_title">A month on time</string>
+    <string name="achievement_streak_30_description">Keep every plant on time for 30 days in a row.</string>
+    <string name="achievement_first_note_title">First note</string>
+    <string name="achievement_first_note_description">Write a note in a plant's journal.</string>
+    <string name="achievement_first_photo_title">First photo</string>
+    <string name="achievement_first_photo_description">Add a photo of a plant.</string>
 </resources>

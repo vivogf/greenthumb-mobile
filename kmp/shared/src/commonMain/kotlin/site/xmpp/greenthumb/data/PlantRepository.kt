@@ -104,6 +104,9 @@ public class PlantRepository(
     /** Photo timeline on the same per-user database and session. */
     public val timeline: PlantTimeline = PlantTimeline(db, api, session) { closed }
 
+    /** Streaks and achievements, cached on the same per-user database. */
+    public val progress: PlantProgress = PlantProgress(db, api, session, clocks.nowMillis) { closed }
+
     public fun observePlants(): Flow<List<PlantDto>> =
         observeWhileOpen { db.plants().observeAll().map { rows -> rows.map { it.toDto() } } }
 

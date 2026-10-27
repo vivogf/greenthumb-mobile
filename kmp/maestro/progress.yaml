@@ -1,0 +1,80 @@
+# Progress screen (architecture §5.8; VAL-PROGRESS-018/019, VAL-CROSS-017).
+# Keyless: the app is already signed in (sign in first with photos-signin.yaml through render-smoke.sh).
+# Opens Progress from the Profile row (no deep link), checks the state, takes a screenshot, goes back.
+#   LAUNCH  cold (stop + launch) | resume
+#   STATE   loaded (streak + cells) | offline (cached copy + no-network note) | needs (needs-network, no cells)
+#   CURRENT expected current streak text (ignored for STATE=needs)
+#   SHOT    screenshot name
+#   STAY    yes keeps Progress open after the screenshot; anything else goes back to Profile
+appId: com.greenthumbplantcare.debug
+name: GreenThumb progress (${STATE})
+---
+- runFlow:
+    when:
+      true: ${LAUNCH == 'cold'}
+    commands:
+      - stopApp
+      - launchApp
+- runFlow:
+    when:
+      true: ${LAUNCH == 'resume'}
+    commands:
+      - launchApp:
+          stopApp: false
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+- tapOn: "Profile|Профиль"
+- scrollUntilVisible:
+    element: "Progress and achievements|Прогресс и достижения"
+    direction: DOWN
+    centerElement: true
+    optional: true
+- runFlow:
+    when:
+      notVisible: "Progress and achievements|Прогресс и достижения"
+    commands:
+      - scrollUntilVisible:
+          element: "Progress and achievements|Прогресс и достижения"
+          direction: UP
+          centerElement: true
+- tapOn: "Progress and achievements|Прогресс и достижения"
+- runFlow:
+    when:
+      true: ${STATE == 'loaded' || STATE == 'offline'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Current streak|Текущая серия"
+          timeout: 10000
+      - assertVisible: ${CURRENT}
+      - assertVisible: "Best streak|Лучшая серия"
+      - assertNotVisible: "Loading progress…|Загружаем прогресс…"
+- runFlow:
+    when:
+      true: ${STATE == 'offline'}
+    commands:
+      - assertVisible: "(No network\\. Showing saved progress from|Нет сети\\. Показан сохранённый прогресс на) .*"
+- runFlow:
+    when:
+      true: ${STATE == 'loaded'}
+    commands:
+      - assertNotVisible: "(No network|Нет сети).*"
+- runFlow:
+    when:
+      true: ${STATE == 'needs'}
+    commands:
+      - extendedWaitUntil:
+          visible: "(Progress needs a network connection|Для прогресса нужна сеть).*"
+          timeout: 10000
+      - assertNotVisible: "Current streak|Текущая серия"
+      - assertNotVisible: "Loading progress…|Загружаем прогресс…"
+- takeScreenshot: ${SHOT}
+# STAY=yes leaves the screen open for a UI dump (adb shell uiautomator dump).
+- runFlow:
+    when:
+      true: ${STAY != 'yes'}
+    commands:
+      - back
+      - extendedWaitUntil:
+          visible: "Progress and achievements|Прогресс и достижения"
+          timeout: 10000
