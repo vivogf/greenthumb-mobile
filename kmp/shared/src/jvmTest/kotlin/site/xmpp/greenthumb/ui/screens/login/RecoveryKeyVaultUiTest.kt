@@ -144,7 +144,7 @@ class RecoveryKeyVaultUiTest {
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
         waitForIdle()
         assertEquals(1, vault.getCalls)
-        onNodeWithTag(TAG_MESSAGE).assertDoesNotExist()
+        onNodeWithTag(TAG_MESSAGE, useUnmergedTree = true).assertDoesNotExist()
         onNodeWithText("Welcome Back").assertExists()
         assertManualFieldEnabled()
         assertTrue(calls.isEmpty())

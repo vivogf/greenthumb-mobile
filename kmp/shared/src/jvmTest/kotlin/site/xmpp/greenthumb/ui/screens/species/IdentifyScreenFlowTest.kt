@@ -141,11 +141,16 @@ class IdentifyScreenFlowTest {
         onAllNodes(matcher)[0].performSemanticsAction(SemanticsActions.OnClick)
     }
 
+    private fun ComposeUiTest.clickTag(tag: String) {
+        waitForTag(tag)
+        onAllNodes(hasTestTag(tag), useUnmergedTree = true)[0].performSemanticsAction(SemanticsActions.OnClick)
+    }
+
     /** Taps "Identify by photo" → Gallery and answers the file picker with the fixture JPEG. */
     private fun ComposeUiTest.identifyFromGallery(h: Harness) {
         val before = h.server.count()
         click(hasTestTag("addPlant_identify"))
-        click(hasTestTag("identify_gallery"))
+        clickTag("identify_gallery")
         waitUntil(timeoutMillis = TIMEOUT) { FilePickBridge.pending != null }
         runOnIdle {
             val request = FilePickBridge.pending!!
@@ -188,7 +193,7 @@ class IdentifyScreenFlowTest {
             assertEquals("en", h.server.lang(0))
             assertTrue(h.server.identifyBodies[0].contains("\"photos\":[\"data:image/jpeg;base64,"), "photo sent as a JPEG data URL")
 
-            waitUntilAtLeastOneExists(hasTestTag("identify_candidate_2"), TIMEOUT)
+            waitForTag("identify_candidate_2")
             onNodeWithText("Swiss cheese plant").assertExists()
             onNodeWithText("Confidence: high").assertExists()
             onNodeWithText("Confidence: medium").assertExists()
@@ -217,7 +222,7 @@ class IdentifyScreenFlowTest {
             identifyFromGallery(h)
             assertEquals("ru", h.server.lang(0))
             waitUntilAtLeastOneExists(hasText("Уверенность: высокая"), TIMEOUT)
-            click(hasTestTag("identify_close"))
+            clickTag("identify_close")
             waitForNoTag("identify_dialog")
 
             locale = "en"
@@ -276,7 +281,7 @@ class IdentifyScreenFlowTest {
             identifyFromGallery(h)
             waitUntilAtLeastOneExists(hasText("Identification is unavailable"), TIMEOUT)
             assertNoTag("identify_loading")
-            onNodeWithTag("identify_searchCatalog").assertExists()
+            onNodeWithTag("identify_searchCatalog", useUnmergedTree = true).assertExists()
             openPickerAndChooseMonstera()
         }
     }
@@ -306,7 +311,7 @@ class IdentifyScreenFlowTest {
             assertNoTag("identify_loading")
             assertNoTag("identify_candidate_0")
             onNodeWithText("Confidence:", substring = true).assertDoesNotExist()
-            onNodeWithTag("identify_searchCatalog").assertExists()
+            onNodeWithTag("identify_searchCatalog", useUnmergedTree = true).assertExists()
             openPickerAndChooseMonstera()
         }
     }
@@ -316,7 +321,7 @@ class IdentifyScreenFlowTest {
      * picker opens, a query finds Monstera, and choosing it fills the form.
      */
     private fun ComposeUiTest.openPickerAndChooseMonstera() {
-        click(hasTestTag("identify_searchCatalog"))
+        clickTag("identify_searchCatalog")
         waitForNoTag("identify_dialog")
         val search = isEditable() and hasText("Name or scientific name", substring = true)
         waitUntilAtLeastOneExists(search, TIMEOUT)

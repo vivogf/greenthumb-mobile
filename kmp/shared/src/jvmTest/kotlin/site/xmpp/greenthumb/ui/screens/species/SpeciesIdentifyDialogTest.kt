@@ -1,6 +1,7 @@
 package site.xmpp.greenthumb.ui.screens.species
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -78,6 +79,13 @@ class SpeciesIdentifyDialogTest {
     private fun ComposeUiTest.unmergedTags(tag: String): Int =
         onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().size
 
+    /**
+     * GtModal merges its content, so tags are matched in the unmerged tree
+     * and the text is looked up among the tagged node's descendants.
+     */
+    private fun ComposeUiTest.taggedWithText(tag: String, text: String) =
+        onNode(hasTestTag(tag) and hasAnyDescendant(hasText(text)), useUnmergedTree = true)
+
     /** Every text and content description in the dialog, unmerged. */
     private fun ComposeUiTest.visibleTexts(): List<String> =
         onAllNodes(SemanticsMatcher("any") { true }, useUnmergedTree = true).fetchSemanticsNodes().flatMap { node ->
@@ -104,13 +112,13 @@ class SpeciesIdentifyDialogTest {
                 }
             }
             waitForIdle()
-            onNode(hasTestTag("identify_candidate_0") and hasText("$prefix$high")).assertExists()
-            onNode(hasTestTag("identify_candidate_1") and hasText("$prefix$medium")).assertExists()
-            onNode(hasTestTag("identify_candidate_2") and hasText("$prefix$medium")).assertExists()
+            taggedWithText("identify_candidate_0", "$prefix$high").assertExists()
+            taggedWithText("identify_candidate_1", "$prefix$medium").assertExists()
+            taggedWithText("identify_candidate_2", "$prefix$medium").assertExists()
             assertNoRawScore()
             state = IdentifyState.Results(boundaryLow)
             waitForIdle()
-            onNode(hasTestTag("identify_candidate_0") and hasText("$prefix$low")).assertExists()
+            taggedWithText("identify_candidate_0", "$prefix$low").assertExists()
             assertEquals(0, unmergedTags("identify_candidate_1"))
             assertNoRawScore()
         }
@@ -166,7 +174,7 @@ class SpeciesIdentifyDialogTest {
             onNodeWithText("Identifying the species…").assertDoesNotExist()
             onNodeWithText(message).assertExists()
             assertEquals(0, unmergedTags("identify_candidate_0"), "$next invents no candidates")
-            onNode(hasTestTag("identify_searchCatalog") and hasText("Search the catalog")).performClick()
+            taggedWithText("identify_searchCatalog", "Search the catalog").performClick()
             assertEquals(index + 1, searches)
             onNodeWithText("Powered by Pl@ntNet").assertExists()
         }
@@ -181,7 +189,7 @@ class SpeciesIdentifyDialogTest {
         waitForIdle()
         onNodeWithText("Вид не распознан. Попробуйте другое фото или найдите вид в каталоге.").assertExists()
         assertEquals(0, unmergedTags("identify_loading"))
-        onNode(hasTestTag("identify_searchCatalog") and hasText("Искать в каталоге")).performClick()
+        taggedWithText("identify_searchCatalog", "Искать в каталоге").performClick()
         assertEquals(1, searches)
     }
 
@@ -206,7 +214,7 @@ class SpeciesIdentifyDialogTest {
         assertEquals(1, onAllNodesWithText("Есть в каталоге").fetchSemanticsNodes().size)
         onNodeWithText("Powered by Pl@ntNet").assertExists()
         assertEquals(0, onAllNodesWithText("%", substring = true).fetchSemanticsNodes().size)
-        onNodeWithTag("identify_candidate_1").performClick()
+        onNodeWithTag("identify_candidate_1", useUnmergedTree = true).performClick()
         assertEquals("Unknownia rara", picked?.scientificName)
     }
 
@@ -219,12 +227,12 @@ class SpeciesIdentifyDialogTest {
         }
         waitForIdle()
         onNodeWithText("Лимит распознаваний на сегодня исчерпан").assertExists()
-        onNodeWithTag("identify_searchCatalog").performClick()
+        onNodeWithTag("identify_searchCatalog", useUnmergedTree = true).performClick()
         state = IdentifyState.Unavailable
         waitForIdle()
         onNodeWithText("Распознавание недоступно").assertExists()
         assertEquals(0, onAllNodesWithTag("identify_loading", useUnmergedTree = true).fetchSemanticsNodes().size)
-        onNodeWithTag("identify_searchCatalog").performClick()
+        onNodeWithTag("identify_searchCatalog", useUnmergedTree = true).performClick()
         onNodeWithText("Powered by Pl@ntNet").assertExists()
         assertEquals(2, searches)
         assertTrue(onAllNodesWithText("%", substring = true).fetchSemanticsNodes().isEmpty())
