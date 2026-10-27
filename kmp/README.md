@@ -31,7 +31,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 | Module | What's inside |
 |---|---|
 | **`shared/`** | all shared code (`commonMain` + `androidMain`/`jvmMain`, tests in `jvmTest`):<br>• `core.network` — `ApiClient` (Ktor, 10 s timeout, cookies in memory) and `ApiError`; the only path to the network (grep rule K1)<br>• `core.storage` — SecureStore (AES-GCM + AndroidKeyStore; a file on JVM), `AppSettings` (DataStore: language, theme, grid, `cached_user`), Room `GreenThumbDb` (per-user database `plants_${userId}.db`)<br>• `core.platform` — expect/actual: Connectivity, RemoteKillSwitch, Haptics, pickImage/resizeJpeg and more (stubs on desktop where the platform has no equivalent)<br>• `data/` — `PlantRepository`, offline mutation journal, `WateringStatus`, `RefreshCoordinator`<br>• `ui.theme` / `ui.components` / `ui.screens.*` (welcome, login, enablenotifications, dashboard, addplant, plantdetail, profile, update, gallery) / `ui.nav`; en/ru strings live in `composeResources` |
-| **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 6` / `versionName 0.1.0`; the debug build is `com.greenthumbplantcare.debug` ("GreenThumb Debug", `0.1.0-debug`, signed with `~/.android/debug.keystore`) and installs beside the release package |
+| **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 7` / `versionName 2.0.0`; the debug build is `com.greenthumbplantcare.debug` ("GreenThumb Debug", `2.0.0-debug`, signed with `~/.android/debug.keystore`) and installs beside the release package |
 | **`desktopApp/`** | JVM harness: `main.kt` (GUI launch, hot reload `hotRun`/`hotMcpServer`), `RealApiProbe.kt` (manual probe of the live API) |
 | **`scripts/`** | `check.sh` (the gate), `grep-rules-selftest.sh`, `i18n_check.py`, `mcp-driver.mjs` |
 | **`maestro/`** | `smoke.yaml` + `render-smoke.sh`, `delete-account.yaml` + `render-delete-account.sh`, `push-enable.yaml` (rendered with `GT_FLOW=push-enable.yaml render-smoke.sh`); all target `com.greenthumbplantcare.debug`. `GT_KEY_FILE` and `GT_DEVICE` override the key file and the device |
@@ -184,6 +184,24 @@ probes never reach the baseline.
 
 ## Release
 
+### Release build
+
+`./gradlew :androidApp:bundleRelease :androidApp:assembleRelease` builds the release with R8
+(`isMinifyEnabled`, `isShrinkResources`); custom keep rules live in `androidApp/proguard-rules.pro`,
+each with its reason. The R8 mapping is at `androidApp/build/outputs/mapping/release/mapping.txt`, and
+`uploadCrashlyticsMappingFileRelease` sends it to Crashlytics.
+
+Signing values are read from `~/.config/greenthumb/release-signing.properties` (outside the
+repository) with exactly these keys: `storeFile` (absolute path), `storePassword`, `keyAlias`,
+`keyPassword`. `-PgtReleaseSigning=<path>` overrides the path. When the file is absent, the build
+prints `GreenThumb: release signing file … not found` and the release APK/AAB is unsigned (no fallback
+key). A file with a missing key fails the build and names the key.
+
+Emulator smoke of the minified build: sign `androidApp-release-unsigned.apk` with this Mac's
+`~/.android/debug.keystore` (`zipalign -p 4`, then `apksigner sign`), install it on `elt_test` only
+(never on the Samsung), and run `maestro/release-smoke.yaml` stage by stage (see its header).
+
+### Rollout
 The full rollout contract lives in `kmp/docs/`:
 
 - [`kmp/docs/release-gate-rollout.md`](docs/release-gate-rollout.md) — the ≥95%

@@ -1,0 +1,285 @@
+# Minified release smoke on the emulator (feature m8-release-build; VAL-RELEASE-007/008).
+# Targets the release package com.greenthumbplantcare: install only a release APK on elt_test
+# (emulator-5554), never on a phone. English UI (elt_test runs en-US). STEP selects one stage;
+# the caller runs them in this order and places the widget with adb between "plant" and "widget":
+#   create     fresh install: intro → Create New Account (name gt-test-…) → "Save key to Google"
+#              shows the unsupported note (no credential provider) → continue → Maybe later.
+#              The key screen is never captured.
+#   plant      add a plant with a gallery photo (PHOTO = content-desc regex of a readable item in
+#              the system photo picker) and species search; backdate the last watering (TODAY =
+#              today's date field text MM/DD/YYYY, PAST_DAY = full label of a day in the previous
+#              month, e.g. "Monday, September 28, 2026") so the plant
+#              is overdue; detail shows the https photo; open Diagnosis up to the photo input; add
+#              a journal note.
+#   widget     on the home screen, tap the plant row in the placed widget: the plant opens; water
+#              it and see the Watered entry in the journal.
+#   progress   Profile → Progress: streak values and the 9 achievement cells.
+#   offline    airplane mode, cold relaunch: the cached list is shown; airplane mode is restored.
+#   delete     Profile → Delete Account → Delete my account → intro.
+#   saved-key  after delete: I Have a Key → "Sign in with saved key" shows the handled message.
+# Widget placement (Pixel launcher on elt_test has no "Add" button): open the picker with
+#   long-press → Widgets → expand "GreenThumb", then
+#   adb -s emulator-5554 shell input draganddrop <preview x> <preview y> 720 1000 2500
+appId: com.greenthumbplantcare
+name: GreenThumb release smoke (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'create'}
+    commands:
+      - launchApp:
+          clearState: true
+      - extendedWaitUntil:
+          visible: "Your plants, organized"
+          timeout: 30000
+      - tapOn: Skip
+      - tapOn: "Create New Account"
+      - tapOn: "How should we call you?"
+      - inputText: ${NAME}
+      - hideKeyboard
+      - tapOn:
+          text: "Create Account"
+          index: 1
+      - extendedWaitUntil:
+          visible: "Account Created!"
+          timeout: 30000
+      - tapOn: "Save key to Google"
+      - extendedWaitUntil:
+          visible: "Google Password Manager isn't available on this device.*"
+          timeout: 15000
+      - tapOn: "I've Saved My Key — Continue"
+      - tapOn: "Maybe later"
+      - extendedWaitUntil:
+          visible: "My Plants"
+          timeout: 20000
+      - takeScreenshot: create-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'plant'}
+    commands:
+      - tapOn: "Add Plant|Add a new plant"
+      - tapOn: "Add photo"
+      - tapOn: "Gallery"
+      - runFlow:
+          when:
+            visible: "Allow all"
+          commands:
+            - tapOn: "Allow all"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Crop photo"
+          timeout: 15000
+      - tapOn: Done
+      - extendedWaitUntil:
+          notVisible: "Crop photo"
+          timeout: 15000
+      - tapOn: "Choose species"
+      - tapOn: "Name or scientific name"
+      - inputText: "Swiss cheese"
+      - extendedWaitUntil:
+          visible: "Monstera deliciosa"
+          timeout: 5000
+      - takeScreenshot: species-results
+      - tapOn: "Monstera deliciosa"
+      - scrollUntilVisible:
+          element:
+            text: "Add Plant"
+          direction: DOWN
+      - tapOn: "Add Plant"
+      - extendedWaitUntil:
+          visible: "Open plant card Swiss cheese plant"
+          timeout: 60000
+      - tapOn: "Card view"
+      - waitForAnimationToEnd:
+          timeout: 10000
+      - takeScreenshot: dashboard-card-photo
+      - tapOn: "Open plant card Swiss cheese plant"
+      - extendedWaitUntil:
+          visible: "Water Plant"
+          timeout: 10000
+      # Backdate the last watering one month (the date picker opens on the current month), so
+      # the plant is overdue: the widget lists it and watering writes a journal entry.
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - tapOn: "Care Settings"
+      - tapOn: ${TODAY}
+      - extendedWaitUntil:
+          visible: Done
+          timeout: 10000
+      - tapOn: "Change to previous month"
+      - tapOn: ${PAST_DAY}
+      - tapOn: Done
+      - tapOn: Save
+      - extendedWaitUntil:
+          visible: ".*days overdue"
+          timeout: 15000
+      - scrollUntilVisible:
+          element: "Water Plant"
+          direction: UP
+      - waitForAnimationToEnd:
+          timeout: 10000
+      - takeScreenshot: detail-photo
+      - scrollUntilVisible:
+          element:
+            text: "Diagnosis"
+          direction: DOWN
+      - tapOn: "Diagnosis"
+      - extendedWaitUntil:
+          visible: "Take a photo of the leaves.*"
+          timeout: 10000
+      - assertVisible: "Choose from gallery"
+      - assertVisible: "Take photo"
+      - takeScreenshot: diagnosis-input
+      - back
+      - extendedWaitUntil:
+          visible: "Diagnosis"
+          timeout: 10000
+      - scrollUntilVisible:
+          element: "Add a note…"
+          direction: DOWN
+      - tapOn: "Add a note…"
+      - inputText: "Release smoke note"
+      - hideKeyboard
+      - tapOn: "Add note"
+      - extendedWaitUntil:
+          visible: "Add a note…"
+          timeout: 15000
+      - scrollUntilVisible:
+          element: "Release smoke note"
+          direction: DOWN
+      - assertNotVisible: "Network connection required.*"
+      - takeScreenshot: journal-note
+      - tapOn: Back
+      - pressKey: Home
+
+- runFlow:
+    when:
+      true: ${STEP == 'widget'}
+    commands:
+      - pressKey: Home
+      - extendedWaitUntil:
+          visible: "Water today"
+          timeout: 30000
+      - assertVisible: "Swiss cheese plant"
+      - takeScreenshot: widget
+      - tapOn: "Swiss cheese plant"
+      - extendedWaitUntil:
+          visible: "Water Plant"
+          timeout: 15000
+      - assertVisible: ".*days overdue"
+      - takeScreenshot: widget-opened-detail
+      - tapOn: "Water Plant"
+      - extendedWaitUntil:
+          visible: "Watered!"
+          timeout: 15000
+      - scrollUntilVisible:
+          element: "Journal"
+          direction: DOWN
+      - scrollUntilVisible:
+          element: "Watered"
+          direction: DOWN
+      - assertVisible: "Release smoke note"
+      - takeScreenshot: journal-watered
+      - tapOn: Back
+
+- runFlow:
+    when:
+      true: ${STEP == 'progress'}
+    commands:
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Profile"
+          timeout: 30000
+      - tapOn: "Profile"
+      - scrollUntilVisible:
+          element: "Progress and achievements"
+          direction: DOWN
+          centerElement: true
+      - tapOn: "Progress and achievements"
+      - extendedWaitUntil:
+          visible: "Current streak"
+          timeout: 15000
+      - assertVisible: "Best streak"
+      - assertNotVisible: "Loading progress…"
+      - assertVisible: "First plant"
+      - assertVisible: "Green corner"
+      - assertVisible: "First watering"
+      - assertVisible: "Caring gardener"
+      - assertVisible: "Watering master"
+      - assertVisible: "A week on time"
+      - assertVisible: "A month on time"
+      - assertVisible: "First note"
+      - assertVisible: "First photo"
+      - takeScreenshot: progress
+      - back
+
+- runFlow:
+    when:
+      true: ${STEP == 'offline'}
+    commands:
+      - setAirplaneMode:
+          value: enabled
+      - killApp
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Open plant card Swiss cheese plant"
+          timeout: 40000
+      - takeScreenshot: offline-relaunch
+      - setAirplaneMode:
+          value: disabled
+
+- runFlow:
+    when:
+      true: ${STEP == 'delete'}
+    commands:
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Profile"
+          timeout: 30000
+      - tapOn: "Profile"
+      - scrollUntilVisible:
+          element:
+            text: "Delete Account"
+          direction: DOWN
+      - tapOn: "Delete Account"
+      - extendedWaitUntil:
+          visible: "Delete my account"
+          timeout: 20000
+      - takeScreenshot: delete-confirm
+      - tapOn: "Delete my account"
+      - extendedWaitUntil:
+          visible: "Your plants, organized|Create New Account"
+          timeout: 30000
+      - takeScreenshot: after-delete
+
+- runFlow:
+    when:
+      true: ${STEP == 'saved-key'}
+    commands:
+      - repeat:
+          times: 10
+          while:
+            notVisible: "Sign in with saved key"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Your plants, organized"
+                commands:
+                  - tapOn: Skip
+            - runFlow:
+                when:
+                  visible: "I Have a Key"
+                commands:
+                  - tapOn: "I Have a Key"
+      # GMS without a saved credential answers "no saved key"; without GMS the app says the
+      # manager is unavailable. Either message proves the Credentials path ran without a crash.
+      - tapOn: "Sign in with saved key"
+      - extendedWaitUntil:
+          visible: "(No saved key found on this device|Google Password Manager isn't available on this device).*"
+          timeout: 15000
+      - takeScreenshot: saved-key-unavailable
