@@ -92,6 +92,10 @@ internal class SeasonFakeServer {
     var timezoneStatus: HttpStatusCode = HttpStatusCode.OK
     var timezoneFailure: Throwable? = null
 
+    /** When set, `/me` reads the user at once but answers only after the gate opens. */
+    var meGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    @Volatile var meCount = 0
+
     /** When set, the season PATCH waits for it before it answers. */
     var seasonGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
     val seasonBodies = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -113,10 +117,14 @@ internal class SeasonFakeServer {
     suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val body = (request.body as? TextContent)?.text.orEmpty()
         return when (request.url.encodedPath) {
-            "/api/auth/me" ->
+            "/api/auth/me" -> {
+                meCount++
+                val snapshot = userJson()
+                meGate?.await()
                 if (meFailure != null) throw meFailure!!
-                else if (signedIn) respond(userJson(), HttpStatusCode.OK, jsonHeaders)
+                else if (signedIn) respond(snapshot, HttpStatusCode.OK, jsonHeaders)
                 else respond("""{"error":"Not authenticated"}""", HttpStatusCode.Unauthorized, jsonHeaders)
+            }
             "/api/auth/create-anonymous" -> {
                 signedIn = true
                 respond(userJson(), HttpStatusCode.OK, jsonHeaders)

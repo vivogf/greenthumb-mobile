@@ -473,6 +473,9 @@ public class SessionManager(
     /** Serializes season saves: a rollback must not overwrite a later choice. */
     private val seasonMutex = Mutex()
 
+    /** Bumped under [seasonMutex] on every local season change; lets [refreshUser] spot a stale /me. */
+    private var seasonChanges: Long = 0
+
     /**
      * Profile season switcher (architecture §5.6): the new mode is published to [state] and
      * cached_user before the request, so dashboard, detail and the winter hint recompose at once.
@@ -482,6 +485,7 @@ public class SessionManager(
     public suspend fun updateSeasonMode(mode: SeasonMode): UserDto = withContext(NonCancellable) {
         seasonMutex.withLock {
             val previous = sessionUser() ?: throw IllegalStateException("no signed-in user")
+            seasonChanges++
             publishUser(previous.copy(seasonMode = mode.wire))
             val saved = try {
                 api.updateSeasonMode(mode.wire)
@@ -526,13 +530,19 @@ public class SessionManager(
      */
     public suspend fun refreshUser(): UserDto? {
         val before = sessionUser() ?: return null
+        val seasonChangesBefore = seasonMutex.withLock { seasonChanges }
         val me = try {
             api.me()
         } catch (error: ApiError) {
             return null
         }
-        if (me.id != before.id || sessionUser()?.id != me.id) return null
-        return applyUser(me).user
+        return seasonMutex.withLock {
+            val current = sessionUser()
+            if (me.id != before.id || current?.id != me.id) return@withLock null
+            // A season save that started after this /me was sent wins over the server's older copy.
+            val fresh = if (seasonChanges == seasonChangesBefore) me else me.copy(seasonMode = current.seasonMode)
+            applyUser(fresh).user
+        }
     }
 
     /**
@@ -658,8 +668,12 @@ public class SessionManager(
             when (e) {
                 is ApiError.Unauthorized -> {
                     // Явный 401 от recovery: ключ невалиден — чистим (VAL-LOGIN-004)
-                    // вместе с базой этого пользователя, если она была.
+                    // вместе с базой этого пользователя, если она была. The marker goes
+                    // first: a restart after the key is gone must still read as an ended
+                    // session (VAL-CRED-022), not as "Key not found".
                     val closing = closingUserId()
+                    hadSession = true
+                    markSessionEnded()
                     clearKeyAndCachedUser()
                     discardAccountDatabase(closing)
                 }

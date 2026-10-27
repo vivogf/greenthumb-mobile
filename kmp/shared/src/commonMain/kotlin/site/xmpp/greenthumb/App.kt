@@ -25,6 +25,7 @@ import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.season.TimezoneSync
+import site.xmpp.greenthumb.season.TzLatitudesStore
 import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
@@ -184,6 +185,8 @@ fun App(
     // architecture.md §9) — инициализированная сессия не перезапускается
     // (фикс M6 VAL-SHELL-003).
     LaunchedEffect(Unit) { session.startupIfNeeded() }
+    // Read alongside the session start, so auto-mode statuses have the table by their first frame.
+    LaunchedEffect(Unit) { TzLatitudesStore.loadOrEmpty() }
     // users.timezone follows the device zone on sign-in, cold start and resume (architecture §8.6).
     LaunchedEffect(Unit) {
         val foreground = AppForeground()

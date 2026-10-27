@@ -8,7 +8,9 @@ import site.xmpp.greenthumb.catalog.SpeciesEntry
 import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
+import site.xmpp.greenthumb.data.daysUntilWatering
 import site.xmpp.greenthumb.data.isHeldForReplay
+import site.xmpp.greenthumb.season.SeasonContext
 
 /**
  * Чистая логика экрана деталей растения (Stage 7 п.6, фича screen-plant-detail)
@@ -80,6 +82,25 @@ public fun daysUntilMonthCare(lastDate: String?, frequencyMonths: Int, today: Lo
 private fun parseDate(raw: String?): LocalDate? =
     raw?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { runCatching { LocalDate.parse(it.substringBefore('T')) }.getOrNull() }
+
+/**
+ * Countdowns shown on plant detail. Only watering takes the season rule; the other kinds of care keep
+ * their plain interval in every mode. A null countdown means that care is not set up.
+ */
+public data class PlantCareCountdowns(
+    public val water: Int,
+    public val fertilize: Int?,
+    public val repot: Int?,
+    public val prune: Int?,
+)
+
+public fun plantCareCountdowns(plant: PlantDto, today: LocalDate, season: SeasonContext): PlantCareCountdowns =
+    PlantCareCountdowns(
+        water = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season),
+        fertilize = plant.fertilizeFrequencyDays?.let { daysUntilCare(plant.lastFertilizedDate, it, today) },
+        repot = plant.repotFrequencyMonths?.let { daysUntilMonthCare(plant.lastRepottedDate, it, today) },
+        prune = plant.pruneFrequencyMonths?.let { daysUntilMonthCare(plant.lastPrunedDate, it, today) },
+    )
 
 /** Срочность ухода для цвета подписи карточки (порт careStatusColor). */
 public enum class CareUrgency {

@@ -84,7 +84,8 @@ class AppSettingsJvmTest {
     }
 
     @Test
-    fun set_then_read_roundtrip_all_fields() = runBlocking {        val storage = newStorage()
+    fun set_then_read_roundtrip_all_fields() = runBlocking {
+        val storage = newStorage()
 
         storage.setLanguage(AppLanguage.Ru)
         storage.setLayoutMode(LayoutMode.Grid)

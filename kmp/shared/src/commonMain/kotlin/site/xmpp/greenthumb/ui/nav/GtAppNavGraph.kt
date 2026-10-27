@@ -169,6 +169,8 @@ public fun GtAppNavGraph(
     speciesIdentifier: SpeciesIdentifier? = null,
 ) {
     val navController = rememberNavController()
+    // Null for the few milliseconds auto mode waits for the latitude table (preloaded in App());
+    // season-dependent screens stay blank instead of showing unadjusted statuses that then flip.
     val season = rememberSeasonContext(session)
     NavHost(navController = navController, startDestination = startDestination) {
         composable(NavRoutes.WELCOME) {
@@ -199,7 +201,7 @@ public fun GtAppNavGraph(
         composable(NavRoutes.TABS_DASHBOARD) {
             AppLocalizedContent {
                 TabShell(selected = GtTab.Plants, onSelect = { navController.navigateTab(it.route) }) {
-                    if (sessionUserId != null) {
+                    if (sessionUserId != null && season != null) {
                         DashboardScreen(
                             userId = sessionUserId,
                             session = session,
@@ -268,20 +270,22 @@ public fun GtAppNavGraph(
             // Bundle, читатель тот же API).
             val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
             AppLocalizedContent {
-                PlantDetailScreen(
-                    userId = sessionUserId ?: "",
-                    plantId = plantId,
-                    opener = plants,
-                    onBack = { navController.popBackStack() },
-                    // RN onMutate: router.replace('/') сразу после подтверждения
-                    // — экран исчезает до ответа сети (репозиторий уже убрал
-                    // строку из Room). popBackStack — дашборд с сохранённым
-                    // состоянием вкладки.
-                    onDeleted = { navController.popBackStack() },
-                    deleteErrorState = deleteErrorState,
-                    isOnline = connectivity.isOnline,
-                    season = season,
-                )
+                if (season != null) {
+                    PlantDetailScreen(
+                        userId = sessionUserId ?: "",
+                        plantId = plantId,
+                        opener = plants,
+                        onBack = { navController.popBackStack() },
+                        // RN onMutate: router.replace('/') сразу после подтверждения
+                        // — экран исчезает до ответа сети (репозиторий уже убрал
+                        // строку из Room). popBackStack — дашборд с сохранённым
+                        // состоянием вкладки.
+                        onDeleted = { navController.popBackStack() },
+                        deleteErrorState = deleteErrorState,
+                        isOnline = connectivity.isOnline,
+                        season = season,
+                    )
+                }
             }
         }
     }

@@ -771,7 +771,8 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `createAnonymous persists server key and cached user`() = runBlocking {        val manager = newManager()
+    fun `createAnonymous persists server key and cached user`() = runBlocking {
+        val manager = newManager()
 
         val state = manager.createAnonymousAccount()
 

@@ -21,8 +21,7 @@ import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardFilter
 import site.xmpp.greenthumb.ui.screens.dashboard.filterAndSortPlants
 import site.xmpp.greenthumb.ui.screens.dashboard.needsWaterCount
-import site.xmpp.greenthumb.ui.screens.plantdetail.daysUntilCare
-import site.xmpp.greenthumb.ui.screens.plantdetail.daysUntilMonthCare
+import site.xmpp.greenthumb.ui.screens.plantdetail.plantCareCountdowns
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -74,18 +73,28 @@ class SeasonWateringStatusTest {
     @Test
     fun other_care_countdowns_do_not_depend_on_the_mode() {
         val today = LocalDate.parse("2026-12-12")
-        val results = SeasonMode.entries.map { mode ->
-            val (ctx, _) = season(mode, "Europe/Moscow")
-            // The season context only reaches watering; other care keeps its own interval.
-            listOf(
-                daysUntilCare("2026-12-01", 14, today),
-                daysUntilMonthCare("2026-11-01", 3, today),
-                daysUntilMonthCare("2026-10-15", 2, today),
-            ) to ctx.mode
+        // Watered in December (north-dormant), so north and auto in Moscow stretch the watering interval.
+        val fixture = plant("care", "2026-12-01", frequency = 10).copy(
+            fertilizeFrequencyDays = 14,
+            lastFertilizedDate = "2026-12-01",
+            repotFrequencyMonths = 3,
+            lastRepottedDate = "2026-11-01",
+            pruneFrequencyMonths = 2,
+            lastPrunedDate = "2026-10-15",
+        )
+        val byMode = SeasonMode.entries.associateWith { mode ->
+            plantCareCountdowns(fixture, today, season(mode, "Europe/Moscow").first)
         }
-        assertEquals(1, results.map { it.first }.distinct().size, "countdowns per mode: $results")
-    }
 
+        assertEquals(4, byMode.getValue(SeasonMode.North).water, "north stretches watering: $byMode")
+        assertEquals(4, byMode.getValue(SeasonMode.Auto).water, "auto in Moscow stretches watering: $byMode")
+        assertEquals(-1, byMode.getValue(SeasonMode.Off).water, "off keeps the base interval: $byMode")
+        for ((mode, countdowns) in byMode) {
+            assertEquals(3, countdowns.fertilize, "fertilize in mode $mode")
+            assertEquals(51, countdowns.repot, "repot in mode $mode")
+            assertEquals(3, countdowns.prune, "prune in mode $mode")
+        }
+    }
     @Test
     fun winter_hint_applies_only_when_adjusted() {
         val (north, _) = season(SeasonMode.North, "Asia/Singapore")

@@ -154,4 +154,25 @@ class SeasonModeSwitchTest {
             assertEquals("off", harness.settings.cachedUserState.value?.seasonMode)
         }
     }
+
+    @Test
+    fun lateMeResponseDoesNotOverwriteAJustSavedMode() = runBlocking {
+        SeasonHarness().use { harness ->
+            harness.signedInWithKey()
+            val meGate = CompletableDeferred<Unit>()
+            harness.server.meGate = meGate
+            val mesBefore = harness.server.meCount
+
+            // /me reads the user (mode auto) now and answers only after the save below finished.
+            val refresh = async { harness.session.refreshUser() }
+            waitFor { harness.server.meCount == mesBefore + 1 }
+            harness.session.updateSeasonMode(SeasonMode.North)
+            assertEquals("north", currentMode(harness))
+
+            meGate.complete(Unit)
+            refresh.await()
+            assertEquals("north", currentMode(harness), "the stale /me must not bring back 'auto'")
+            assertEquals("north", harness.settings.cachedUserState.value?.seasonMode)
+        }
+    }
 }

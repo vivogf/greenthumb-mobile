@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,7 +74,6 @@ import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.data.WateringStatus
-import site.xmpp.greenthumb.data.daysUntilWatering
 import site.xmpp.greenthumb.data.wateringStatus
 import site.xmpp.greenthumb.ui.components.DestructiveButton
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
@@ -337,6 +337,9 @@ public fun PlantDetailScreen(
     var editingNotes by remember { mutableStateOf(false) }
     var editedNotes by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
+    // Every dialog below clears focus on open and close; a focused note field would otherwise get
+    // focus back with the input connection open and no keyboard drawn (VAL-TIMELINE-017).
+    val focusManager = LocalFocusManager.current
     var showPhotoSheet by remember { mutableStateOf(false) }
     var settingsForm by remember { mutableStateOf<CareSettingsForm?>(null) }
     var deleteConfirmOpen by remember { mutableStateOf(false) }
@@ -431,7 +434,8 @@ public fun PlantDetailScreen(
                     }
                 }
             }
-            val waterDays = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+            val countdowns = plantCareCountdowns(plant, today, season)
+            val waterDays = countdowns.water
             val waterStatus = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
             val winterMode = season.isAdjusted(plant.lastWateredDate)
             val extended = greenThumbExtendedColors()
@@ -500,7 +504,13 @@ public fun PlantDetailScreen(
                                         direction = GtChevronDirection.Left,
                                     )
                                 }
-                                HeaderIconButton(label = changePhotoLabel, onClick = { showPhotoSheet = true }) {
+                                HeaderIconButton(
+                                    label = changePhotoLabel,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        showPhotoSheet = true
+                                    },
+                                ) {
                                     GtCameraMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
                                 }
                             }
@@ -636,12 +646,12 @@ public fun PlantDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 val cards = buildList {
-                                    plant.fertilizeFrequencyDays?.let { freq ->
+                                    countdowns.fertilize?.let { days ->
                                         add(
                                             CareCardData(
                                                 title = fertilizingLabel,
                                                 a11yLabel = fertilizeAction,
-                                                days = daysUntilCare(plant.lastFertilizedDate, freq, today),
+                                                days = days,
                                                 mark = { tint -> GtLeafMark(tint = tint) },
                                                 onAction = {
                                                     update(
@@ -651,12 +661,12 @@ public fun PlantDetailScreen(
                                             ),
                                         )
                                     }
-                                    plant.repotFrequencyMonths?.let { freq ->
+                                    countdowns.repot?.let { days ->
                                         add(
                                             CareCardData(
                                                 title = repottingLabel,
                                                 a11yLabel = repotAction,
-                                                days = daysUntilMonthCare(plant.lastRepottedDate, freq, today),
+                                                days = days,
                                                 mark = { tint -> GtPotMark(tint = tint) },
                                                 onAction = {
                                                     update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
@@ -664,12 +674,12 @@ public fun PlantDetailScreen(
                                             ),
                                         )
                                     }
-                                    plant.pruneFrequencyMonths?.let { freq ->
+                                    countdowns.prune?.let { days ->
                                         add(
                                             CareCardData(
                                                 title = pruningLabel,
                                                 a11yLabel = pruneAction,
-                                                days = daysUntilMonthCare(plant.lastPrunedDate, freq, today),
+                                                days = days,
                                                 mark = { tint -> GtScissorsMark(tint = tint) },
                                                 onAction = {
                                                     update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
@@ -704,6 +714,7 @@ public fun PlantDetailScreen(
                         SettingsRow(
                             label = careSettingsLabel,
                             onClick = {
+                                focusManager.clearFocus()
                                 settingsForm = CareSettingsForm.of(plant)
                                 showSettings = true
                             },
@@ -803,7 +814,10 @@ public fun PlantDetailScreen(
                         // ── Удаление ──
                         DestructiveButton(
                             text = plantDelete,
-                            onClick = { deleteConfirmOpen = true },
+                            onClick = {
+                                focusManager.clearFocus()
+                                deleteConfirmOpen = true
+                            },
                             enabled = !deleting,
                             modifier = Modifier
                                 .gtButtonWidth()
@@ -832,7 +846,10 @@ public fun PlantDetailScreen(
                             },
                         ),
                     ),
-                    onDismissRequest = { deleteConfirmOpen = false },
+                    onDismissRequest = {
+                        deleteConfirmOpen = false
+                        focusManager.clearFocus()
+                    },
                 )
             }
 
@@ -858,13 +875,20 @@ public fun PlantDetailScreen(
                     doneText = doneText,
                     locale = locale,
                     catalog = catalog,
-                    onChooseSpecies = { speciesPickerOpen = true },
+                    onChooseSpecies = {
+                        focusManager.clearFocus()
+                        speciesPickerOpen = true
+                    },
                     onFormChange = { settingsForm = it },
                     onSave = {
                         showSettings = false
+                        focusManager.clearFocus()
                         update(CareSettingsPatch.build(plant, openForm))
                     },
-                    onDismiss = { showSettings = false },
+                    onDismiss = {
+                        showSettings = false
+                        focusManager.clearFocus()
+                    },
                 )
             }
 
@@ -874,15 +898,23 @@ public fun PlantDetailScreen(
                     language = locale,
                     onPick = { entry ->
                         speciesPickerOpen = false
+                        focusManager.clearFocus()
                         settingsForm = settingsForm?.withSpecies(entry)
                     },
-                    onDismiss = { speciesPickerOpen = false },
+                    onDismiss = {
+                        speciesPickerOpen = false
+                        focusManager.clearFocus()
+                    },
                 )
             }
 
             // ── Модалка смены фото (RN bottom sheet) ──
             if (showPhotoSheet) {
-                GtModal(onDismissRequest = { showPhotoSheet = false }) {
+                val closePhotoSheet = {
+                    showPhotoSheet = false
+                    focusManager.clearFocus()
+                }
+                GtModal(onDismissRequest = closePhotoSheet) {
                     Text(
                         text = changePhotoTitle,
                         modifier = Modifier
@@ -896,7 +928,7 @@ public fun PlantDetailScreen(
                         label = cameraText,
                         icon = { GtCameraMark(it) },
                         onClick = {
-                            showPhotoSheet = false
+                            closePhotoSheet()
                             photoPicker.launch(scope, PickSource.Camera)
                         },
                     )
@@ -904,7 +936,7 @@ public fun PlantDetailScreen(
                         label = galleryText,
                         icon = { GtGalleryMark(it) },
                         onClick = {
-                            showPhotoSheet = false
+                            closePhotoSheet()
                             photoPicker.launch(scope, PickSource.Gallery)
                         },
                     )
@@ -912,7 +944,7 @@ public fun PlantDetailScreen(
                         label = cancelText,
                         icon = null,
                         destructive = true,
-                        onClick = { showPhotoSheet = false },
+                        onClick = closePhotoSheet,
                     )
                 }
             }
@@ -1199,6 +1231,8 @@ private fun CareSettingsModal(
 ) {
     val scheme = MaterialTheme.colorScheme
     GtModal(onDismissRequest = onDismiss) {
+        // The modal has its own focus owner: a care field focused here must be cleared from inside.
+        val modalFocus = LocalFocusManager.current
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1237,7 +1271,10 @@ private fun CareSettingsModal(
                 form = form,
                 catalog = catalog,
                 locale = locale,
-                onChoose = onChooseSpecies,
+                onChoose = {
+                    modalFocus.clearFocus()
+                    onChooseSpecies()
+                },
                 onClear = { onFormChange(form.withoutSpecies()) },
             )
             SettingsFrequencyField(

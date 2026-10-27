@@ -7,7 +7,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
+import site.xmpp.greenthumb.core.network.NoSessionRecoveryProvider
 import site.xmpp.greenthumb.core.network.SessionRecoveryProvider
 import site.xmpp.greenthumb.core.network.UserDto
 import kotlin.test.AfterTest
@@ -104,6 +106,7 @@ class SessionManagerKeyNotFoundTest {
         override suspend fun setSessionEnded(ended: Boolean) {
             if (ended) values[AppSettingsKeys.SESSION_ENDED] = "1" else values.remove(AppSettingsKeys.SESSION_ENDED)
         }
+
         override val language: kotlinx.coroutines.flow.Flow<AppLanguage?> =
             kotlinx.coroutines.flow.emptyFlow()
 
@@ -183,7 +186,8 @@ class SessionManagerKeyNotFoundTest {
                 "/api/auth/create-anonymous" -> {
                     loginSucceeded = true
                     respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
-                }                else -> respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
+                }
+                else -> respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
             }
         }
     }
@@ -219,11 +223,13 @@ class SessionManagerKeyNotFoundTest {
         server: FakeServer = FakeServer(),
         handoff: HandoffSource = FakeHandoff(),
         isUpdateInstall: Boolean = false,
+        recovery: SessionRecoveryProvider? = null,
     ): SessionManager {
         sessionResetCount = 0
         clientRef?.close()
-        val client = ApiClient(            MockEngine(server.handler),
-            InMemoryRecoveryProvider(secure) { sessionResetCount++ },
+        val client = ApiClient(
+            MockEngine(server.handler),
+            recovery ?: InMemoryRecoveryProvider(secure) { sessionResetCount++ },
         )
         clientRef = client
         return SessionManager(secure, settings, handoff, GreenThumbApi(client), isUpdateInstall)
@@ -443,6 +449,53 @@ class SessionManagerKeyNotFoundTest {
         val state = newManager(isUpdateInstall = true).startup()
 
         assertEquals(SessionState.SignedOut, state)
+    }
+
+    @Test
+    fun `stored key rejected at startup then cold restart on update install is signed out`() = runBlocking {
+        // The account was deleted elsewhere. The client has no key to re-login with here, so
+        // recover() itself sends login-recovery and gets the 401.
+        val server = FakeServer()
+        server.failMeTransport = false
+        server.meStatus = HttpStatusCode.Unauthorized
+        server.loginStatus = HttpStatusCode.Unauthorized
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "deleted-account-key"
+
+        val first = newManager(server = server, isUpdateInstall = true, recovery = NoSessionRecoveryProvider).startup()
+
+        assertEquals(SessionState.SignedOut, first, "stored key rejected → signed-out start screen")
+        assertEquals(1, server.loginCount)
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+        assertTrue(settings.isSessionEnded(), "the ended session is recorded before the key goes")
+
+        val second = newManager(server = server, isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, second, "second cold start is still not 'Key not found'")
+    }
+
+    @Test
+    fun `stored key rejected by the client re-login at startup then cold restart is signed out`() = runBlocking {
+        // Production wiring: the client's second 401 goes to SessionManager.onAuthError.
+        val server = FakeServer()
+        server.failMeTransport = false
+        server.meStatus = HttpStatusCode.Unauthorized
+        server.loginStatus = HttpStatusCode.Unauthorized
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "deleted-account-key"
+        lateinit var manager: SessionManager
+        val recovery = object : SessionRecoveryProvider {
+            override suspend fun getRecoveryKey(): String? = secure.get(SecureStoreKeys.RECOVERY_KEY)
+
+            override suspend fun onSessionReset() {
+                manager.onAuthError(ApiError.Unauthorized)
+            }
+        }
+        manager = newManager(server = server, isUpdateInstall = true, recovery = recovery)
+
+        assertEquals(SessionState.SignedOut, manager.startup())
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+        assertTrue(settings.isSessionEnded())
+
+        assertEquals(SessionState.SignedOut, newManager(server = server, isUpdateInstall = true).startup())
     }
 
     @Test
