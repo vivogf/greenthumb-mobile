@@ -6,18 +6,18 @@ import site.xmpp.greenthumb.core.network.ApiError
  * Маппинг ошибки auth в пользовательский текст — порт RN `explainAuthError`
  * из staged P2/P3 (`app/(auth)/login.tsx:61-76`).
  *
- * История (CLAUDE.md 2026-06-14 + 2026-04-30): любой не-200 от
- * login-recovery показывался как «Invalid recovery key» — квота Neon
- * отвечает 400, и пользователи считали свой ключ невалидным, будучи
- * залоченными из живого аккаунта. Правило:
+ * Ответы login-recovery: 401 — ключ в формате UUID, но аккаунта с ним нет;
+ * 400 — строка не UUID (или пустое тело). Сбои базы (self-hosted Postgres)
+ * приходят как 5xx, поэтому 400 на входе — это ошибка в ключе, а не в сервисе.
+ * Правило:
  *
- * - явный 401 на ВХОДЕ (`isLogin = true`) — единственный случай «неверный
- *   ключ» (ключ ввёл пользователь, сервер его отверг);
- * - 401 на СОЗДАНИИ (`isLogin = false`) — «сервис недоступен»: ключ
- *   пользователь не вводил, сбои создания — сервисные;
+ * - 401 или 400 на ВХОДЕ (`isLogin = true`) — «неверный ключ» (ключ ввёл
+ *   пользователь, сервер его отверг); стереть сохранённый ключ может только
+ *   401 (SessionManager), 400 его не трогает;
+ * - 401 и 400 на СОЗДАНИИ (`isLogin = false`) — «сервис недоступен»: ключ
+ *   пользователь не вводил;
  * - Network/Timeout — «ошибка сети» (обе ветки);
- * - прочие 4xx (400-квота, 429) и 5xx — «сервис недоступен», НИКОГДА
- *   «неверный ключ».
+ * - 429, прочие 4xx и 5xx — «сервис недоступен».
  *
  * Функция чистая: локализованные тексты передаёт вызов (`stringResource`
  * решает композиция), тест фиксирует сам маппинг ([AuthErrorMappingTest]).
@@ -32,6 +32,7 @@ internal fun explainAuthError(
     serviceUnavailableText: String,
 ): String = when {
     error is ApiError.Unauthorized && isLogin -> invalidKeyText
+    error is ApiError.Client && error.status == 400 && isLogin -> invalidKeyText
     error is ApiError.Network || error is ApiError.Timeout -> networkErrorText
     else -> serviceUnavailableText
 }

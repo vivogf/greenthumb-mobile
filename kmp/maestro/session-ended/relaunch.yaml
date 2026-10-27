@@ -1,0 +1,13 @@
+# Подфлоу: холодный рестарт (force-stop + запуск) и ожидание стартового экрана.
+# Повторный launchApp лечит гонку отложенного remove-task после force-stop
+# (см. delete-account.yaml).
+appId: com.greenthumbplantcare.debug
+---
+- killApp
+- launchApp
+- repeat:
+    times: 6
+    while:
+      notVisible: "Skip|I Have a Key|Key not found|Welcome Back"
+    commands:
+      - launchApp

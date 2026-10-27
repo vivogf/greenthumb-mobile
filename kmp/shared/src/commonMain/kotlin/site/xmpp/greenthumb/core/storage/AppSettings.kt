@@ -93,6 +93,10 @@ public expect class AppSettings(appContext: Any) : AppPreferencesStore {
     /** Сброс cached_user (выход из аккаунта); предпочтения не тронуты. */
     override suspend fun clearCachedUser()
 
+    override suspend fun isSessionEnded(): Boolean
+
+    override suspend fun setSessionEnded(ended: Boolean)
+
     /** Реактивное чтение (null = не задано) — без перезапуска процесса. */
     override val language: Flow<AppLanguage?>
     override val layoutMode: Flow<LayoutMode?>
@@ -132,6 +136,12 @@ public object AppSettingsKeys {
 
     /** Кэш последнего известного пользователя (новый ключ, Stage 3 п.5). */
     public const val CACHED_USER: String = "cached_user"
+
+    /**
+     * Отметка «сессия завершена в KMP» (выход, удаление, 401 по ключу), значение "1".
+     * Не INTRO_SEEN: тот флаг ставит и handoff из Expo.
+     */
+    public const val SESSION_ENDED: String = "session_ended"
 }
 
 /**
@@ -259,6 +269,18 @@ public abstract class PreferencesAppSettingsCore : AppPreferencesStore {
         dataStore.edit { it.remove(stringPreferencesKey(AppSettingsKeys.CACHED_USER)) }
     }
 
+    public override suspend fun isSessionEnded(): Boolean =
+        readString(AppSettingsKeys.SESSION_ENDED) == SESSION_ENDED_VALUE
+
+    public override suspend fun setSessionEnded(ended: Boolean) {
+        writeMutex.withLock {
+            dataStore.edit { prefs ->
+                val key = stringPreferencesKey(AppSettingsKeys.SESSION_ENDED)
+                if (ended) prefs[key] = SESSION_ENDED_VALUE else prefs.remove(key)
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
     // Flow (реактивность — обновление значения без перезапуска процесса)
     // by lazy: property-инициализатор базового класса не должен форсировать
@@ -331,6 +353,8 @@ public abstract class PreferencesAppSettingsCore : AppPreferencesStore {
     private companion object {
         /** Значение флага интро — «1», как в RN setHasSeenIntro (handoff intro_seen=true). */
         const val INTRO_SEEN_VALUE = "1"
+
+        const val SESSION_ENDED_VALUE = "1"
     }
 }
 

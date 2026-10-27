@@ -75,6 +75,16 @@ public interface AppPreferencesStore {
 
     public suspend fun clearCachedUser()
 
+    /**
+     * Сессия закончилась в этом приложении (выход, удаление аккаунта, 401 по
+     * ключу). Переживает рестарт процесса: отличает пустоту после действия
+     * пользователя от пустоты после обновления Expo → KMP ([SessionState.KeyNotFound]).
+     * Тела по умолчанию — для тестовых двойников, которым отметка не нужна.
+     */
+    public suspend fun isSessionEnded(): Boolean = false
+
+    public suspend fun setSessionEnded(ended: Boolean) {}
+
     public val language: Flow<AppLanguage?>
     public val layoutMode: Flow<LayoutMode?>
     public val theme: Flow<ThemePreference?>

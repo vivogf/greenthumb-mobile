@@ -55,6 +55,10 @@ public actual class AppSettings actual constructor(
 
     actual override suspend fun clearCachedUser() = delegate.clearCachedUser()
 
+    actual override suspend fun isSessionEnded(): Boolean = delegate.isSessionEnded()
+
+    actual override suspend fun setSessionEnded(ended: Boolean) = delegate.setSessionEnded(ended)
+
     actual override val language: Flow<AppLanguage?> = delegate.language
     actual override val layoutMode: Flow<LayoutMode?> = delegate.layoutMode
     actual override val theme: Flow<ThemePreference?> = delegate.theme

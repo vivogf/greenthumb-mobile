@@ -99,6 +99,11 @@ class SessionManagerKeyNotFoundTest {
             storedUser = null
         }
 
+        override suspend fun isSessionEnded(): Boolean = values[AppSettingsKeys.SESSION_ENDED] == "1"
+
+        override suspend fun setSessionEnded(ended: Boolean) {
+            if (ended) values[AppSettingsKeys.SESSION_ENDED] = "1" else values.remove(AppSettingsKeys.SESSION_ENDED)
+        }
         override val language: kotlinx.coroutines.flow.Flow<AppLanguage?> =
             kotlinx.coroutines.flow.emptyFlow()
 
@@ -174,7 +179,11 @@ class SessionManagerKeyNotFoundTest {
                     respond(userJson(), loginStatus, JSON_HEADERS)
                 }
                 "/api/auth/logout" -> respond("""{"success":true}""", HttpStatusCode.OK, JSON_HEADERS)
-                else -> respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
+                "/api/auth/account" -> respond("""{"success":true}""", HttpStatusCode.OK, JSON_HEADERS)
+                "/api/auth/create-anonymous" -> {
+                    loginSucceeded = true
+                    respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
+                }                else -> respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
             }
         }
     }
@@ -212,8 +221,8 @@ class SessionManagerKeyNotFoundTest {
         isUpdateInstall: Boolean = false,
     ): SessionManager {
         sessionResetCount = 0
-        val client = ApiClient(
-            MockEngine(server.handler),
+        clientRef?.close()
+        val client = ApiClient(            MockEngine(server.handler),
             InMemoryRecoveryProvider(secure) { sessionResetCount++ },
         )
         clientRef = client
@@ -384,9 +393,118 @@ class SessionManagerKeyNotFoundTest {
     }
 
     // ------------------------------------------------------------------
-    // Провал импорта handoff — отдельный экран ошибки (VAL-HANDOFF-IMP-005)
+    // Завершённая сессия переживает рестарт процесса (VAL-CRED-021):
+    // новый SessionManager на тех же хранилищах = холодный старт
     // ------------------------------------------------------------------
 
+    @Test
+    fun `deleteAccount then cold restart on update install is signed out not key not found`() = runBlocking {
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        newManager(isUpdateInstall = true).deleteAccount()
+
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, state, "после удаления аккаунта → экран входа")
+        assertTrue(settings.isSessionEnded())
+    }
+
+    @Test
+    fun `signOut then cold restart on update install is signed out not key not found`() = runBlocking {
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        newManager(isUpdateInstall = true).signOut()
+
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, state, "после выхода → экран входа")
+    }
+
+    @Test
+    fun `401 sign-in then cold restart on update install is signed out not key not found`() = runBlocking {
+        val server = FakeServer()
+        server.loginStatus = HttpStatusCode.Unauthorized
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "old-key"
+        try {
+            newManager(server = server, isUpdateInstall = true).signInWithRecoveryKey("bad-key")
+            throw AssertionError("ожидался Unauthorized")
+        } catch (expected: site.xmpp.greenthumb.core.network.ApiError.Unauthorized) {
+        }
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, state, "ключ отвергнут сервером → экран входа")
+    }
+
+    @Test
+    fun `runtime 401 with stored key then cold restart on update install is signed out`() = runBlocking {
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        newManager(isUpdateInstall = true).onAuthError(site.xmpp.greenthumb.core.network.ApiError.Unauthorized)
+
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, state)
+    }
+
+    @Test
+    fun `sign-in after sign-out clears the marker so a lost key is key not found again`() = runBlocking {
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        newManager(isUpdateInstall = true).signOut()
+        assertTrue(settings.isSessionEnded())
+
+        val server = FakeServer()
+        server.loginStatus = HttpStatusCode.OK
+        val signedIn = newManager(server = server, isUpdateInstall = true).signInWithRecoveryKey("typed-key")
+        assertTrue(signedIn is SessionState.SignedIn)
+        assertFalse(settings.isSessionEnded(), "успешный вход стирает отметку")
+
+        // Ключ пропал вне приложения (не выход): на обновлении снова «ключ не найден».
+        secure.map.clear()
+        settings.storedUser = null
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.KeyNotFound, state)
+    }
+
+    @Test
+    fun `account creation after deletion clears the marker`() = runBlocking {
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        newManager(isUpdateInstall = true).deleteAccount()
+        assertTrue(settings.isSessionEnded())
+
+        val created = newManager(isUpdateInstall = true).createAnonymousAccount()
+        assertTrue(created is SessionState.SignedIn)
+        assertFalse(settings.isSessionEnded(), "создание аккаунта стирает отметку")
+
+        secure.map.clear()
+        settings.storedUser = null
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.KeyNotFound, state)
+    }
+
+    @Test
+    fun `startup does not clear the marker`() = runBlocking {
+        settings.setSessionEnded(true)
+
+        newManager(isUpdateInstall = true).startup()
+        val again = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.SignedOut, again)
+        assertTrue(settings.isSessionEnded())
+    }
+
+    @Test
+    fun `handoff settings never set the marker`() = runBlocking {
+        settings.applyLegacyHandoffValues(AppLanguage.Ru, ThemePreference.Dark, LayoutMode.Grid, introSeen = true)
+
+        val state = newManager(isUpdateInstall = true).startup()
+
+        assertEquals(SessionState.KeyNotFound, state, "интро увидено в Expo — это не завершённая в KMP сессия")
+    }
+
+    // ------------------------------------------------------------------
+    // Провал импорта handoff — отдельный экран ошибки (VAL-HANDOFF-IMP-005)
+    // ------------------------------------------------------------------
     /** Fake secure-хранилище с инжекцией провала записи (для теста импорта). */
     private class FailingSecureStore : SecureKeyValueStore {
         val map = linkedMapOf<String, String>()

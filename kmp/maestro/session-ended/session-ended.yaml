@@ -1,0 +1,129 @@
+# Maestro flow — VAL-CRED-020/021 (фича m5-auth-state-fixes) на emulator-5554.
+#
+# Предусловие: установка-обновление (.debug поставлен `adb install -r` поверх
+# прежней сборки; dumpsys firstInstallTime ≠ lastUpdateTime) — проверяет
+# вызывающий. Аккаунты создаются в приложении и удаляются им же:
+#   A) создать → удалить в Profile → force-stop → запуск: интро/логин, НЕ «Key not found»;
+#   B) создать (ключ копируется во внутренний буфер Maestro) → Sign Out →
+#      force-stop → запуск: логин/интро, НЕ «Key not found» → вход вставкой
+#      ключа → удалить аккаунт;
+#   C) логин ключом не в формате UUID → диалог «Invalid recovery key», не
+#      «Service…»; после OK — снова логин, поле редактируемо, повтор даёт то же.
+# Скриншоты — только экраны без ключа. Вывод Maestro прогона фильтровать от
+# UUID (copyTextFrom/pasteText) и не сохранять debug-вывод.
+appId: com.greenthumbplantcare.debug
+name: Session ended survives cold restart (VAL-CRED-020/021)
+---
+- runFlow: relaunch.yaml
+
+# A) удаление аккаунта
+- runFlow:
+    file: create-account.yaml
+    env:
+      COPY_KEY: "0"
+- tapOn: Profile
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Delete Account"
+    direction: DOWN
+- tapOn: "Delete Account"
+- extendedWaitUntil:
+    visible: "Delete my account"
+    timeout: 20000
+- tapOn: "Delete my account"
+- extendedWaitUntil:
+    visible: "Your plants, organized|I Have a Key"
+    timeout: 30000
+- runFlow: relaunch.yaml
+- assertNotVisible: "Key not found"
+- assertVisible: "Skip|I Have a Key"
+- takeScreenshot: a-relaunch-after-delete
+
+# B) выход
+- runFlow:
+    file: create-account.yaml
+    env:
+      COPY_KEY: "1"
+- tapOn: Profile
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Sign Out"
+    direction: DOWN
+- tapOn: "Sign Out"
+- extendedWaitUntil:
+    visible: "Sign out\\?"
+    timeout: 10000
+# Диалог — отдельное окно: строка профиля за ним в иерархию не попадает.
+- tapOn: "Sign Out"
+- extendedWaitUntil:
+    visible: "Skip|I Have a Key"
+    timeout: 30000
+- runFlow: relaunch.yaml
+- assertNotVisible: "Key not found"
+- assertVisible: "Skip|I Have a Key"
+- takeScreenshot: b-relaunch-after-signout
+- runFlow:
+    when:
+      visible: "Your plants, organized"
+    commands:
+      - tapOn: Skip
+- tapOn: "I Have a Key"
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- pasteText
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "My Plants"
+    timeout: 30000
+- tapOn: Profile
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Delete Account"
+    direction: DOWN
+- tapOn: "Delete Account"
+- extendedWaitUntil:
+    visible: "Delete my account"
+    timeout: 20000
+- tapOn: "Delete my account"
+- extendedWaitUntil:
+    visible: "Your plants, organized|I Have a Key"
+    timeout: 30000
+
+# C) ключ не в формате UUID → «неверный ключ»
+- runFlow:
+    when:
+      visible: "Your plants, organized"
+    commands:
+      - tapOn: Skip
+- tapOn: "I Have a Key"
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: "not-a-real-key"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Invalid recovery key"
+    timeout: 30000
+- assertNotVisible: "Service is temporarily unavailable.*"
+- takeScreenshot: c-malformed-key-invalid
+- tapOn: OK
+- assertVisible: "Welcome Back"
+- tapOn: "not-a-real-key"
+- eraseText: 20
+- inputText: "still-not-a-key"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Invalid recovery key"
+    timeout: 30000
+- takeScreenshot: c-malformed-key-retry
+- tapOn: OK
+- assertVisible: "Welcome Back"

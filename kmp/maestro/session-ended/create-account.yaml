@@ -1,0 +1,52 @@
+# Подфлоу: с любого стартового экрана (интро, выбор, «Key not found») до
+# дашборда нового аккаунта. Ключ не вводится и не снимается на скриншот.
+appId: com.greenthumbplantcare.debug
+---
+- repeat:
+    times: 10
+    while:
+      notVisible: "Create Account"
+    commands:
+      - runFlow:
+          when:
+            visible: "Your plants, organized"
+          commands:
+            - tapOn: Skip
+      - runFlow:
+          when:
+            visible: "Key not found"
+          commands:
+            - tapOn: "Create new account"
+      - runFlow:
+          when:
+            visible: "Create New Account"
+          commands:
+            - tapOn: "Create New Account"
+- tapOn:
+    text: "Create Account"
+    index: 1
+- extendedWaitUntil:
+    visible: "Account Created!"
+    timeout: 30000
+- runFlow:
+    when:
+      true: ${COPY_KEY == "1"}
+    commands:
+      - copyTextFrom:
+          text: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+- scrollUntilVisible:
+    element:
+      text: "I've Saved My Key — Continue"
+    direction: DOWN
+- tapOn: "I've Saved My Key — Continue"
+- extendedWaitUntil:
+    visible: "Enable reminders\\?|My Plants"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "Maybe later"
+    commands:
+      - tapOn: "Maybe later"
+- extendedWaitUntil:
+    visible: "My Plants"
+    timeout: 30000

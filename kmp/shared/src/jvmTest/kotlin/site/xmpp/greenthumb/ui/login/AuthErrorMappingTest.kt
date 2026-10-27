@@ -14,9 +14,10 @@ import kotlin.test.assertEquals
  * - 401 на create (isLogin=false) → НЕ «неверный ключ» (ключа пользователь не
  *   вводил; сбои создания — сервисные);
  * - сеть/таймаут → «ошибка сети»;
- * - 4xx/5xx (квота Neon исторически 400, 5xx) → «сервис недоступен» — НИКОГДА
- *   «неверный ключ» (корень июньского бага: 400 от квоты показывался как
- *   «Invalid recovery key» и лочил пользователей из аккаунта).
+ * - 400 на login → «неверный ключ»: login-recovery отвечает 400 на ключ
+ *   не в формате UUID (сбои БД на self-hosted Postgres — 5xx);
+ * - 429, прочие 4xx и 5xx → «сервис недоступен»;
+ * - 400 на create → «сервис недоступен» (ключа пользователь не вводил).
  *
  * Строки-маркеры вместо ресурсов: функция чистая (локализацию решает вызов),
  * тест фиксирует МАППИНГ, не тексты.
@@ -50,11 +51,15 @@ class AuthErrorMappingTest {
     }
 
     @Test
-    fun login400_isServiceUnavailable_neverInvalidKey() {
-        // Квота Neon исторически отвечает 400 — не «неверный ключ».
-        assertEquals(service, explain(ApiError.Client(400, "quota exceeded"), isLogin = true))
+    fun login400_isInvalidKey() {
+        // login-recovery отвечает 400 на ключ не в формате UUID: ключ неверный.
+        assertEquals(invalidKey, explain(ApiError.Client(400, "invalid input syntax for type uuid"), isLogin = true))
     }
 
+    @Test
+    fun login404_isServiceUnavailable() {
+        assertEquals(service, explain(ApiError.Client(404, ""), isLogin = true))
+    }
     @Test
     fun login500_isServiceUnavailable() {
         assertEquals(service, explain(ApiError.Server(503, ""), isLogin = true))

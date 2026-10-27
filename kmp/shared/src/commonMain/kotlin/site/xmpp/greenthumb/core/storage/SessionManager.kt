@@ -362,10 +362,14 @@ public class SessionManager(
      * после успешного входа, выхода, 401 на входе и runtime-401 при живом
      * ключе — не холодный старт, экран «ключ не найден» больше не показывается
      * (пустота в этом случае создана действием пользователя, а не обновлением).
+     * [hadSession] умирает с процессом, а установка остаётся «обновлением»
+     * навсегда, поэтому то же событие пишется в DataStore
+     * ([AppPreferencesStore.isSessionEnded]) и читается после рестарта.
      */
     private suspend fun signedOutOrKeyNotFound(): SessionState {
         if (!isUpdateInstall) return SessionState.SignedOut
         if (hadSession) return SessionState.SignedOut
+        if (settings.isSessionEnded()) return SessionState.SignedOut
         val stored = secure.get(SecureStoreKeys.RECOVERY_KEY)
         if (stored != null) return SessionState.SignedOut
         if (handoff.readHandoff() != null) return SessionState.SignedOut
@@ -414,6 +418,7 @@ public class SessionManager(
                 // [signedOutOrKeyNotFound]): пустота после такого шага —
                 // не стартовая.
                 hadSession = true
+                markSessionEnded()
                 activeUserId = null
                 clearKeyAndCachedUser()
                 onSessionEnded()
@@ -480,7 +485,10 @@ public class SessionManager(
         if (error is ApiError.Unauthorized) {
             val closing = closingUserId()
             val hadKey = secure.get(SecureStoreKeys.RECOVERY_KEY) != null
-            if (hadKey) hadSession = true
+            if (hadKey) {
+                hadSession = true
+                markSessionEnded()
+            }
             activeUserId = null
             clearKeyAndCachedUser()
             onSessionEnded()
@@ -510,6 +518,7 @@ public class SessionManager(
         // Выход — действие пользователя: исход после него уже не «холодный
         // старт», «ключ не найден» больше не показывается (см. hadSession).
         hadSession = true
+        markSessionEnded()
         activeUserId = null
         onSessionEnded()
         sessionMutex.withLock {
@@ -541,6 +550,7 @@ public class SessionManager(
         // действие пользователя, экран «ключ не найден» не показывается
         // ([hadSession]).
         hadSession = true
+        markSessionEnded()
         activeUserId = null
         onSessionEnded()
         sessionMutex.withLock {
@@ -612,6 +622,7 @@ public class SessionManager(
         // [signedOutOrKeyNotFound]): пустота после такого шага — не стартовая.
         hadSession = true
         activeUserId = user.id
+        if (settings.isSessionEnded()) writeSessionEnded(false)
         settings.setCachedUser(user)
         if (user.recoveryKey.isNotEmpty() && user.recoveryKey != secure.get(SecureStoreKeys.RECOVERY_KEY)) {
             // Провал записи здесь не фатален (не handoff-импорт): ключ останется
@@ -632,6 +643,25 @@ public class SessionManager(
         if (activeUserId == null) return
         activeUserId = null
         onSessionEnded()
+    }
+
+    /**
+     * Пишется до стирания ключа: если процесс умрёт между шагами, ключ ещё
+     * на месте, и следующий вход через [applyUser] снимет отметку.
+     */
+    private suspend fun markSessionEnded() {
+        writeSessionEnded(true)
+    }
+
+    /** Провал записи не ломает выход: худший исход — экран «ключ не найден». */
+    private suspend fun writeSessionEnded(ended: Boolean) {
+        try {
+            settings.setSessionEnded(ended)
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            // отметка — подсказка для экрана старта, не часть чистки ключа
+        }
     }
 
     /** Единая чистка: только явный 401 (VAL-LOGIN-004). */

@@ -756,8 +756,22 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `createAnonymous persists server key and cached user`() = runBlocking {
-        val manager = newManager()
+    fun `signInWithRecoveryKey 400 keeps stored key`() = runBlocking {
+        val server = FakeServer()
+        server.loginStatus = HttpStatusCode.BadRequest
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        settings.storedUser = userDto("55", "stored-key")
+        val manager = newManager(server = server)
+
+        val error = expectApiError { manager.signInWithRecoveryKey("not-a-real-key") }
+
+        assertEquals(400, (error as site.xmpp.greenthumb.core.network.ApiError.Client).status, "кривой ключ — 400 от login-recovery")
+        assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "400 не чистит ключ: чистит только 401")
+        assertEquals("stored-key", settings.getCachedUser()?.recoveryKey)
+    }
+
+    @Test
+    fun `createAnonymous persists server key and cached user`() = runBlocking {        val manager = newManager()
 
         val state = manager.createAnonymousAccount()
 

@@ -70,8 +70,21 @@ class AppSettingsJvmTest {
     }
 
     @Test
-    fun set_then_read_roundtrip_all_fields() = runBlocking {
-        val storage = newStorage()
+    fun session_ended_marker_persists_across_instances_and_clears() = runBlocking {
+        val writer = newStorage()
+        assertFalse(writer.isSessionEnded())
+        writer.setSessionEnded(true)
+        writer.close()
+        activeStores.remove(writer)
+
+        val reader = newStorage()
+        assertTrue(reader.isSessionEnded(), "отметка переживает рестарт")
+        reader.setSessionEnded(false)
+        assertFalse(reader.isSessionEnded())
+    }
+
+    @Test
+    fun set_then_read_roundtrip_all_fields() = runBlocking {        val storage = newStorage()
 
         storage.setLanguage(AppLanguage.Ru)
         storage.setLayoutMode(LayoutMode.Grid)
