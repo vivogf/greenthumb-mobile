@@ -52,6 +52,7 @@ import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushOutcome
 import site.xmpp.greenthumb.core.platform.PushTokens
+import site.xmpp.greenthumb.core.platform.effectiveAppLanguage
 import site.xmpp.greenthumb.core.storage.AppLanguage
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
@@ -236,6 +237,7 @@ public fun ProfileScreen(
 
     val themePreference by settings.theme.collectAsState(initial = null)
     val languagePreference by settings.language.collectAsState(initial = null)
+    val shownLanguage = effectiveAppLanguage(languagePreference)
 
     // Статус подписки на mount (RN profile.tsx:60-73); недоступен → off.
     LaunchedEffect(user?.id) {
@@ -494,9 +496,9 @@ public fun ProfileScreen(
             PickerRow(
                 icon = { GtGlobeMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl)) },
                 label = stringResource(Res.string.profile_language),
-                value = when (languagePreference) {
+                value = when (shownLanguage) {
                     AppLanguage.Ru -> stringResource(Res.string.profile_languageRussian)
-                    AppLanguage.En, null -> stringResource(Res.string.profile_languageEnglish)
+                    AppLanguage.En -> stringResource(Res.string.profile_languageEnglish)
                 },
                 onClick = { showLanguagePicker = true },
             )
@@ -838,12 +840,11 @@ public fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
                 )
-                val currentLanguage = languagePreference
                 listOf(
                     AppLanguage.En to stringResource(Res.string.profile_languageEnglish),
                     AppLanguage.Ru to stringResource(Res.string.profile_languageRussian),
                 ).forEach { (language, label) ->
-                    val selected = (currentLanguage ?: AppLanguage.En) == language
+                    val selected = shownLanguage == language
                     OptionRow(
                         label = label,
                         selected = selected,

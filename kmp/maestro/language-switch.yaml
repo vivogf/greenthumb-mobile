@@ -1,0 +1,71 @@
+# Continues language-default.yaml (VAL-APP-014): choose English, then Russian, check the row and the
+# picker mark after each switch, then delete the throwaway account in the app.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb language switch and account deletion
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "Язык"
+    timeout: 20000
+- tapOn: "Язык"
+- extendedWaitUntil:
+    visible: "Выберите язык"
+    timeout: 10000
+- tapOn: "English"
+- extendedWaitUntil:
+    visible: "Language"
+    timeout: 10000
+- assertVisible: "English"
+- assertNotVisible: "Русский"
+- takeScreenshot: row-english
+- tapOn: "Language"
+- extendedWaitUntil:
+    visible: "Choose Language"
+    timeout: 10000
+- assertVisible:
+    checked: true
+    containsDescendants:
+      - text: "English"
+- assertNotVisible:
+    checked: true
+    containsDescendants:
+      - text: "Русский"
+- takeScreenshot: picker-english
+- tapOn: "Русский"
+- extendedWaitUntil:
+    visible: "Язык"
+    timeout: 10000
+- assertVisible: "Русский"
+- assertNotVisible: "English"
+- takeScreenshot: row-russian
+- tapOn: "Язык"
+- extendedWaitUntil:
+    visible: "Выберите язык"
+    timeout: 10000
+- assertVisible:
+    checked: true
+    containsDescendants:
+      - text: "Русский"
+- takeScreenshot: picker-russian
+- back
+- extendedWaitUntil:
+    notVisible: "Выберите язык"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Удалить аккаунт"
+    direction: DOWN
+- tapOn: "Удалить аккаунт"
+- extendedWaitUntil:
+    visible: "Удаление аккаунта"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Удалить аккаунт"
+    direction: DOWN
+- tapOn: "Удалить аккаунт"
+- extendedWaitUntil:
+    visible: "Все растения в одном месте"
+    timeout: 30000
+- takeScreenshot: intro-after-delete

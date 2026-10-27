@@ -1,0 +1,84 @@
+# Profile language row and picker with nothing saved (VAL-APP-014), emulator elt_test with the
+# system language set to Russian and app data cleared (pm clear) before the run.
+# Creates a throwaway account in the app; language-switch.yaml continues and deletes it.
+# Selectors are bilingual (ru|en) so a wrong UI language fails on the value checks, not on navigation.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb language row with nothing saved
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants|Все растения в одном месте|Your plants, organized|Создать аккаунт|Create New Account"
+    timeout: 30000
+# Already signed in from an earlier run of this flow: skip account creation.
+- runFlow:
+    when:
+      notVisible: "Мои растения|My Plants"
+    commands:
+      - repeat:
+          times: 10
+          while:
+            notVisible: "Создание аккаунта|Create Account"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Все растения в одном месте|Your plants, organized"
+                commands:
+                  - tapOn: "Пропустить|Skip"
+            - runFlow:
+                when:
+                  visible: "Создать аккаунт|Create New Account"
+                commands:
+                  - tapOn: "Создать аккаунт|Create New Account"
+      # The create screen title is «Создание аккаунта»; its only «Создать аккаунт» is the button.
+      - tapOn: "Создать аккаунт"
+      - extendedWaitUntil:
+          visible: "Аккаунт создан!|Account Created!"
+          timeout: 30000
+      - scrollUntilVisible:
+          element:
+            text: "Я сохранил ключ — Продолжить|I've Saved My Key — Continue"
+          direction: DOWN
+      - tapOn: "Я сохранил ключ — Продолжить|I've Saved My Key — Continue"
+      - extendedWaitUntil:
+          visible: "Включить напоминания\\?|Enable reminders\\?|Мои растения|My Plants"
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: "Позже|Maybe later"
+          commands:
+            - tapOn: "Позже|Maybe later"
+- extendedWaitUntil:
+    visible: "Мои растения"
+    timeout: 30000
+- tapOn: "Профиль"
+- extendedWaitUntil:
+    visible: "Мой профиль"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Язык"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Русский"
+- assertNotVisible: "English"
+- takeScreenshot: row-nothing-saved
+- tapOn: "Язык"
+- extendedWaitUntil:
+    visible: "Выберите язык"
+    timeout: 10000
+- assertVisible:
+    checked: true
+    containsDescendants:
+      - text: "Русский"
+- assertNotVisible:
+    checked: true
+    containsDescendants:
+      - text: "English"
+- takeScreenshot: picker-nothing-saved
+# Close without a choice: the system back dismisses the picker.
+- back
+- extendedWaitUntil:
+    notVisible: "Выберите язык"
+    timeout: 10000
+- assertVisible: "Русский"
+- takeScreenshot: row-after-close
