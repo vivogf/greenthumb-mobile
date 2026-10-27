@@ -39,19 +39,19 @@
 <body>
 
 <h1>Account &amp; Data Deletion</h1>
-<p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov</p>
+<p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov. Updated: 2026-10-28</p>
 
 <p>
   This page explains how to delete your account and associated data from the
   <strong>GreenThumb — Plant Care</strong> mobile application (the
-  "Application").
+  "Application"), and how long copies remain afterwards.
 </p>
 
 <h2>How to delete your account — in the Application</h2>
 
 <p>
-  You can delete your account directly inside the Application — no email
-  required:
+  You can delete your account directly inside the Application. No email is
+  required. (Labels in the Russian version of the Application are shown in brackets.)
 </p>
 
 <ol>
@@ -60,35 +60,34 @@
     recovery key.
   </li>
   <li>
-    Go to the <em>Profile</em> tab (bottom-right tab in the navigation bar).
+    Go to the <em>Profile</em> tab [<em>Профиль</em>], the right-most tab in the navigation bar.
   </li>
   <li>
-    Tap <strong>Delete Account</strong> (below the Sign Out option).
+    Tap <strong>Delete Account</strong> [<strong>Удалить аккаунт</strong>], below the
+    <em>Sign Out</em> [<em>Выйти</em>] option.
   </li>
   <li>
-    Read the confirmation screen. It lists exactly what will be deleted.
+    Read the <em>Delete account</em> [<em>Удаление аккаунта</em>] confirmation. It lists
+    what will be deleted.
   </li>
   <li>
-    Tap <strong>Delete my account</strong> to confirm. The deletion is
-    <strong>immediate and permanent</strong>: your account, all plant records
-    (including photos and notes) and all push notification subscriptions are
-    removed from the backend, and the locally stored data is erased from your
-    device. Afterwards your recovery key no longer works and cannot be used to
-    sign in again.
+    Tap <strong>Delete my account</strong> [<strong>Удалить аккаунт</strong>] to confirm.
+    The deletion cannot be undone. Afterwards your recovery key no longer works and
+    cannot be used to sign in again.
   </li>
 </ol>
 
 <h2>If you cannot open the Application</h2>
 
 <p>
-  If you have uninstalled the Application or lost your recovery key, request
+  If you cannot open the Application or have lost your recovery key, request
   deletion by email:
 </p>
 
 <ol>
   <li>
-    If you still have your recovery key (for example, saved in a password
-    manager), copy it.
+    If you still have your recovery key (for example, saved in Google Password
+    Manager or another password manager), copy it.
   </li>
   <li>
     <strong>Send an email</strong> to
@@ -101,43 +100,93 @@
   </li>
   <li>
     You will receive a confirmation reply within a reasonable timeframe (typically
-    a few business days). Your account and all associated data will be permanently
-    deleted from the backend within <strong>14 days</strong> of the confirmation.
+    a few business days). The account is removed from the live systems within
+    <strong>14 days</strong> of the confirmation; backup copies then follow the
+    retention periods below.
   </li>
 </ol>
 
 <p>
-  If you have uninstalled the Application and cannot access your recovery key,
-  email the same address and describe what you remember (approximate date of
-  first use, any device details). The developer will try to locate and delete
-  your data on a best-effort basis.
+  If you cannot access your recovery key, email the same address and describe
+  what you remember (approximate date of first use, plant names, device details).
+  The developer will try to locate and delete your data on a best-effort basis.
 </p>
 
 <h2>What data will be deleted</h2>
 
 <ul>
-  <li>All <strong>plant records</strong> you created (names, care schedules, notes, watering history)</li>
-  <li>All <strong>plant photos</strong> stored on the backend</li>
-  <li>Your <strong>user record</strong> (the recovery key entry in the users table) — after which the recovery key stops working</li>
-  <li>Your <strong>push notification subscriptions</strong> (FCM token and any legacy Expo push token)</li>
+  <li>Your <strong>user record</strong> (recovery key, reminder time, language, seasonal mode and time zone) — after which the recovery key stops working</li>
+  <li>All <strong>plants</strong> you created (names, species, care schedules, care dates and notes)</li>
+  <li>All <strong>cover photos and timeline photos</strong> with their captions; the photo files are removed from photo storage</li>
+  <li>Your <strong>care journal</strong> (watering, fertilizing, repotting and pruning events, and journal notes)</li>
+  <li>Your <strong>achievements</strong> and streak data</li>
+  <li>All your <strong>push notification subscriptions</strong> (push tokens)</li>
+  <li>All your <strong>sign-in sessions</strong> on every device</li>
 </ul>
+
+<p>
+  On the device where you delete the account, the Application also removes the stored
+  recovery key, the cached account details and the local copy of your plants.
+</p>
+
+<h2>When the data disappears</h2>
+
+<ul>
+  <li>
+    <strong>Live systems:</strong> the data leaves the live database and photo storage
+    immediately when you confirm the deletion. A deleted photo can still be served
+    from the server's short-term photo cache for up to 1 day.
+  </li>
+  <li>
+    <strong>Hourly database backups:</strong> backups made before the deletion still
+    contain your data. They are replaced as backups rotate, so your data is gone from
+    hourly backups within <strong>48 hours</strong>.
+  </li>
+  <li>
+    <strong>Daily database backups:</strong> gone within <strong>14 days</strong>.
+  </li>
+  <li>
+    <strong>Pre-upgrade snapshots:</strong> before a database upgrade, the server keeps
+    one extra snapshot. At most 10 such snapshots exist. A snapshot made before your
+    deletion stays until newer snapshots replace it, which depends on how often the
+    server is upgraded.
+  </li>
+</ul>
+
+<p>
+  Backups are kept in private storage and are used only to restore the service after a failure.
+</p>
 
 <h2>What data may be retained</h2>
 
-<p>
-  The Application does not maintain analytics, crash reports, or
-  application-level logs that are linked to individual user accounts. Once your
-  account record and associated plant data are removed from the database, no
-  user-identifiable data remains on the developer's side.
-</p>
-
-<p>
-  The email correspondence related to an email-based deletion request may be
-  retained by your email provider and by the developer's email provider, subject
-  to their respective retention policies. This correspondence contains only the
-  contents of the messages you and the developer exchange. Deletions performed
-  inside the Application do not create any correspondence.
-</p>
+<ul>
+  <li>
+    <strong>Plant diagnosis requests:</strong> if you used plant diagnosis, OpenAI may keep
+    those requests (photo and plant context) for up to 30 days for abuse monitoring, and
+    then deletes them. They do not contain your recovery key or account number.
+  </li>
+  <li>
+    <strong>Server logs:</strong> web server access logs (IP address, time, requested address)
+    are deleted after about 15 days; technical error logs after about 8 weeks.
+  </li>
+  <li>
+    <strong>Usage counters:</strong> the daily counts of identification and diagnosis requests
+    are kept as anonymous totals that are not linked to any account, so daily limits stay correct.
+  </li>
+  <li>
+    <strong>Crash reports</strong> in Firebase Crashlytics are not linked to your account and stay
+    under Firebase's retention rules.
+  </li>
+  <li>
+    <strong>Google Password Manager:</strong> if you saved your recovery key there, the entry stays
+    in your Google account until you remove it. The key no longer works after deletion.
+  </li>
+  <li>
+    <strong>Email:</strong> correspondence for an email-based deletion request may be kept by
+    your email provider and by the developer's email provider under their own retention policies.
+    Deletions done inside the Application do not create any correspondence.
+  </li>
+</ul>
 
 <h2>Contact</h2>
 

@@ -34,7 +34,7 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="meta">Effective date: 2026-10-01</p>
+<p class="meta">Effective date: 2026-10-28</p>
 
 <p>
   This privacy policy applies to the <strong>GreenThumb — Plant Care</strong> app
@@ -47,89 +47,134 @@
 
 <h2>Information Collection and Use</h2>
 
-<p>The Application collects only the information necessary to provide its core functionality:</p>
+<p>The Application collects only the information necessary to provide its functions:</p>
 
 <ul>
-  <li><strong>Plant photos</strong> — images you take or select to attach to a plant. Stored on the Service Provider's backend so they are available across sessions.</li>
-  <li><strong>Plant data</strong> — names, care schedules, notes, watering dates that you enter manually.</li>
-  <li><strong>Device identifier (recovery key)</strong> — an anonymous random string generated on first launch and stored securely on your device. It is used as your account key instead of an email and password. The Service Provider cannot recover this key if you lose it.</li>
-  <li><strong>Push notification token</strong> — issued by Firebase Cloud Messaging (FCM) and stored on the Service Provider's backend only if you explicitly enable watering reminders in the app settings. Used solely to deliver reminders to your device.</li>
-  <li><strong>Crash reports and diagnostics</strong> — when the application crashes or freezes, its crash log is sent to Google's Crashlytics service so defects can be found and fixed. A crash log contains the stack trace, device model, operating system version, app version and free memory at the time of the crash. It does not contain your plants, photos or recovery key.</li>
+  <li><strong>Recovery key and account number</strong> — an anonymous random key created when you create an account, and an internal account number on the Service Provider's server. The key is your account key instead of an email and password. The Service Provider cannot recover this key if you lose it.</li>
+  <li><strong>Plant data</strong> — plant names, species, care schedules, care dates and notes that you enter.</li>
+  <li><strong>Plant photos</strong> — the cover photo of a plant and the timeline photos you add to a plant, with their captions. They are stored in Cloudflare R2 object storage in the European Union (see "Service providers" below).</li>
+  <li><strong>Care journal</strong> — the care events you record for a plant (watering, fertilizing, repotting, pruning) and the journal notes you write. Achievements and streaks are calculated from this journal and stored with your account.</li>
+  <li><strong>Account settings</strong> — reminder time, language, seasonal watering mode and your device's time zone. The server stores the time zone as an IANA time zone name (for example <code>Europe/Berlin</code>) so that reminders and "today" are calculated in your local time. The time zone is not a precise or approximate location.</li>
+  <li><strong>Push notification token</strong> — issued by Firebase Cloud Messaging (FCM) and stored on the Service Provider's server only if you turn on watering reminders. It is used only to deliver reminders to your device.</li>
+  <li><strong>Photos you send for species identification or plant diagnosis</strong> — these are sent through the Service Provider's server to the providers described below. The server does not store them for these features, and it does not store identification or diagnosis results. A photo is stored only if you also save it as a plant photo.</li>
+  <li><strong>Crash reports and diagnostics</strong> — when the Application crashes, a crash report is sent to Firebase Crashlytics so defects can be found and fixed. A crash report contains the stack trace, device model, operating system version, app version, free memory and a random installation identifier. It does not contain your plants, photos or recovery key, and it is not linked to your account.</li>
+  <li><strong>Server logs</strong> — the Service Provider's web server keeps standard access logs (IP address, time, requested address, response code and app user agent) to operate and secure the service. They are deleted after about 15 days. The server also keeps technical error logs, deleted after about 8 weeks.</li>
 </ul>
 
 <p>
   The Application does <strong>not</strong> collect your name, email, phone number, age,
-  gender, contacts, location, microphone input, or any analytics about your usage
-  (screens visited, time spent). No user-tracking or advertising SDK is integrated.
+  gender, contacts, precise or approximate location, or microphone input. It does not
+  collect analytics about your usage (screens visited, time spent). No user-tracking or
+  advertising SDK is integrated.
 </p>
-
-<p>The Application does not use Artificial Intelligence (AI) technologies to process your data.</p>
-
-<p>The Application does not gather precise information about the location of your mobile device.</p>
 
 <p>The Service Provider does not use your data for marketing or send promotional messages.</p>
 
-<h2>Third Party Access</h2>
+<h2>Artificial Intelligence features</h2>
 
-<p>The Application relies on the following third-party services, each governed by its own privacy policy:</p>
+<p>The Application offers two optional features that use external services. Each runs only when you start it.</p>
 
 <ul>
   <li>
-    <strong>Google Play Services</strong> — used to deliver push notifications via Firebase Cloud Messaging (FCM) when you enable watering reminders.
-    <a href="https://policies.google.com/privacy">Google Privacy Policy</a>
+    <strong>Species identification (Pl@ntNet).</strong> The photos you choose are sent through
+    the Service Provider's server to the Pl@ntNet identification service. Pl@ntNet processes the
+    photos transiently to return a list of possible species. No account information is sent to
+    Pl@ntNet.
   </li>
   <li>
-    <strong>Firebase Crashlytics (Google)</strong> — receives crash reports and diagnostics described above so the Service Provider can diagnose and fix defects.
-    <a href="https://firebase.google.com/support/privacy">Firebase Privacy Information</a>
-  </li>
-  <li>
-    <strong>Expo</strong> — used to deliver over-the-air updates to the Application's JavaScript bundle. No personally identifiable information is transmitted to Expo.
-    <a href="https://expo.dev/privacy">Expo Privacy Policy</a>
+    <strong>Plant diagnosis (OpenAI).</strong> The photo you choose, the plant context (species, or
+    the plant name when no species is set, the watering schedule and your optional description of
+    the problem) and the recent care history of that plant (the type and date of the last 10 care
+    events, without journal note text) are sent through the Service Provider's server to the OpenAI API. Requests are sent with
+    <code>store: false</code>, so OpenAI does not store them for later use. OpenAI may keep request
+    data for up to 30 days for abuse monitoring, and then deletes it. OpenAI does not use API data to
+    train its models. No recovery key or account number is sent to OpenAI. The result is advice,
+    not a guarantee.
   </li>
 </ul>
 
-<p>The Service Provider does not sell, rent, or trade your information. The Service Provider may disclose information only in the following cases:</p>
+<h2>Saving the recovery key to Google Password Manager</h2>
+
+<p>
+  After you create an account or sign in, the Application can offer to save your recovery key to
+  Google Password Manager. This is optional. If you accept, Android's system dialog saves the key,
+  and Google stores it in your Google account under Google's privacy policy. The Service Provider
+  has no access to it. You can remove the entry at any time in your Google account settings.
+</p>
+
+<h2>Service providers</h2>
+
+<p>The Application and its server use the following services, each governed by its own privacy policy:</p>
+
+<ul>
+  <li>
+    <strong>Cloudflare R2</strong> — object storage in the European Union for plant cover photos,
+    timeline photos and the private database backups.
+    <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare Privacy Policy</a>
+  </li>
+  <li>
+    <strong>Pl@ntNet</strong> — species identification from photos, processed transiently.
+    <a href="https://identify.plantnet.org/terms-of-use">Pl@ntNet terms and privacy</a>
+  </li>
+  <li>
+    <strong>OpenAI</strong> — plant diagnosis, as described above.
+    <a href="https://openai.com/policies/privacy-policy/">OpenAI Privacy Policy</a>
+  </li>
+  <li>
+    <strong>Google Firebase</strong> — three Firebase services are used:
+    <strong>Firebase Cloud Messaging (FCM)</strong> delivers watering reminders when you turn them on;
+    <strong>Firebase Crashlytics</strong> receives crash reports described above;
+    <strong>Firebase Remote Config</strong> tells the Application the minimum supported app version, so an
+    unsafe old version can ask you to update. Firebase services use a random installation identifier.
+    <a href="https://firebase.google.com/support/privacy">Firebase Privacy Information</a>
+  </li>
+  <li>
+    <strong>Google Password Manager</strong> — only if you choose to save the recovery key, as described above.
+    <a href="https://policies.google.com/privacy">Google Privacy Policy</a>
+  </li>
+</ul>
+
+<p>
+  The Service Provider's own server is a virtual private server that runs the backend and its
+  database. The Service Provider does not sell, rent, or trade your information. The Service
+  Provider may disclose information only in the following cases:
+</p>
 
 <ul>
   <li>as required by law (subpoena or similar legal process);</li>
   <li>when necessary to protect the Service Provider's rights, investigate fraud, or comply with a government request;</li>
-  <li>with trusted service providers who process data on the Service Provider's behalf (e.g. cloud hosting) and are contractually obligated to adhere to this privacy policy.</li>
+  <li>with the service providers listed above, which process data on the Service Provider's behalf.</li>
 </ul>
 
-<h2>Opt-Out Rights</h2>
+<h2>Your choices</h2>
 
-<p>
-  You can stop all data collection by the Application by uninstalling it using the
-  standard uninstall process available on your mobile device or via the Google Play
-  Store. Push notifications can also be disabled individually from the Application's
-  profile screen without uninstalling.
-</p>
+<ul>
+  <li>Watering reminders can be turned off in the Application's <em>Profile</em> tab. The push token is then removed from the server.</li>
+  <li>Species identification, plant diagnosis and saving to Google Password Manager run only when you start them.</li>
+  <li>You can delete your account and data at any time (see below).</li>
+</ul>
 
 <h2>Data Retention and Deletion</h2>
 
 <p>
-  The Service Provider retains your data for as long as you use the Application.
-  Because the Application uses an anonymous recovery-key-based authentication, the
-  Service Provider cannot identify your data without the recovery key.
+  The Service Provider keeps your data for as long as your account exists. Because the
+  Application uses anonymous recovery-key authentication, the Service Provider cannot
+  identify your data without the recovery key.
 </p>
 
 <p>
-  You can delete your account and all associated data directly inside the
-  Application: go to the <em>Profile</em> tab, tap <strong>Delete Account</strong>
-  and confirm. The deletion is immediate and permanent — your user record, all
-  plant records (including photos) and push notification subscriptions are
-  removed from the backend, and locally stored data is erased from your device;
-  the recovery key stops working. See
-  <a href="./account-deletion.html">Account &amp; Data Deletion</a> for details.
+  You can delete your account inside the Application: open the <em>Profile</em> tab, tap
+  <strong>Delete Account</strong> and confirm. The server removes your user record, plants,
+  cover and timeline photos, care journal, achievements and push subscriptions from its live
+  systems immediately, and the Application removes the account data stored on your device.
+  Copies in database backups disappear as the backups rotate. See
+  <a href="./account-deletion.html">Account &amp; Data Deletion</a> for the exact retention periods.
 </p>
 
 <p>
-  If you cannot open the Application (for example, it was uninstalled or the
-  recovery key is lost), you can request deletion by contacting the Service
-  Provider at
-  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>
-  with your recovery key, and the Service Provider will remove the associated data in
-  a reasonable timeframe.
+  If you cannot open the Application or have lost the recovery key, you can request deletion by
+  contacting the Service Provider at
+  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>.
 </p>
 
 <h2>Children</h2>
@@ -146,10 +191,17 @@
 <h2>Security</h2>
 
 <p>
-  The Service Provider is concerned about safeguarding the confidentiality of your
-  information. All communication between the Application and the backend is encrypted
-  via HTTPS. The recovery key is stored on your device using the platform's secure
-  keystore (Android Keystore / iOS Keychain) and is never transmitted in plain text.
+  All communication between the Application and the server, and between the server and the
+  service providers, is encrypted with HTTPS (TLS). Photo storage and backup storage are private
+  and are not publicly listed.
+</p>
+
+<p>
+  On your device, the recovery key is kept in the Application's private storage, which other apps
+  cannot read and which is excluded from Android cloud backups and device-to-device transfer. One
+  copy of the key is encrypted with a key held in Android Keystore. The Application also keeps your
+  account details, including the key, in its private storage without that extra encryption, so it
+  can work offline. The key is sent to the server only over HTTPS when you sign in.
 </p>
 
 <h2>Changes to this Policy</h2>
