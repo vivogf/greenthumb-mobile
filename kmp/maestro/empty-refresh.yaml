@@ -1,0 +1,94 @@
+# Pull-to-refresh on empty dashboard states (VAL-APP-018), elt_test only.
+#
+# STEP=signin       wipe the app (CLEAR=yes) and sign in with ${GT_RECOVERY_KEY} (rendered copy only:
+#                   GT_FLOW=empty-refresh.yaml GT_STEP=signin GT_KEY_FILE=<key file> bash render-smoke.sh run).
+#                   The account has zero plants, so the zero-plants empty state shows.
+# STEP=pull-empty   create a plant named ${PLANT} on the server first (POST /api/plants from the Mac).
+#                   Without leaving the dashboard: one pull-down on the empty state, the plant appears.
+# STEP=pull-search  create a second plant ${PLANT} on the server first. Search for text that matches
+#                   nothing, one pull-down on "No plants found", clear the search: ${PLANT} is there.
+#
+# Steps after signin never launch, relaunch or background the app, and never switch tabs.
+# Selectors are bilingual (ru|en).
+appId: com.greenthumbplantcare.debug
+name: Pull-to-refresh on empty dashboard states (VAL-APP-018)
+---
+- runFlow:
+    when:
+      true: ${STEP == 'signin'}
+    commands:
+      - runFlow:
+          when:
+            true: ${CLEAR == 'yes'}
+          commands:
+            - clearState
+      - launchApp
+      - repeat:
+          times: 15
+          while:
+            notVisible: "Welcome Back|С возвращением"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Your plants, organized|Все растения в одном месте"
+                commands:
+                  - tapOn: "Skip|Пропустить"
+            - runFlow:
+                when:
+                  visible: "Key not found|Ключ не найден"
+                commands:
+                  - tapOn: "Enter recovery key|Ввести ключ"
+            - runFlow:
+                when:
+                  visible: "I Have a Key|У меня есть ключ"
+                commands:
+                  - tapOn: "I Have a Key|У меня есть ключ"
+      - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      - inputText: ${GT_RECOVERY_KEY}
+      - hideKeyboard
+      - tapOn: "Sign In|Войти"
+      - extendedWaitUntil:
+          visible: "No plants yet|Пока нет растений"
+          timeout: 30000
+      - takeScreenshot: empty-before
+
+- runFlow:
+    when:
+      true: ${STEP == 'pull-empty'}
+    commands:
+      - assertVisible: "No plants yet|Пока нет растений"
+      - assertNotVisible: ${PLANT}
+      - swipe:
+          start: "50%, 35%"
+          end: "50%, 80%"
+          duration: 600
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 10000
+      - takeScreenshot: empty-after-pull
+
+- runFlow:
+    when:
+      true: ${STEP == 'pull-search'}
+    commands:
+      - assertNotVisible: ${PLANT}
+      - tapOn: "Search plants...|Поиск растений..."
+      - inputText: "zzzqqq"
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible: "No plants found|Растения не найдены"
+          timeout: 5000
+      - takeScreenshot: search-empty-before
+      - swipe:
+          start: "50%, 45%"
+          end: "50%, 85%"
+          duration: 600
+      - takeScreenshot: search-empty-pulling
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - assertVisible: "No plants found|Растения не найдены"
+      - tapOn: "Clear search|Очистить поиск"
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 10000
+      - takeScreenshot: search-cleared-after-pull

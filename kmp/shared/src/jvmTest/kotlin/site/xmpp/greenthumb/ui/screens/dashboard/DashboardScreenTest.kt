@@ -9,9 +9,12 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
@@ -205,6 +208,7 @@ class DashboardScreenTest {
         var patchCount = 0
         var lastPatchPath: String? = null
         var lastPatchBody: String? = null
+        @Volatile var plantsEmpty = false
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
@@ -218,6 +222,7 @@ class DashboardScreenTest {
          * детерминированы, UTC/зона теста не влияют).
          */
         private fun plantsJson(): String {
+            if (plantsEmpty) return "[]"
             val today = pickerToday()
             fun daysAgo(days: Long): String =
                 LocalDate.fromEpochDays(today.toEpochDays() - days).toString()
@@ -343,7 +348,7 @@ class DashboardScreenTest {
     private fun hasSubText(value: String) = hasText(value, substring = true)
 
     /** welcome → Skip → create → show-key → enable (Later) → дашборд. */
-    private fun androidx.compose.ui.test.ComposeUiTest.openDashboard() {
+    private fun androidx.compose.ui.test.ComposeUiTest.openDashboard(firstVisible: String = "Fern") {
         val h = harness!!
         waitUntilAtLeastOneExists(hasText("Skip"), TIMEOUT)
         onNodeWithText("Skip").performClick()
@@ -358,7 +363,25 @@ class DashboardScreenTest {
         // Роутится на дашборд → refresh → фикстура в Room.
         waitUntil(timeoutMillis = TIMEOUT) { h.server.getCount >= 1 }
         waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
-        waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
+        waitUntilAtLeastOneExists(hasText(firstVisible), TIMEOUT)
+    }
+
+    /**
+     * One pull-down gesture in the content area below the header, search and
+     * chips (the desktop test window is 1024×768).
+     */
+    private fun androidx.compose.ui.test.ComposeUiTest.pullDownOnce() {
+        onRoot().performTouchInput {
+            swipeDown(startY = height * 0.45f, endY = height * 0.85f, durationMillis = 400)
+        }
+    }
+
+    /** Waits for exactly one extra GET /api/plants after [before]. */
+    private fun androidx.compose.ui.test.ComposeUiTest.assertOneRefresh(before: Int) {
+        val h = harness!!
+        waitUntil(timeoutMillis = TIMEOUT) { h.server.getCount >= before + 1 }
+        waitForIdle()
+        assertEquals(before + 1, h.server.getCount, "one pull-down = one GET /api/plants")
     }
 
     /** Клик по N-му совпавшему узлу — OnClick напрямую, без вьюпорта. */
@@ -516,6 +539,69 @@ class DashboardScreenTest {
 
             // Очистка — список снова на месте.
             clickAt(hasClickAction() and hasContentDescription("Clear search"))
+            waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Pull-to-refresh: empty states sync too (VAL-APP-018)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun pull_to_refresh_on_zero_plants_empty_state_syncs_and_shows_new_plant() {
+        val graph = newHarness()
+        graph.server.plantsEmpty = true
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard(firstVisible = "No plants yet")
+            waitForIdle()
+            val before = graph.server.getCount
+
+            // A plant appears on the server; no tab switch or resume, only the swipe.
+            graph.server.plantsEmpty = false
+            pullDownOnce()
+            assertOneRefresh(before)
+            waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun pull_to_refresh_on_empty_search_result_syncs() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            onNode(hasSetTextAction()).performTextInput("zzz")
+            waitUntilAtLeastOneExists(hasText("No plants found"), TIMEOUT)
+            waitForIdle()
+            val before = graph.server.getCount
+
+            pullDownOnce()
+            assertOneRefresh(before)
+            waitUntilAtLeastOneExists(hasText("No plants found"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun pull_to_refresh_on_plant_list_still_syncs() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            waitForIdle()
+            val before = graph.server.getCount
+
+            pullDownOnce()
+            assertOneRefresh(before)
             waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
 
             runOnIdle { graph.close() }

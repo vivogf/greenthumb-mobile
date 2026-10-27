@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,10 +16,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -602,7 +607,11 @@ public fun DashboardScreen(
 
                 // ── Нет растений вообще: пустой сад с кнопкой (RN empty state).
                 plants.isEmpty() -> {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    RefreshableEmptyState(
+                        isRefreshing = isManualRefreshing,
+                        onRefresh = { refreshManual() },
+                        modifier = Modifier.weight(1f),
+                    ) {
                         GtEmptyState(
                             title = stringResource(Res.string.dashboard_noPlants),
                             message = stringResource(Res.string.dashboard_startTracking),
@@ -744,7 +753,11 @@ public fun DashboardScreen(
                         // (RN noPlantsFound + tryDifferentSearch/tryDifferentFilter).
                         // Во время снапа (данные уже обновлены, карточки-призраки
                         // досиживают) пустое состояние не показываем.
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        RefreshableEmptyState(
+                            isRefreshing = isManualRefreshing,
+                            onRefresh = { refreshManual() },
+                            modifier = Modifier.weight(1f),
+                        ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -859,6 +872,42 @@ public fun DashboardScreen(
             buttons = listOf(GtAlertButton(text = "OK")),
             onDismissRequest = { errorDialogMessage = null },
         )
+    }
+}
+
+/**
+ * Empty state inside the same pull-to-refresh as the plant list (RN allowed
+ * RefreshControl on an empty FlatList). The gesture needs a scrollable child,
+ * so the content scrolls; a min height of the viewport keeps it centred.
+ */
+@Composable
+private fun RefreshableEmptyState(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier,
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val viewportHeight = maxHeight
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = viewportHeight),
+                    contentAlignment = Alignment.Center,
+                    content = content,
+                )
+            }
+        }
     }
 }
 
