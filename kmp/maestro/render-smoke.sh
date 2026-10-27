@@ -126,11 +126,15 @@ case "${1:-run}" in
         trap cleanup EXIT
         render
         # stdout/stderr идут через фильтр; сырой вывод не сохраняется нигде.
+        # GT_STEP — значение переменной STEP для флоу со стадиями (modal-insets.yaml).
+        STEP_ARGS=()
+        [ -n "${GT_STEP:-}" ] && STEP_ARGS=(-e "STEP=$GT_STEP")
         set +e
         "$MAESTRO" test \
             --udid "$EMULATOR" \
             --no-ansi \
             --debug-output "$DEBUG_OUT" \
+            "${STEP_ARGS[@]}" \
             "$OUT_FLOW" 2>&1 | tee "$RUN_LOG" | redact
         status=${PIPESTATUS[0]}
         set -e

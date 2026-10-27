@@ -6,11 +6,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -28,12 +30,14 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * cardBorder, радиус [Radii.xl]. Тап по подложке — [onDismissRequest].
  * Тап по карточке не закрывает.
  */
-/** Full-width dialog window whose content receives keyboard insets (see [GtModal]'s imePadding). */
+/** Full-width edge-to-edge dialog window whose content receives system-bar and keyboard insets (see [GtModal]). */
 internal expect fun gtModalDialogProperties(): DialogProperties
 
 @Composable
 internal fun GtModal(
     onDismissRequest: () -> Unit,
+    /** Area the card stays inside; `null` means the dialog window's safe-drawing insets. */
+    safeInsets: WindowInsets? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Radii.xl)
@@ -41,6 +45,9 @@ internal fun GtModal(
         onDismissRequest = onDismissRequest,
         properties = gtModalDialogProperties(),
     ) {
+        // Read inside the dialog: insets belong to the view they are read in, and the
+        // screen's (non-edge-to-edge) activity view reports none.
+        val insets = safeInsets ?: WindowInsets.safeDrawing
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -50,8 +57,9 @@ internal fun GtModal(
                     indication = null,
                     onClick = onDismissRequest,
                 )
-                // Keeps a card with a text field above the keyboard instead of under it.
-                .imePadding(),
+                // The dialog draws edge to edge: keeps the card clear of the status and navigation bars,
+                // the display cutout and the keyboard, while the scrim above still covers the bars.
+                .windowInsetsPadding(insets),
             contentAlignment = Alignment.Center,
         ) {
             Column(
