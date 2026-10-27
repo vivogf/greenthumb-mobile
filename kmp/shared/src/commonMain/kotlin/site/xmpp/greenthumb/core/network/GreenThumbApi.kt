@@ -174,6 +174,23 @@ class GreenThumbApi(private val client: ApiClient) {
         )
 
     // ------------------------------------------------------------------
+    // Diagnosis
+    // ------------------------------------------------------------------
+
+    /** POST /api/plants/:id/diagnose { photo, note?, language } → { causes, summary }, 75 s deadline. */
+    suspend fun diagnosePlant(plantId: String, photoDataUri: String, note: String?, language: String): DiagnosisResponse =
+        json.decodeFromString(
+            decodeBody(
+                client.request(
+                    HttpMethod.Post,
+                    "/api/plants/$plantId/diagnose",
+                    json.encodeToString(DiagnoseRequest(photo = photoDataUri, note = note, language = language)),
+                    timeoutMillis = DIAGNOSE_TIMEOUT_MILLIS,
+                ),
+            ),
+        )
+
+    // ------------------------------------------------------------------
     // Push (8)
     // ------------------------------------------------------------------
 

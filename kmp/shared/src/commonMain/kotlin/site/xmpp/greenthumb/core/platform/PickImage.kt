@@ -26,8 +26,11 @@ enum class PickSource { Camera, Gallery }
  * `:52-55` / `:67-71`, ключи `common.permissionDenied*`).
  */
 sealed interface PickResult {
-    /** Выбранное изображение (до кропа — см. [cropSquareJpeg]). */
-    data class Picked(val bytes: ByteArray) : PickResult
+    /**
+     * Выбранное изображение (до кропа — см. [cropSquareJpeg]). [capturePath] is set only by
+     * [pickImageKeepingCapture] for a camera shot: the caller owns that file and deletes it.
+     */
+    data class Picked(val bytes: ByteArray, val capturePath: String? = null) : PickResult
 
     /** Пользователь закрыл пикер (или кроп) — вызывающий код молчит. */
     data object Cancelled : PickResult
@@ -122,6 +125,19 @@ internal object FilePickBridge {
  * jvmMain — файловый диалог (камера на десктопе нет — тоже файловый диалог).
  */
 expect suspend fun pickImage(source: PickSource): PickResult
+
+/**
+ * [pickImage] for screens that must keep the camera shot on disk while they are open
+ * (diagnosis, architecture §8.7): a camera result carries [PickResult.Picked.capturePath]
+ * and the caller deletes it with [deleteCaptureFile]. Gallery picks never carry a path.
+ */
+expect suspend fun pickImageKeepingCapture(source: PickSource): PickResult
+
+/** Deletes a file returned in [PickResult.Picked.capturePath]. */
+expect fun deleteCaptureFile(path: String)
+
+/** Deletes kept camera shots left behind when the process died with the screen open. */
+expect fun deleteStaleCaptures()
 
 /**
  * Квадратный кроп + финальный resize: режет [rect] из [bytes], масштабирует

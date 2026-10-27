@@ -35,7 +35,23 @@ import kotlin.math.roundToInt
  */
 private var gtPickRequestCounter = 0
 
-actual suspend fun pickImage(source: PickSource): PickResult {
+actual suspend fun pickImage(source: PickSource): PickResult = pick(source, keepCapture = false)
+
+actual suspend fun pickImageKeepingCapture(source: PickSource): PickResult = pick(source, keepCapture = true)
+
+private const val KEPT_CAPTURE_PREFIX = "gt-diag-"
+
+actual fun deleteCaptureFile(path: String) {
+    File(path).delete()
+}
+
+actual fun deleteStaleCaptures() {
+    val context = AppActivityHolder.activity ?: return
+    File(context.cacheDir, "gt-pick").listFiles { file -> file.name.startsWith(KEPT_CAPTURE_PREFIX) }
+        ?.forEach { it.delete() }
+}
+
+private suspend fun pick(source: PickSource, keepCapture: Boolean): PickResult {
     val activity = AppActivityHolder.activity ?: return PickResult.Cancelled
     val permission = when (source) {
         PickSource.Camera -> Manifest.permission.CAMERA
@@ -53,7 +69,7 @@ actual suspend fun pickImage(source: PickSource): PickResult {
 
     val result = when (source) {
         PickSource.Gallery -> launchGallery(activity)
-        PickSource.Camera -> launchCamera(activity)
+        PickSource.Camera -> launchCamera(activity, keepCapture)
     }
     // HEIC на API 24–25 (системного HEIF-декодера нет), мусор или обрезанный
     // файл: падаем ЗДЕСЬ обработанной ошибкой (controller → алерт
@@ -131,13 +147,14 @@ private suspend fun launchGallery(activity: ComponentActivity): PickResult =
         }
     }
 
-private suspend fun launchCamera(activity: ComponentActivity): PickResult =
+private suspend fun launchCamera(activity: ComponentActivity, keepCapture: Boolean): PickResult =
     suspendCancellableCoroutine { continuation ->
         // EXTRA_OUTPUT требует grantable content:// — FileProvider (манифест
         // androidApp + res/xml/file_paths.xml: cache-path gt-pick/).
         val directory = File(activity.cacheDir, "gt-pick")
         directory.mkdirs()
-        val file = File(directory, "gt-pick-${System.nanoTime()}.jpg")
+        val prefix = if (keepCapture) KEPT_CAPTURE_PREFIX else "gt-pick-"
+        val file = File(directory, "$prefix${System.nanoTime()}.jpg")
         val uri = FileProvider.getUriForFile(
             activity,
             activity.packageName + ".fileprovider",
@@ -160,10 +177,13 @@ private suspend fun launchCamera(activity: ComponentActivity): PickResult =
                 return@register
             }
             val bytes = runCatching { file.readBytes() }.getOrNull()
-            file.delete()
             if (bytes == null || bytes.isEmpty()) {
+                file.delete()
                 continuation.resume(PickResult.Cancelled)
+            } else if (keepCapture) {
+                continuation.resume(PickResult.Picked(bytes, capturePath = file.absolutePath))
             } else {
+                file.delete()
                 continuation.resume(PickResult.Picked(bytes))
             }
         }

@@ -42,6 +42,8 @@ import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedMessage
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedTitle
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisScreen
+import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.LoginScreen
 import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
@@ -76,6 +78,8 @@ public object NavRoutes {
     public const val TABS_PROFILE: String = "tabs/profile"
     public const val ADD_PLANT: String = "add-plant"
     public const val PLANT: String = "plant/{id}"
+    /** Diagnosis of one plant (architecture §5.7), opened from plant detail. */
+    public const val PLANT_DIAGNOSIS: String = "plant/{id}/diagnosis"
     /** Экран подтверждения удаления аккаунта (Stage 12 п.4; в RN нет). */
     public const val DELETE_ACCOUNT: String = "profile/delete-account"
     /** Recovery key as a QR code (architecture §5.3). */
@@ -167,6 +171,8 @@ public fun GtAppNavGraph(
     deleteErrorState: PlantDeleteErrorState = remember { PlantDeleteErrorState() },
     /** Identification by photo in Add Plant (architecture §5.4). */
     speciesIdentifier: SpeciesIdentifier? = null,
+    /** Plant diagnosis by photo (architecture §5.7); null hides the plant-detail entry. */
+    plantDiagnoser: PlantDiagnoser? = null,
 ) {
     val navController = rememberNavController()
     // Null for the few milliseconds auto mode waits for the latitude table (preloaded in App());
@@ -284,6 +290,19 @@ public fun GtAppNavGraph(
                         deleteErrorState = deleteErrorState,
                         isOnline = connectivity.isOnline,
                         season = season,
+                        onOpenDiagnosis = plantDiagnoser?.let { { navController.navigate("plant/$plantId/diagnosis") } },
+                    )
+                }
+            }
+        }
+        composable(NavRoutes.PLANT_DIAGNOSIS) { entry ->
+            val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
+            AppLocalizedContent {
+                if (plantDiagnoser != null && sessionUserId != null) {
+                    DiagnosisScreen(
+                        plantId = plantId,
+                        diagnoser = plantDiagnoser,
+                        onBack = { navController.popBackStack() },
                     )
                 }
             }

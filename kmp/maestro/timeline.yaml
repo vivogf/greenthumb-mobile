@@ -282,10 +282,16 @@ name: GreenThumb photo timeline (${STEP})
       - tapOn: "Add a note…"
       - inputText: "draft"
       - eraseText: 5
-      - scrollUntilVisible:
-          element:
-            text: "Add photo"
-          direction: UP
+      # Small steps up: with the keyboard open on a short page one long scroll
+      # overshoots and leaves "Add photo" under the fixed header.
+      - repeat:
+          while:
+            notVisible: "Add photo"
+          times: 20
+          commands:
+            - swipe:
+                start: 50%, 48%
+                end: 50%, 56%
       - tapOn: "Add photo"
       - tapOn: "Gallery"
       - extendedWaitUntil:

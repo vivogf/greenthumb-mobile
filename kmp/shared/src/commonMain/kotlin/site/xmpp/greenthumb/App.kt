@@ -28,6 +28,7 @@ import site.xmpp.greenthumb.season.TimezoneSync
 import site.xmpp.greenthumb.season.TzLatitudesStore
 import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
+import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
 import site.xmpp.greenthumb.ui.nav.GtKeyNotFoundScreen
 import site.xmpp.greenthumb.ui.nav.GtSplash
@@ -126,6 +127,8 @@ fun App(
     apiClient: ApiClient? = null,
     /** Identification by photo in Add Plant; production passes [ApiSpeciesIdentifier]. */
     speciesIdentifier: SpeciesIdentifier? = null,
+    /** Plant diagnosis by photo; production passes [ApiPlantDiagnoser]. */
+    plantDiagnoser: PlantDiagnoser? = null,
 ) {
     // Singleton Coil loader (core/network/Images.kt): https photos through the
     // ApiClient Ktor client + disk cache, data URIs keyed by SHA-256
@@ -295,6 +298,7 @@ fun App(
                         pendingPlantId = if (state is SessionState.SignedIn) launchPlantId else null,
                         onPendingPlantIdConsumed = onLaunchPlantIdConsumed,
                         speciesIdentifier = speciesIdentifier,
+                        plantDiagnoser = plantDiagnoser,
                     )
                     StartRoute.Welcome -> GtAppNavGraph(
                         startDestination = NavRoutes.WELCOME,

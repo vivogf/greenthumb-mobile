@@ -105,6 +105,8 @@ import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.a11y_back
 import site.xmpp.greenthumb.ui.res.a11y_changePhoto
+import site.xmpp.greenthumb.ui.res.diagnosis_entry
+import site.xmpp.greenthumb.ui.res.diagnosis_entryDescription
 import site.xmpp.greenthumb.ui.res.a11y_deletePlant
 import site.xmpp.greenthumb.ui.res.a11y_waterPlant
 import site.xmpp.greenthumb.ui.res.common_camera
@@ -250,6 +252,8 @@ public fun PlantDetailScreen(
     isOnline: StateFlow<Boolean> = AlwaysOnline,
     /** Seasonal rule of the signed-in user: the watering countdown and the winter-mode hint. */
     season: SeasonContext = SeasonContext.Off,
+    /** Opens the diagnosis screen (architecture §5.7); null hides the entry. */
+    onOpenDiagnosis: (() -> Unit)? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
@@ -720,6 +724,19 @@ public fun PlantDetailScreen(
                             },
                         )
 
+                        if (onOpenDiagnosis != null) {
+                            SettingsRow(
+                                label = stringResource(Res.string.diagnosis_entry),
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    onOpenDiagnosis()
+                                },
+                                icon = { tint -> GtLeafMark(tint = tint, modifier = Modifier.size(Spacing.xl)) },
+                                description = stringResource(Res.string.diagnosis_entryDescription),
+                                modifier = Modifier.testTag("plantDetail_diagnosis"),
+                            )
+                        }
+
                         // ── Заметки ──
                         GtCard {
                             Row(
@@ -1138,11 +1155,17 @@ private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
 
 /** Строка «Настройки ухода» (RN Pressable с settings-outline + chevron). */
 @Composable
-private fun SettingsRow(label: String, onClick: () -> Unit) {
+private fun SettingsRow(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable (Color) -> Unit = { tint -> GtGearMark(tint = tint, modifier = Modifier.size(Spacing.xl)) },
+    description: String? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     val extended = greenThumbExtendedColors()
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .background(scheme.surface, MaterialTheme.shapes.medium)
             .borderHairline(extended.cardBorder, MaterialTheme.shapes.medium)
@@ -1160,12 +1183,21 @@ private fun SettingsRow(label: String, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            GtGearMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = scheme.onSurface,
-            )
+            icon(scheme.primary)
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = scheme.onSurface,
+                )
+                if (description != null) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.md))
     }

@@ -15,6 +15,7 @@ import site.xmpp.greenthumb.App
 import site.xmpp.greenthumb.core.platform.AppActivityHolder
 import site.xmpp.greenthumb.core.platform.AppLocale
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.ApiSpeciesIdentifier
 
 class MainActivity : ComponentActivity() {
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 killSwitch = app.sessionGraph.killSwitch,
                 apiClient = app.sessionGraph.client,
                 speciesIdentifier = ApiSpeciesIdentifier(app.sessionGraph.api),
+                plantDiagnoser = ApiPlantDiagnoser(app.sessionGraph.api),
             )
         }
     }

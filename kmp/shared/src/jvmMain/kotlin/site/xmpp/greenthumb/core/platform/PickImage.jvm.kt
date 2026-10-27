@@ -44,6 +44,15 @@ actual suspend fun pickImage(source: PickSource): PickResult {
     return PickResult.Picked(bytes)
 }
 
+/** The desktop "camera" is the file dialog: the picked file is the user's own and is never deleted. */
+actual suspend fun pickImageKeepingCapture(source: PickSource): PickResult = pickImage(source)
+
+actual fun deleteCaptureFile(path: String) {
+    File(path).delete()
+}
+
+actual fun deleteStaleCaptures() = Unit
+
 /**
  * Есть ли imageio-ридер для байтов: проба спи без полного декодирования.
  * HEIC-ридер в JDK нет → false (тот же контракт ошибки, что на Android

@@ -16,6 +16,7 @@ import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.accountGate
 import site.xmpp.greenthumb.ui.screens.gallery.ComponentGalleryScreen
+import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.ApiSpeciesIdentifier
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
@@ -52,7 +53,7 @@ fun main() = application {
             },
             title = "GreenThumb",
         ) {
-            App(graph.manager, connectivity, plants, graph.settings, graph.push, killSwitch = graph.killSwitch, apiClient = graph.client, speciesIdentifier = ApiSpeciesIdentifier(graph.api))
+            App(graph.manager, connectivity, plants, graph.settings, graph.push, killSwitch = graph.killSwitch, apiClient = graph.client, speciesIdentifier = ApiSpeciesIdentifier(graph.api), plantDiagnoser = ApiPlantDiagnoser(graph.api))
         }
     }
 }
