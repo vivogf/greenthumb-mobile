@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
@@ -116,6 +117,8 @@ internal fun PlantJournalSection(
     val composerRequester = remember { BringIntoViewRequester() }
     var inputFocused by remember { mutableStateOf(false) }
     var composerClipped by remember { mutableStateOf(false) }
+    // The note field would keep focus behind the delete confirmation and get it back when it closes.
+    val focusManager = LocalFocusManager.current
 
     // Focus alone scrolls only the field above the keyboard; keep the whole composer (field, message,
     // "Add note") on screen so the user sees the button and why a note was not sent. Clipping is the
@@ -240,7 +243,14 @@ internal fun PlantJournalSection(
             }
             rows.forEachIndexed { index, entry ->
                 if (index > 0) HorizontalDivider(color = scheme.outlineVariant)
-                JournalRow(entry = entry, locale = locale, onDelete = { pendingDelete = entry })
+                JournalRow(
+                    entry = entry,
+                    locale = locale,
+                    onDelete = {
+                        focusManager.clearFocus()
+                        pendingDelete = entry
+                    },
+                )
             }
         }
     }

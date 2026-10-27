@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -134,6 +135,10 @@ internal fun PlantTimelineSection(
     var viewing by remember(plantId) { mutableStateOf<TimelinePhotoDto?>(null) }
     val scope = rememberCoroutineScope()
     val messageRequester = remember { BringIntoViewRequester() }
+    // Tapping a button does not take focus from the journal note field. If it stays focused behind
+    // a dialog or the picker, Android restarts its input when the window regains focus: the field
+    // ends up focused with the keyboard state out of sync.
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(timeline, plantId, refreshKey, online) {
         if (!online) {
@@ -155,6 +160,7 @@ internal fun PlantTimelineSection(
     }
 
     fun requestAdd() {
+        focusManager.clearFocus()
         if (!online) {
             offlineMessage = true
             return
@@ -209,7 +215,10 @@ internal fun PlantTimelineSection(
                         TimelineTile(
                             photo = photo,
                             locale = locale,
-                            onOpen = { viewing = photo },
+                            onOpen = {
+                                focusManager.clearFocus()
+                                viewing = photo
+                            },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -247,7 +256,10 @@ internal fun PlantTimelineSection(
             bytes = bytes,
             online = online,
             upload = { caption -> timeline.addPhoto(plantId, photoDataUri(bytes), caption) },
-            onClose = { pick.bytes = null },
+            onClose = {
+                pick.bytes = null
+                focusManager.clearFocus()
+            },
         )
     }
 

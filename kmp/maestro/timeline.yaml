@@ -19,28 +19,32 @@
 #   offline        airplane mode (switched by the caller): cached photos and the
 #                  viewer still work; "Add photo" shows "network required" next
 #                  to the button and opens no picker, so nothing is sent
+#   caption-focus  VAL-TIMELINE-016: type in the journal note field, then add
+#                  the gallery photo with caption "Focus caption" and save; the
+#                  caller then checks `dumpsys input_method` (mInputShown=false)
+#                  and runs note-tap
+#   note-tap       no relaunch (continues caption-focus): tap the note field
+#                  and type; the caller checks mInputShown=true
+# The prelude scrolls only until "Add photo" is visible: on a short journal a
+# scroll further down hides the button under the fixed header.
 appId: com.greenthumbplantcare.debug
 name: GreenThumb photo timeline (${STEP})
 ---
-- stopApp
-- launchApp
-- extendedWaitUntil:
-    visible: "Profile|Профиль"
-    timeout: 30000
-- takeScreenshot: ${STEP}-dashboard
-- tapOn: "TimelineFern"
-- scrollUntilVisible:
-    element:
-      text: "Photos|Фото"
-    direction: DOWN
-- scrollUntilVisible:
-    element:
-      text: "Add photo|Добавить фото"
-    direction: DOWN
-- scrollUntilVisible:
-    element:
-      text: "Journal|Журнал"
-    direction: DOWN
+- runFlow:
+    when:
+      true: ${STEP != 'note-tap'}
+    commands:
+      - stopApp
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+      - takeScreenshot: ${STEP}-dashboard
+      - tapOn: "TimelineFern"
+      - scrollUntilVisible:
+          element:
+            text: "Add photo|Добавить фото"
+          direction: DOWN
 
 - runFlow:
     when:
@@ -215,7 +219,10 @@ name: GreenThumb photo timeline (${STEP})
     when:
       true: ${STEP == 'navigate'}
     commands:
-      - assertVisible: "Add a note…"
+      - scrollUntilVisible:
+          element:
+            text: "Add a note…"
+          direction: DOWN
       - takeScreenshot: navigate-journal
       - scrollUntilVisible:
           element:
@@ -263,3 +270,55 @@ name: GreenThumb photo timeline (${STEP})
       - takeScreenshot: ru-viewer
       - tapOn: "Закрыть"
       - assertNotVisible: "Удалить фото"
+
+- runFlow:
+    when:
+      true: ${STEP == 'caption-focus'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Add a note…"
+          direction: DOWN
+      - tapOn: "Add a note…"
+      - inputText: "draft"
+      - eraseText: 5
+      - scrollUntilVisible:
+          element:
+            text: "Add photo"
+          direction: UP
+      - tapOn: "Add photo"
+      - tapOn: "Gallery"
+      - extendedWaitUntil:
+          visible: "Photo taken on.*"
+          timeout: 10000
+      - tapOn:
+          text: "Photo taken on.*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Done"
+          timeout: 10000
+      - tapOn: "Done"
+      - extendedWaitUntil:
+          visible: "New photo"
+          timeout: 10000
+      - tapOn: "Caption (optional)"
+      - inputText: "Focus caption"
+      - tapOn: "Save photo"
+      - extendedWaitUntil:
+          notVisible: "New photo"
+          timeout: 40000
+      - assertVisible: "Focus caption"
+      - takeScreenshot: caption-focus-after-save
+
+- runFlow:
+    when:
+      true: ${STEP == 'note-tap'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Add a note…"
+          direction: DOWN
+      - tapOn: "Add a note…"
+      - inputText: "Typed after caption"
+      - assertVisible: "Typed after caption"
+      - takeScreenshot: note-tap-typed
