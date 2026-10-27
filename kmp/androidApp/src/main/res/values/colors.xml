@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Акцент уведомлений: тот же цвет, что GT_NOTIFICATION_LIGHT_COLOR
+         у форграунд-показа (GtNotifications.kt), чтобы фоновые FCM-доставки
+         выглядели так же. -->
+    <color name="gt_notification_color">#FF4A9A5A</color>
+</resources>

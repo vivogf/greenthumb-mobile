@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Small icon статуса для уведомлений (M9 push-android): монохромный
-     глиф листа в духе логотипа (капля+лист, фон #1a5c2e). Статус-бар
-     рисует только альфу — глиф белый, без заливки. -->
+<!-- Small icon уведомлений: монохромный силуэт логотипа (капля, левая
+     половина — лист с прожилкой, правая — вода, между ними зазор).
+     Статус-бар и шторка рисуют только альфу, поэтому глиф белый на
+     прозрачном. Его же берёт FCM для фоновых доставок через meta-data
+     default_notification_icon в манифесте. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -9,5 +11,9 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11.5 2,13.5C2,15.5 3.75,17.25 3.75,17.25C7,8 17,8 17,8Z" />
+        android:fillType="evenOdd"
+        android:pathData="M12,2C12,2 5,9.5 5,15A7,7 0,0 0,9,21.32C10.5,17 13.5,12 12,2ZM7.6,16.8C8.4,12.6 9.6,9.4 11,6.6C10.4,9.8 9.4,13.2 8.4,17.4Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13.6,4C15.8,6.6 19,10.6 19,15A7,7 0,0 1,10.6,21.86C12.4,18 15,13.5 13.6,4Z" />
 </vector>

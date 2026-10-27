@@ -44,6 +44,16 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="default" />
 
+        <!-- Иконка и цвет фоновых FCM-доставок: без них система рисует
+             notification-полезную нагрузку с безликой системной иконкой
+             (0x01080093). Тот же глиф берёт форграунд-показ сервиса. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/gt_notification_small" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/gt_notification_color" />
+
         <!-- Credential Manager (architecture §5.3): links the app to
              greenthumb.xmpp.site so the saved recovery key is shared with
              the site's assetlinks.json entry. -->
