@@ -25,13 +25,22 @@ name: GreenThumb season switcher (${OPTION} -> ${SELECTED})
     visible: "Profile|Профиль"
     timeout: 30000
 - tapOn: "Profile|Профиль"
-- extendedWaitUntil:
-    visible: "My Profile|Мой профиль"
-    timeout: 10000
+# Profile may keep its scroll position, so the "My Profile" header can be off screen and the season
+# card can be above or below the viewport. Look for the card itself in both directions.
 - scrollUntilVisible:
     element: "Seasonal watering|Сезонный полив"
     direction: DOWN
     centerElement: true
+    optional: true
+- runFlow:
+    when:
+      notVisible: "Seasonal watering|Сезонный полив"
+    commands:
+      - scrollUntilVisible:
+          element: "Seasonal watering|Сезонный полив"
+          direction: UP
+          centerElement: true
+- assertVisible: "Seasonal watering|Сезонный полив"
 - runFlow:
     when:
       true: ${OPTION != 'none'}
