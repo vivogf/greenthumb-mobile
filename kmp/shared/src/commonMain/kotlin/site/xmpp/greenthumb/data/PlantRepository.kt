@@ -28,6 +28,9 @@ import site.xmpp.greenthumb.core.storage.GreenThumbDb
 import site.xmpp.greenthumb.core.storage.PendingMutationEntity
 import site.xmpp.greenthumb.core.storage.PlantDatabases
 import site.xmpp.greenthumb.core.storage.SyncMetaEntity
+import site.xmpp.greenthumb.season.SeasonContext
+import site.xmpp.greenthumb.season.SeasonMode
+import site.xmpp.greenthumb.season.TzLatitudes
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -214,13 +217,15 @@ public class PlantRepository(
     /**
      * Оптимистично только не-healthy. Сервер всё равно вызывается: его набор
      * может разойтись с локальным фильтром, сверка — следующим refresh.
+     * [season] — тот же сезонный контекст, что у экрана: набор совпадает с
+     * серверным `plantsDueForWatering`.
      */
-    public suspend fun waterAll() {
+    public suspend fun waterAll(season: SeasonContext = SeasonContext.Off) {
         val today = clocks.todayString()
         val todayDate = clocks.today()
         gate.withLock {
             val due = db.plants().listAll().filter { plant ->
-                wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, todayDate) !=
+                wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, todayDate, season) !=
                     WateringStatus.Healthy
             }
             if (due.isEmpty()) {
@@ -642,6 +647,10 @@ public class PlantClocks(
         Instant.fromEpochMilliseconds(nowMillis()).toLocalDateTime(zone).date
 
     public fun todayString(): String = today().toString()
+
+    /** The seasonal rule for [mode] in this clock's zone (the device zone in production). */
+    public fun season(mode: SeasonMode, latitudes: TzLatitudes): SeasonContext =
+        SeasonContext(mode, zone.id, latitudes)
 }
 
 @OptIn(ExperimentalUuidApi::class)

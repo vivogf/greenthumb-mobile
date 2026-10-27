@@ -181,6 +181,7 @@
     <string name="plantDetails_careSettings">Care Settings</string>
     <string name="plantDetails_careSettingsDescription">Adjust the care schedule for %1$s</string>
     <string name="plantDetails_wateringFrequency">Watering Frequency (days)</string>
+    <string name="plantDetails_winterMode">Winter mode: interval ×1.5</string>
     <string name="plantDetails_fertilizingFrequency">Fertilizing Frequency (days)</string>
     <string name="plantDetails_repottingFrequency">Repotting Frequency (months)</string>
     <string name="plantDetails_pruningFrequency">Pruning Frequency (months)</string>

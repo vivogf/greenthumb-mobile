@@ -33,6 +33,7 @@ import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.season.rememberSeasonContext
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.res.Res
@@ -168,6 +169,7 @@ public fun GtAppNavGraph(
     speciesIdentifier: SpeciesIdentifier? = null,
 ) {
     val navController = rememberNavController()
+    val season = rememberSeasonContext(session)
     NavHost(navController = navController, startDestination = startDestination) {
         composable(NavRoutes.WELCOME) {
             AppLocalizedContent {
@@ -207,6 +209,7 @@ public fun GtAppNavGraph(
                             settings = settings,
                             onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
                             onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
+                            season = season,
                         )
                     }
                 }
@@ -277,6 +280,7 @@ public fun GtAppNavGraph(
                     onDeleted = { navController.popBackStack() },
                     deleteErrorState = deleteErrorState,
                     isOnline = connectivity.isOnline,
+                    season = season,
                 )
             }
         }

@@ -170,6 +170,8 @@ KMP_ONLY_KEYS = {
     # (RN откатывал при любой сетевой ошибке — осознанное отличие).
     "plantDetails.deleteQueuedTitle",
     "plantDetails.deleteQueuedMessage",
+    # plantDetails.winterMode — seasonal watering hint on plant detail (architecture §8.6); RN has none.
+    "plantDetails.winterMode",
     # updateRequired.* — Stage 12 п.1: kill-switch (Remote Config
     # min_supported_build) — блокирующий экран обновления. В RN аналога нет:
     # OTA закрывал отзыв версии доставкой JS-апдейта (EAS Update), KMP-замена —

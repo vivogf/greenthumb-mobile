@@ -5,6 +5,7 @@ import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.data.WateringStatus
 import site.xmpp.greenthumb.data.daysUntilWatering
 import site.xmpp.greenthumb.data.wateringStatus
+import site.xmpp.greenthumb.season.SeasonContext
 
 /** Фильт-табы дашборда (RN `type Filter = 'all' | 'needsWater' | 'healthy'`). */
 public enum class DashboardFilter {
@@ -26,6 +27,7 @@ public fun filterAndSortPlants(
     searchQuery: String,
     filter: DashboardFilter,
     today: LocalDate,
+    season: SeasonContext = SeasonContext.Off,
 ): List<PlantDto> {
     var result = plants
     val query = searchQuery.trim().lowercase()
@@ -37,17 +39,17 @@ public fun filterAndSortPlants(
     }
     when (filter) {
         DashboardFilter.NeedsWater -> result = result.filter { plant ->
-            wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
+            wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) !=
                 WateringStatus.Healthy
         }
         DashboardFilter.Healthy -> result = result.filter { plant ->
-            wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) ==
+            wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) ==
                 WateringStatus.Healthy
         }
         DashboardFilter.All -> {}
     }
     return result.sortedBy { plant ->
-        daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today)
+        daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
     }
 }
 
@@ -102,8 +104,12 @@ public fun renderPlantsDuringSnap(
  * Ведёт подпись чипа needsWater, видимость кнопок массовых действий и
  * pending-баннер массового полива.
  */
-public fun needsWaterCount(plants: List<PlantDto>, today: LocalDate): Int =
+public fun needsWaterCount(
+    plants: List<PlantDto>,
+    today: LocalDate,
+    season: SeasonContext = SeasonContext.Off,
+): Int =
     plants.count { plant ->
-        wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
+        wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) !=
             WateringStatus.Healthy
     }

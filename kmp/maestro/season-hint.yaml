@@ -1,0 +1,36 @@
+# Winter-mode hint and seasonal countdown on plant detail (feature m5-season-rule-app; VAL-SEASON-025).
+# Keyless: the app is already signed in (sign in first with photos-signin.yaml through render-smoke.sh).
+# The caller sets season_mode on the server between runs; a cold start reads it with /api/auth/me.
+#   PLANT  plant name to open from the dashboard
+#   HINT   shown | hidden
+#   BADGE  regex of the expected watering badge (for example "51 days left|Осталось 51 д.*")
+#   SHOT   screenshot name (relative)
+appId: com.greenthumbplantcare.debug
+name: GreenThumb season hint (${PLANT}, ${HINT})
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: ${PLANT}
+    timeout: 20000
+- tapOn: ${PLANT}
+- extendedWaitUntil:
+    visible: "Water Plant|Полить.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: ${BADGE}
+    timeout: 10000
+- runFlow:
+    when:
+      true: ${HINT == 'shown'}
+    commands:
+      - assertVisible: "Winter mode: interval ×1.5|Зимний режим: интервал ×1,5"
+- runFlow:
+    when:
+      true: ${HINT == 'hidden'}
+    commands:
+      - assertNotVisible: "Winter mode: interval ×1.5|Зимний режим: интервал ×1,5"
+- takeScreenshot: ${SHOT}

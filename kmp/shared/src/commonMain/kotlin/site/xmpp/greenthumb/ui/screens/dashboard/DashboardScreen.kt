@@ -66,6 +66,8 @@ import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.LayoutMode
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
+import site.xmpp.greenthumb.season.SeasonContext
+import site.xmpp.greenthumb.season.rememberSeasonContext
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.RefreshCoordinator
 import site.xmpp.greenthumb.data.RefreshOutcome
@@ -209,6 +211,8 @@ public fun DashboardScreen(
     settings: AppPreferencesStore,
     onOpenPlant: (String) -> Unit,
     onAddPlant: () -> Unit,
+    /** Seasonal rule of the signed-in user ([rememberSeasonContext]). */
+    season: SeasonContext = SeasonContext.Off,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Источник ON_RESUME (VAL-DASH-010): подписка живёт, пока открыт дашборд.
@@ -274,8 +278,8 @@ public fun DashboardScreen(
     }
 
     val hasPlants = plants.isNotEmpty()
-    val dueCount = needsWaterCount(plants, today)
-    val filteredPlants = filterAndSortPlants(plants, searchQuery, filter, today)
+    val dueCount = needsWaterCount(plants, today, season)
+    val filteredPlants = filterAndSortPlants(plants, searchQuery, filter, today, season)
 
     // ── Обновления: replay журнала → координатор (первый показ, сеть) —
     // механика интерим-экрана Stage 6 (VAL-OFF-004).
@@ -404,7 +408,7 @@ public fun DashboardScreen(
         val due = dueCount
         val dueIds = plants
             .filter {
-                wateringStatus(it.lastWateredDate, it.waterFrequencyDays, today) !=
+                wateringStatus(it.lastWateredDate, it.waterFrequencyDays, today, season) !=
                     WateringStatus.Healthy
             }
             .map { it.id }
@@ -415,7 +419,7 @@ public fun DashboardScreen(
         }
         scope.launch {
             try {
-                repo.waterAll()
+                repo.waterAll(season)
                 // Запрос закончился — pending-баннер сменяется success-баннером
                 // («N полито» на 2400 мс). Снятие pending только в finally
                 // держало спиннер «Поливаем N…» весь success-фазу: текст
@@ -803,6 +807,7 @@ public fun DashboardScreen(
                                     wateringIds = wateringIds,
                                     snappingIds = snappingIds,
                                     today = today,
+                                    season = season,
                                     onOpenPlant = onOpenPlant,
                                     onWater = ::water,
                                 )
@@ -812,6 +817,7 @@ public fun DashboardScreen(
                                     wateringIds = wateringIds,
                                     snappingIds = snappingIds,
                                     today = today,
+                                    season = season,
                                     cardMode = viewMode == LayoutMode.Card,
                                     onOpenPlant = onOpenPlant,
                                     onWater = ::water,
@@ -1000,6 +1006,7 @@ private fun PlantsList(
     wateringIds: Set<String>,
     snappingIds: Set<String>,
     today: LocalDate,
+    season: SeasonContext,
     cardMode: Boolean,
     onOpenPlant: (String) -> Unit,
     onWater: (String) -> Unit,
@@ -1014,13 +1021,14 @@ private fun PlantsList(
         verticalArrangement = Arrangement.spacedBy(if (cardMode) Spacing.lg else Spacing.sm),
     ) {
         itemsIndexed(plants, key = { _, plant -> plant.id }) { index, plant ->
-            val waterColor = statusAccent(plant, today)
-            val pill = statusPill(plant, today)
+            val waterColor = statusAccent(plant, today, season)
+            val pill = statusPill(plant, today, season)
             val item: @Composable (Modifier) -> Unit = { mod ->
                 if (cardMode) {
                     PlantCard(
                         plant = plant,
                         today = today,
+                        season = season,
                         statusText = pill.text,
                         statusColor = pill.color,
                         statusBg = pill.bg,
@@ -1034,6 +1042,7 @@ private fun PlantsList(
                     PlantListItem(
                         plant = plant,
                         today = today,
+                        season = season,
                         statusText = pill.text,
                         statusColor = pill.color,
                         statusBg = pill.bg,
@@ -1069,6 +1078,7 @@ private fun PlantsGrid(
     wateringIds: Set<String>,
     snappingIds: Set<String>,
     today: LocalDate,
+    season: SeasonContext,
     onOpenPlant: (String) -> Unit,
     onWater: (String) -> Unit,
 ) {
@@ -1088,6 +1098,7 @@ private fun PlantsGrid(
                 PlantGridCell(
                     plant = plant,
                     today = today,
+                    season = season,
                     isWatering = plant.id in wateringIds,
                     unsaved = plant.id in unsavedIds,
                     onOpenPlant = onOpenPlant,
@@ -1115,9 +1126,9 @@ private const val GRID_COLS: Int = 3
 
 /** Цвет-акцент статуса (RN accentColor: overdue→destructive, today→amber, иначе primary). */
 @Composable
-private fun statusAccent(plant: PlantDto, today: LocalDate): Color {
+private fun statusAccent(plant: PlantDto, today: LocalDate, season: SeasonContext): Color {
     val scheme = MaterialTheme.colorScheme
-    return when (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today)) {
+    return when (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)) {
         WateringStatus.Overdue -> scheme.error
         WateringStatus.Today -> greenThumbExtendedColors().amber
         WateringStatus.Healthy -> scheme.primary
@@ -1128,11 +1139,11 @@ private fun statusAccent(plant: PlantDto, today: LocalDate): Color {
 private data class StatusPillInfo(val text: String, val color: Color, val bg: Color)
 
 @Composable
-private fun statusPill(plant: PlantDto, today: LocalDate): StatusPillInfo {
+private fun statusPill(plant: PlantDto, today: LocalDate, season: SeasonContext): StatusPillInfo {
     val scheme = MaterialTheme.colorScheme
     val extended = greenThumbExtendedColors()
-    val days = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today)
-    return when (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today)) {
+    val days = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+    return when (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)) {
         WateringStatus.Overdue -> StatusPillInfo(
             text = pluralStringResource(Res.plurals.plant_overdue, -days, -days),
             color = scheme.error,
@@ -1183,6 +1194,7 @@ private fun StatusPill(
 private fun PlantListItem(
     plant: PlantDto,
     today: LocalDate,
+    season: SeasonContext,
     statusText: String,
     statusColor: Color,
     statusBg: Color,
@@ -1254,7 +1266,7 @@ private fun PlantListItem(
         }
         // RN WaterButtonWithParticles compact: спиннер живёт ВНУТРИ кнопки
         // (isWatering), всплеск частиц поверх — в компоненте.
-        if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
+        if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) !=
             WateringStatus.Healthy
         ) {
             GtWaterButton(
@@ -1280,6 +1292,7 @@ private fun PlantListItem(
 private fun PlantCard(
     plant: PlantDto,
     today: LocalDate,
+    season: SeasonContext,
     statusText: String,
     statusColor: Color,
     statusBg: Color,
@@ -1373,7 +1386,7 @@ private fun PlantCard(
                     color = scheme.onSurfaceVariant,
                 )
             }
-            if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today) !=
+            if (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) !=
                 WateringStatus.Healthy
             ) {
                 // RN WaterButtonWithParticles fullWidth (спиннер/частицы внутри).
@@ -1398,6 +1411,7 @@ private fun PlantCard(
 private fun PlantGridCell(
     plant: PlantDto,
     today: LocalDate,
+    season: SeasonContext,
     isWatering: Boolean,
     unsaved: Boolean,
     onOpenPlant: (String) -> Unit,
@@ -1408,10 +1422,10 @@ private fun PlantGridCell(
     val extended = greenThumbExtendedColors()
     val openLabel = stringResource(Res.string.a11y_openPlant, plant.name)
     val waterLabel = stringResource(Res.string.a11y_waterPlant, plant.name)
-    val status = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today)
-    val days = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today)
+    val status = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+    val days = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
     val needsWater = status != WateringStatus.Healthy
-    val accent = statusAccent(plant, today)
+    val accent = statusAccent(plant, today, season)
     val numberColor = when (status) {
         WateringStatus.Overdue -> scheme.error
         WateringStatus.Today -> extended.amber

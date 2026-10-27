@@ -1,8 +1,7 @@
 package site.xmpp.greenthumb.data
 
-import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.plus
+import site.xmpp.greenthumb.season.SeasonContext
 
 /**
  * Статус полива — порт `lib/utils.ts` `getWateringStatus`.
@@ -13,6 +12,10 @@ import kotlinx.datetime.plus
  *
  * `waterAll` оптимистично трогает только статус ≠ [WateringStatus.Healthy]
  * (architecture.md §7; RN `getWateringStatus(...) !== 'healthy'`).
+ *
+ * Интервал — сезонный ([SeasonContext], architecture §2.9): в спящий месяц
+ * последнего полива он ×1,5 с округлением вверх. [SeasonContext.Off] —
+ * прежний интервал без поправки.
  */
 public enum class WateringStatus {
     Overdue,
@@ -28,9 +31,9 @@ public fun daysUntilWatering(
     lastWateredDate: String,
     frequencyDays: Int,
     today: LocalDate,
+    season: SeasonContext = SeasonContext.Off,
 ): Int {
-    val last = LocalDate.parse(lastWateredDate)
-    val next = last.plus(frequencyDays, DateTimeUnit.DAY)
+    val next = season.nextWaterDueDate(lastWateredDate, frequencyDays)
     return (next.toEpochDays() - today.toEpochDays()).toInt()
 }
 
@@ -38,8 +41,9 @@ public fun wateringStatus(
     lastWateredDate: String,
     frequencyDays: Int,
     today: LocalDate,
+    season: SeasonContext = SeasonContext.Off,
 ): WateringStatus {
-    val days = daysUntilWatering(lastWateredDate, frequencyDays, today)
+    val days = daysUntilWatering(lastWateredDate, frequencyDays, today, season)
     return when {
         days < 0 -> WateringStatus.Overdue
         days == 0 -> WateringStatus.Today

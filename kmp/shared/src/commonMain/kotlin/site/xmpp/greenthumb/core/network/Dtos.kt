@@ -68,6 +68,9 @@ data class UserDto(
     val timezone: String? = null,
     @SerialName("last_notified_date")
     val lastNotifiedDate: String? = null,
+    /** `auto`/`north`/`south`/`off`; absent on older servers → auto (`seasonModeOf`). */
+    @SerialName("season_mode")
+    val seasonMode: String? = null,
     @SerialName("recovery_key")
     val recoveryKey: String,
     @SerialName("created_at")

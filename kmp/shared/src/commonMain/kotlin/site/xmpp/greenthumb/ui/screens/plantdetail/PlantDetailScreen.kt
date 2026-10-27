@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -147,6 +148,8 @@ import site.xmpp.greenthumb.ui.res.plantDetails_today
 import site.xmpp.greenthumb.ui.res.plantDetails_waterPlant
 import site.xmpp.greenthumb.ui.res.plant_watered
 import site.xmpp.greenthumb.ui.res.plantDetails_wateringFrequency
+import site.xmpp.greenthumb.ui.res.plantDetails_winterMode
+import site.xmpp.greenthumb.season.SeasonContext
 import site.xmpp.greenthumb.ui.res.plantDetails_yesterday
 import site.xmpp.greenthumb.ui.res.species_change
 import site.xmpp.greenthumb.ui.res.species_choose
@@ -245,6 +248,8 @@ public fun PlantDetailScreen(
     deleteErrorState: PlantDeleteErrorState,
     /** Network state; on reconnect the screen replays the queue and refreshes the journal. */
     isOnline: StateFlow<Boolean> = AlwaysOnline,
+    /** Seasonal rule of the signed-in user: the watering countdown and the winter-mode hint. */
+    season: SeasonContext = SeasonContext.Off,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
@@ -426,8 +431,9 @@ public fun PlantDetailScreen(
                     }
                 }
             }
-            val waterDays = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today)
-            val waterStatus = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today)
+            val waterDays = daysUntilWatering(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+            val waterStatus = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+            val winterMode = season.isAdjusted(plant.lastWateredDate)
             val extended = greenThumbExtendedColors()
             val waterColor = when (waterStatus) {
                 WateringStatus.Overdue -> MaterialTheme.colorScheme.error
@@ -593,6 +599,14 @@ public fun PlantDetailScreen(
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
+                                    if (winterMode) {
+                                        Text(
+                                            text = stringResource(Res.string.plantDetails_winterMode),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.testTag("detail_winterMode"),
+                                        )
+                                    }
                                 }
                                 WaterBadge(text = waterBadgeText, color = waterColor)
                             }
