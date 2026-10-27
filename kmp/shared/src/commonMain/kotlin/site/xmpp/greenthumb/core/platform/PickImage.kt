@@ -167,6 +167,21 @@ class UnsupportedImageException(message: String) : IllegalArgumentException(mess
 internal const val UNSUPPORTED_IMAGE_MESSAGE =
     "unsupported or corrupt image file — pick a JPEG or another photo this device can decode"
 
+/**
+ * Bytes of a picked item. The picker can return an item the app cannot read: a MediaStore row whose
+ * file was deleted, a 0-byte file, a revoked grant. Every such case is the same handled photo error
+ * as an undecodable file, so no photo flow crashes on it.
+ */
+internal fun readPickedImage(read: () -> ByteArray?): PickResult.Picked {
+    val bytes = try {
+        read()
+    } catch (_: Exception) {
+        null
+    }
+    if (bytes == null || bytes.isEmpty()) throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    return PickResult.Picked(bytes)
+}
+
 /** Размеры изображения (ширина × высота, px). */
 data class ImageSize(val width: Int, val height: Int)
 

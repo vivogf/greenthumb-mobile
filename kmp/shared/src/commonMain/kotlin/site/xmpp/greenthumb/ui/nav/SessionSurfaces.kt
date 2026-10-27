@@ -19,6 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.session_handoffImportFailed
 import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface
@@ -99,7 +102,7 @@ public fun GtKeyNotFoundScreen(
 public fun GtHandoffImportFailedScreen(recoveryKey: String) {
     SessionSurface {
         Text(
-            text = "Handoff import failed. Recovery key to copy:\n$recoveryKey",
+            text = stringResource(Res.string.session_handoffImportFailed, recoveryKey),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )

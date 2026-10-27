@@ -87,4 +87,6 @@ dependencies {
     testImplementation(libs.kotlinTestJunit)
     testImplementation(libs.glanceTesting)
     testImplementation(libs.glanceAppwidgetTesting)
+    // Widget tests feed buildWidgetUi a fixed LocalDate; :shared already uses this version.
+    testImplementation(libs.kotlinxDatetime)
 }

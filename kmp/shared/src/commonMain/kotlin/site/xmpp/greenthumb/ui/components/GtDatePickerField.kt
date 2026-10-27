@@ -30,6 +30,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.datePicker_fieldDescription
+import site.xmpp.greenthumb.ui.res.datePicker_maximum
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -66,6 +70,7 @@ fun GtDatePickerField(
     var open by remember { mutableStateOf(false) }
     val normalized = normalizePickerDate(value)
     val shown = normalized?.let { formatPickerDate(it, languageTag) } ?: placeholder
+    val fieldDescription = stringResource(Res.string.datePicker_fieldDescription, shown)
     val shape = RoundedCornerShape(Radii.md)
     LaunchedEffect(open, normalized, today) {
         if (!open) return@LaunchedEffect
@@ -84,7 +89,7 @@ fun GtDatePickerField(
                 .background(scheme.surface, shape)
                 .borderHairline(if (errorText == null) scheme.outline else scheme.error, shape)
                 .clickable(enabled = enabled, onClick = { if (enabled) open = true }, role = Role.Button)
-                .semantics { contentDescription = "Date field $shown" }
+                .semantics { contentDescription = fieldDescription }
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -133,9 +138,10 @@ fun GtDatePickerField(
                 }
             },
         ) {
+            val maximum = stringResource(Res.string.datePicker_maximum, formatPickerDate(today.toString(), languageTag))
             DatePicker(
                 state = state,
-                title = { Text(text = "Maximum $today") },
+                title = { Text(text = maximum) },
                 showModeToggle = false,
             )
         }

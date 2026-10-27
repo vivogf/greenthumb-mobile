@@ -635,8 +635,8 @@ class AddPlantScreenTest {
             openDashboard()
             openAddPlantForm()
 
-            // Поле даты: дефолт — сегодня (en-формат MM/dd/yyyy), a11y-имя
-            // «Date field …». Клик — открытие диалога.
+            // Поле даты: дефолт — сегодня (en-формат MM/dd/yyyy), a11y-имя из
+            // ресурса datePicker_fieldDescription (en «Date field …»). Клик — открытие диалога.
             val today = pickerToday()
             val todayLabel = formatPickerDate(today.toString(), "en")
             waitUntilAtLeastOneExists(
@@ -646,7 +646,7 @@ class AddPlantScreenTest {
             clickAt(hasClickAction() and hasContentDescription("Date field $todayLabel"))
 
             // Диалог открыт: заголовок-граница + Done/Cancel; Done включён.
-            waitUntilAtLeastOneExists(hasText("Maximum $today"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Maximum $todayLabel"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Done"), TIMEOUT)
             onNodeWithText("Done").assertIsEnabled()
             onNodeWithText("Cancel").assertExists()

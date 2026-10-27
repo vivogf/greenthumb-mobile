@@ -36,12 +36,11 @@ actual suspend fun pickImage(source: PickSource): PickResult {
         FilePickBridge.clear(request)
     }
     if (path == null) return PickResult.Cancelled
-    val bytes = withContext(Dispatchers.IO) { File(path).readBytes() }
-    if (bytes.isEmpty()) return PickResult.Cancelled
+    val picked = withContext(Dispatchers.IO) { readPickedImage { File(path).readBytes() } }
     // Недекодируемый файл (HEIC у imageio, мусор): обработанная ошибка ДО
     // экрана кропа — иначе у пользователя «пустой» превью и disabled Done.
-    if (!canDecodeImage(bytes)) throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
-    return PickResult.Picked(bytes)
+    if (!canDecodeImage(picked.bytes)) throw UnsupportedImageException(UNSUPPORTED_IMAGE_MESSAGE)
+    return picked
 }
 
 /** The desktop "camera" is the file dialog: the picked file is the user's own and is never deleted. */

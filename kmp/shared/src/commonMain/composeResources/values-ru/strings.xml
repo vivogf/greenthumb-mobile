@@ -298,6 +298,9 @@
     <string name="photoCrop_title">Кадрировать фото</string>
     <string name="photoCrop_hint">Щипком масштабируйте, перетаскиванием двигайте</string>
     <string name="photoPick_fileTitle">Выберите фото</string>
+    <string name="photoPick_unreadable">Не удалось открыть это фото. Выберите другое фото.</string>
+    <string name="datePicker_fieldDescription">Поле даты %1$s</string>
+    <string name="datePicker_maximum">Не позднее %1$s</string>
     <string name="handoffModal_title">Сохраните ключ восстановления</string>
     <string name="handoffModal_subtitle">Держите его в надёжном месте — например, в менеджере паролей или заметке, которую найдёте только вы.</string>
     <string name="handoffModal_keyLabel">Ключ восстановления</string>
@@ -325,6 +328,7 @@
     <string name="session_keyNotFoundBody">Аккаунт не найден на устройстве. Ваш аккаунт хранится на сервере — введите ключ восстановления вручную или создайте новый аккаунт (старый ключ восстановить нельзя).</string>
     <string name="session_keyNotFoundEnterKey">Ввести ключ</string>
     <string name="session_keyNotFoundCreateAccount">Создать аккаунт</string>
+    <string name="session_handoffImportFailed">Не удалось перенести данные. Ключ восстановления для копирования:\n%1$s</string>
     <string name="updateRequired_title">Обновите приложение</string>
     <string name="updateRequired_body">Эта версия GreenThumb больше не поддерживается. Обновите приложение, чтобы продолжить уход за растениями.</string>
     <string name="updateRequired_openStore">Обновить в Google Play</string>

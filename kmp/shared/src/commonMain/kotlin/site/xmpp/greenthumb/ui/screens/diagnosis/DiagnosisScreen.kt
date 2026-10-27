@@ -55,6 +55,7 @@ import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
+import site.xmpp.greenthumb.ui.components.pickErrorText
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.a11y_back
 import site.xmpp.greenthumb.ui.res.common_cameraPermissionDenied
@@ -306,7 +307,7 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
     controller.pickErrorMessage?.let { message ->
         GtAlertDialog(
             title = stringResource(Res.string.common_error),
-            message = message,
+            message = pickErrorText(message),
             onDismissRequest = controller::dismissPickError,
         )
     }

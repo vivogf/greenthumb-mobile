@@ -61,6 +61,7 @@ import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
+import site.xmpp.greenthumb.ui.components.pickErrorText
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.res.Res
@@ -596,7 +597,7 @@ public fun AddPlantScreen(
     identify?.pickErrorMessage?.let { message ->
         GtAlertDialog(
             title = stringResource(Res.string.common_error),
-            message = message,
+            message = pickErrorText(message),
             onDismissRequest = identify::dismissPickError,
         )
     }

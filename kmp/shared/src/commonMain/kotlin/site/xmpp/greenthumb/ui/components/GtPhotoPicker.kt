@@ -15,6 +15,7 @@ import site.xmpp.greenthumb.core.platform.CropRect
 import site.xmpp.greenthumb.core.platform.FilePickBridge
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
+import site.xmpp.greenthumb.core.platform.UNSUPPORTED_IMAGE_MESSAGE
 import site.xmpp.greenthumb.core.platform.cropSquareJpeg
 import site.xmpp.greenthumb.core.platform.pickImage
 import site.xmpp.greenthumb.ui.res.Res
@@ -22,6 +23,7 @@ import site.xmpp.greenthumb.ui.res.common_cameraPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
+import site.xmpp.greenthumb.ui.res.photoPick_unreadable
 
 /**
  * Оркестратор флоу фото (Stage 8 п.1): пикер → квадратный кроп → байты для
@@ -179,8 +181,13 @@ fun PhotoPickerHost(controller: PhotoPickerController) {
     controller.pickErrorMessage?.let { message ->
         GtAlertDialog(
             title = stringResource(Res.string.common_error),
-            message = message,
+            message = pickErrorText(message),
             onDismissRequest = controller::dismissPickError,
         )
     }
 }
+
+/** The photo error in the app language; other picker failures keep their own message. */
+@Composable
+fun pickErrorText(message: String): String =
+    if (message == UNSUPPORTED_IMAGE_MESSAGE) stringResource(Res.string.photoPick_unreadable) else message

@@ -169,6 +169,13 @@ KMP_ONLY_KEYS = {
     "photoCrop.title",
     "photoCrop.hint",
     "photoPick.fileTitle",
+    # photoPick.unreadable — a picked item the app cannot read or decode (VAL-APP-019);
+    # datePicker.* — accessibility label and dialog title of the date field (VAL-CROSS-018).
+    "photoPick.unreadable",
+    "datePicker.fieldDescription",
+    "datePicker.maximum",
+    # session.handoffImportFailed — Expo→KMP handoff import failure screen (VAL-HANDOFF-IMP-005).
+    "session.handoffImportFailed",
     # profile.regenerateWarning — RN profile.tsx:192-193 держит текст диалога
     # регенерации захардкоженным по-английски (пробел i18n RN); KMP заводит
     # ключ в обеих локалях (ru-текст собственный).

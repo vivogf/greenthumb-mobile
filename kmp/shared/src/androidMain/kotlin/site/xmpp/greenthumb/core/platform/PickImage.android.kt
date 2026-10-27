@@ -132,14 +132,18 @@ private suspend fun launchGallery(activity: ComponentActivity): PickResult =
         ) { uri ->
             launcher.unregister()
             if (!continuation.isActive) return@register
-            val bytes = uri?.let {
-                activity.contentResolver.openInputStream(it)?.use { stream -> stream.readBytes() }
-            }
-            if (bytes == null || bytes.isEmpty()) {
+            if (uri == null) {
                 continuation.resume(PickResult.Cancelled)
-            } else {
-                continuation.resume(PickResult.Picked(bytes))
+                return@register
             }
+            // This callback runs outside the coroutine: a throw here would crash the app.
+            continuation.resumeWith(
+                runCatching {
+                    readPickedImage {
+                        activity.contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
+                    }
+                },
+            )
         }
         continuation.invokeOnCancellation { launcher.unregister() }
         if (continuation.isActive) {
