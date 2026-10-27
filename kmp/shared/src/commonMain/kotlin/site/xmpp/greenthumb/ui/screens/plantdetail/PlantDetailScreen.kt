@@ -90,6 +90,8 @@ import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtModal
+import site.xmpp.greenthumb.ui.components.GtModalHeader
+import site.xmpp.greenthumb.ui.components.GtModalHeaderAction
 import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtPotMark
@@ -1265,31 +1267,11 @@ private fun CareSettingsModal(
     GtModal(onDismissRequest = onDismiss) {
         // The modal has its own focus owner: a care field focused here must be cleared from inside.
         val modalFocus = LocalFocusManager.current
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.xl, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = cancelText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.clickableNoIndication(onDismiss),
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onSurface,
-            )
-            Text(
-                text = saveText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = scheme.primary,
-                modifier = Modifier.clickableNoIndication(onSave),
-            )
-        }
+        GtModalHeader(
+            title = title,
+            leading = GtModalHeaderAction(cancelText, scheme.onSurfaceVariant, onDismiss),
+            trailing = GtModalHeaderAction(saveText, scheme.primary, onSave),
+        )
 
         Column(
             modifier = Modifier

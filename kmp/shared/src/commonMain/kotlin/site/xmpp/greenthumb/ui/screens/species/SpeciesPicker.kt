@@ -30,6 +30,8 @@ import site.xmpp.greenthumb.catalog.SpeciesEntry
 import site.xmpp.greenthumb.catalog.SpeciesLight
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtModal
+import site.xmpp.greenthumb.ui.components.GtModalHeader
+import site.xmpp.greenthumb.ui.components.GtModalHeaderAction
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.species_choose
@@ -87,30 +89,10 @@ public fun SpeciesPickerDialog(
         if (query.isBlank()) allSorted else catalog?.search(query).orEmpty()
     }
     GtModal(onDismissRequest = onDismiss) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.xl, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = stringResource(Res.string.species_choose),
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onSurface,
-            )
-            Text(
-                text = stringResource(Res.string.common_cancel),
-                style = MaterialTheme.typography.bodyLarge,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onDismiss,
-                ),
-            )
-        }
+        GtModalHeader(
+            title = stringResource(Res.string.species_choose),
+            trailing = GtModalHeaderAction(stringResource(Res.string.common_cancel), scheme.onSurfaceVariant, onDismiss),
+        )
         GtInputField(
             value = query,
             onValueChange = { query = it },
