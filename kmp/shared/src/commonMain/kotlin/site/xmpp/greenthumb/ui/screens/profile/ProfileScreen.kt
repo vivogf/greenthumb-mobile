@@ -635,6 +635,11 @@ public fun ProfileScreen(
             }
         }
 
+        // Сезонный полив (architecture §5.6; в RN нет).
+        SectionCard {
+            SeasonModeSection(session = session)
+        }
+
         // About & Privacy (RN SectionCard 4).
         SectionCard {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {

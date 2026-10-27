@@ -11,6 +11,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.buildImageLoader
 import site.xmpp.greenthumb.core.platform.AppEnvironment
+import site.xmpp.greenthumb.core.platform.AppForeground
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
 import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.Connectivity
@@ -23,6 +24,7 @@ import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.season.TimezoneSync
 import site.xmpp.greenthumb.ui.nav.GtAppNavGraph
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
@@ -182,6 +184,15 @@ fun App(
     // architecture.md §9) — инициализированная сессия не перезапускается
     // (фикс M6 VAL-SHELL-003).
     LaunchedEffect(Unit) { session.startupIfNeeded() }
+    // users.timezone follows the device zone on sign-in, cold start and resume (architecture §8.6).
+    LaunchedEffect(Unit) {
+        val foreground = AppForeground()
+        try {
+            TimezoneSync(session).run(foreground.isResumed)
+        } finally {
+            foreground.close()
+        }
+    }
     // Kill-switch (Stage 12 п.1, VAL-REL-001): параллельно со стартом сессии,
     // СТАРТ НЕ ГЕЙТИТ — пока fetch не решится (короткий таймаут android-actual),
     // UI работает как обычно; решённый Blocked заменяет всё содержимое ниже.

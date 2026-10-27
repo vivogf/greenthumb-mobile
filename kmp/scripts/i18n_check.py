@@ -192,6 +192,20 @@ KMP_ONLY_KEYS = {
     "deleteAccount.bulletKey",
     "deleteAccount.confirm",
     "deleteAccount.deleting",
+    # profile.season* + a11y.seasonOption — seasonal watering switcher in Profile (architecture §5.6, §8.6);
+    # RN has none.
+    "profile.seasonTitle",
+    "profile.seasonHint",
+    "profile.seasonAuto",
+    "profile.seasonNorth",
+    "profile.seasonSouth",
+    "profile.seasonOff",
+    "profile.seasonAutoNorth",
+    "profile.seasonAutoSouth",
+    "profile.seasonAutoTropical",
+    "profile.seasonAutoUnknown",
+    "profile.seasonSaveFailed",
+    "a11y.seasonOption",
 }
 
 # RN держит эти ключи-строки как KMP <plurals> (не <string>): плюрализации

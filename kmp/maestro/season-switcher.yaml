@@ -1,0 +1,68 @@
+# Season switcher in Profile (feature m5-season-switcher-app; VAL-SEASON-019..022, VAL-CROSS-016).
+# Keyless: the app is already signed in (sign in first with photos-signin.yaml through render-smoke.sh).
+#   LAUNCH    cold (stop + launch) | resume (bring the running app to front)
+#   OPTION    option to tap ("North", "Юг", ...) or none
+#   SELECTED  regex of the option that must end up selected
+#   ERROR     shown | hidden (rollback message)
+#   EXPLAIN   regex of the auto explanation, or none
+#   SHOT      screenshot name (relative)
+appId: com.greenthumbplantcare.debug
+name: GreenThumb season switcher (${OPTION} -> ${SELECTED})
+---
+- runFlow:
+    when:
+      true: ${LAUNCH == 'cold'}
+    commands:
+      - stopApp
+      - launchApp
+- runFlow:
+    when:
+      true: ${LAUNCH == 'resume'}
+    commands:
+      - launchApp:
+          stopApp: false
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+- tapOn: "Profile|Профиль"
+- extendedWaitUntil:
+    visible: "My Profile|Мой профиль"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Seasonal watering|Сезонный полив"
+    direction: DOWN
+    centerElement: true
+- runFlow:
+    when:
+      true: ${OPTION != 'none'}
+    commands:
+      - tapOn: ${OPTION}
+- extendedWaitUntil:
+    visible:
+      selected: true
+      containsDescendants:
+        - text: ${SELECTED}
+    timeout: 15000
+- runFlow:
+    when:
+      true: ${ERROR == 'shown'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Couldn't save. Check your connection|Не удалось сохранить. Проверьте подключение"
+          timeout: 20000
+- runFlow:
+    when:
+      true: ${ERROR == 'hidden'}
+    commands:
+      - assertNotVisible: "Couldn't save. Check your connection|Не удалось сохранить. Проверьте подключение"
+- runFlow:
+    when:
+      true: ${EXPLAIN != 'none'}
+    commands:
+      - assertVisible: ${EXPLAIN}
+- takeScreenshot: ${SHOT}
+- back
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 10000
+- takeScreenshot: ${SHOT}-dashboard

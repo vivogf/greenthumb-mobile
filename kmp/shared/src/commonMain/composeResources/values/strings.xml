@@ -221,6 +221,17 @@
     <string name="profile_notificationTimeHint">Choose when you want to receive daily reminders (your local time).</string>
     <string name="profile_save">Save</string>
     <string name="profile_saving">Saving...</string>
+    <string name="profile_seasonTitle">Seasonal watering</string>
+    <string name="profile_seasonHint">Plants need less water in their dormant months</string>
+    <string name="profile_seasonAuto">Auto</string>
+    <string name="profile_seasonNorth">North</string>
+    <string name="profile_seasonSouth">South</string>
+    <string name="profile_seasonOff">Off</string>
+    <string name="profile_seasonAutoNorth">Auto: northern hemisphere — water 1.5× less often from November to February</string>
+    <string name="profile_seasonAutoSouth">Auto: southern hemisphere — water 1.5× less often from May to August</string>
+    <string name="profile_seasonAutoTropical">Auto: tropics — no seasonal adjustment</string>
+    <string name="profile_seasonAutoUnknown">Auto: time zone not recognized — no seasonal adjustment</string>
+    <string name="profile_seasonSaveFailed">Couldn't save. Check your connection</string>
     <string name="profile_testNotification">Send Test Notification</string>
     <string name="profile_recoveryKey">Recovery Key</string>
     <string name="profile_recoveryKeyHint">Save this key to recover your account if you lose access.</string>
@@ -289,6 +300,7 @@
     <string name="a11y_waterPlant">Water plant %1$s</string>
     <string name="a11y_openPlant">Open plant card %1$s</string>
     <string name="a11y_addPlant">Add a new plant</string>
+    <string name="a11y_seasonOption">Seasonal watering: %1$s</string>
     <string name="a11y_clearSearch">Clear search</string>
     <string name="a11y_viewModeList">List view</string>
     <string name="a11y_viewModeCard">Card view</string>

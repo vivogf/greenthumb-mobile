@@ -59,6 +59,14 @@ class GreenThumbApi(private val client: ApiClient) {
     suspend fun updateTimezone(timezone: String): UserDto =
         request<UserEnvelope, TimezoneRequest>(HttpMethod.Patch, "/api/auth/update-timezone", TimezoneRequest(timezone)).user
 
+    /** PATCH /api/auth/update-season-mode { season_mode } → { user } (auto/north/south/off). */
+    suspend fun updateSeasonMode(seasonMode: String): UserDto =
+        request<UserEnvelope, SeasonModeRequest>(
+            HttpMethod.Patch,
+            "/api/auth/update-season-mode",
+            SeasonModeRequest(seasonMode),
+        ).user
+
     /** PATCH /api/auth/update-notification-time { notification_time: "HH:00" } → { user } */
     suspend fun updateNotificationTime(notificationTime: String): UserDto =
         request<UserEnvelope, NotificationTimeRequest>(
@@ -230,6 +238,9 @@ class GreenThumbApi(private val client: ApiClient) {
 
     @kotlinx.serialization.Serializable
     private data class TimezoneRequest(val timezone: String)
+
+    @kotlinx.serialization.Serializable
+    private data class SeasonModeRequest(@kotlinx.serialization.SerialName("season_mode") val seasonMode: String)
 
     @kotlinx.serialization.Serializable
     private data class NotificationTimeRequest(@kotlinx.serialization.SerialName("notification_time") val notificationTime: String)

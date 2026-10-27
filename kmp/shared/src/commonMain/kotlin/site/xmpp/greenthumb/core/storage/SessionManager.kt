@@ -2,15 +2,18 @@ package site.xmpp.greenthumb.core.storage
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.UserDto
+import site.xmpp.greenthumb.season.SeasonMode
 
 /**
  * Результат импорта handoff-файла Stage 0 ([SessionManager.importHandoff]).
@@ -467,6 +470,71 @@ public class SessionManager(
     public suspend fun regenerateRecoveryKey(): UserDto =
         applyUser(api.regenerateRecoveryKey()).user
 
+    /** Serializes season saves: a rollback must not overwrite a later choice. */
+    private val seasonMutex = Mutex()
+
+    /**
+     * Profile season switcher (architecture §5.6): the new mode is published to [state] and
+     * cached_user before the request, so dashboard, detail and the winter hint recompose at once.
+     * Any failure restores the previous mode and rethrows. The save is not cancellable by the
+     * caller: leaving Profile mid-request must not roll back a mode the server already stored.
+     */
+    public suspend fun updateSeasonMode(mode: SeasonMode): UserDto = withContext(NonCancellable) {
+        seasonMutex.withLock {
+            val previous = sessionUser() ?: throw IllegalStateException("no signed-in user")
+            publishUser(previous.copy(seasonMode = mode.wire))
+            val saved = try {
+                api.updateSeasonMode(mode.wire)
+            } catch (error: Throwable) {
+                val current = sessionUser()
+                if (current?.id == previous.id && current.seasonMode == mode.wire) {
+                    publishUser(current.copy(seasonMode = previous.seasonMode))
+                }
+                throw error
+            }
+            if (sessionUser()?.id == saved.id) applyUser(saved)
+            saved
+        }
+    }
+
+    /** Serializes timezone syncs: two triggers at once send one PATCH. */
+    private val timezoneMutex = Mutex()
+
+    /**
+     * Sends `PATCH /api/auth/update-timezone` when [zoneId] differs from the signed-in user's
+     * `timezone` (NULL included). Only the timezone is merged into [state], so an optimistic season
+     * mode in flight stays. A failure is swallowed: the sync never blocks or signs out.
+     * Returns true when the server stored the zone.
+     */
+    public suspend fun syncTimezone(zoneId: String): Boolean = timezoneMutex.withLock {
+        val user = (mutableState.value as? SessionState.SignedIn)?.user ?: return false
+        if (user.timezone == zoneId) return false
+        val saved = try {
+            api.updateTimezone(zoneId)
+        } catch (error: ApiError) {
+            return false
+        }
+        val current = sessionUser()
+        if (current?.id == saved.id) publishUser(current.copy(timezone = saved.timezone))
+        true
+    }
+
+    /**
+     * Re-reads the user (`GET /api/auth/me`) for an existing session, e.g. on app resume, so a mode
+     * changed elsewhere reaches Profile and the dashboard. Failures keep the current state; an
+     * explicit 401 goes through the client's session seam as usual. Returns the fresh user or null.
+     */
+    public suspend fun refreshUser(): UserDto? {
+        val before = sessionUser() ?: return null
+        val me = try {
+            api.me()
+        } catch (error: ApiError) {
+            return null
+        }
+        if (me.id != before.id || sessionUser()?.id != me.id) return null
+        return applyUser(me).user
+    }
+
     /**
      * Восстановление сессии сохранённым ключом (шов M2; вызывается
      * ApiClient-провайдером и тестами). Пишет cached_user; Бросает [ApiError].
@@ -632,6 +700,22 @@ public class SessionManager(
         val state = SessionState.SignedIn(user)
         mutableState.value = state
         return state
+    }
+
+    private fun sessionUser(): UserDto? = when (val current = mutableState.value) {
+        is SessionState.SignedIn -> current.user
+        is SessionState.Offline -> current.user
+        else -> null
+    }
+
+    /** Replaces the user of a signed-in or offline session (state + cached_user), keeping its kind. */
+    private suspend fun publishUser(user: UserDto) {
+        mutableState.value = when (mutableState.value) {
+            is SessionState.SignedIn -> SessionState.SignedIn(user)
+            is SessionState.Offline -> SessionState.Offline(user)
+            else -> return
+        }
+        settings.setCachedUser(user)
     }
 
     /**

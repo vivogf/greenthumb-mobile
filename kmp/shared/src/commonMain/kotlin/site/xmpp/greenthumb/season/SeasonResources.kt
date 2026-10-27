@@ -29,6 +29,21 @@ public object TzLatitudesStore {
     }
 }
 
+/** The bundled latitude table; null until it is read, [TzLatitudes.Empty] if reading fails. */
+@Composable
+public fun rememberTzLatitudes(): TzLatitudes? {
+    val latitudes by produceState(TzLatitudesStore.cachedOrNull()) {
+        value = try {
+            TzLatitudesStore.latitudes()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            TzLatitudes.Empty
+        }
+    }
+    return latitudes
+}
+
 /**
  * Season of the signed-in user: `season_mode` from the session user (the server user, or the
  * `cached_user` in AppSettings when offline) and the device zone. Recomposes when the mode changes.
@@ -41,15 +56,7 @@ public fun rememberSeasonContext(session: SessionManager): SeasonContext {
         is SessionState.Offline -> current.user.seasonMode
         else -> null
     }
-    val latitudes by produceState(TzLatitudesStore.cachedOrNull() ?: TzLatitudes.Empty) {
-        value = try {
-            TzLatitudesStore.latitudes()
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (_: Throwable) {
-            TzLatitudes.Empty
-        }
-    }
+    val latitudes = rememberTzLatitudes() ?: TzLatitudes.Empty
     val clocks = PlantClocks()
     val mode = seasonModeOf(wire)
     return remember(mode, clocks.zone, latitudes) { clocks.season(mode, latitudes) }

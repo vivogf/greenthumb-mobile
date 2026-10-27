@@ -229,6 +229,17 @@
     <string name="profile_notificationTimeHint">Выберите время для ежедневных напоминаний (ваше местное время).</string>
     <string name="profile_save">Сохранить</string>
     <string name="profile_saving">Сохранение...</string>
+    <string name="profile_seasonTitle">Сезонный полив</string>
+    <string name="profile_seasonHint">В спящие месяцы растениям нужно меньше воды</string>
+    <string name="profile_seasonAuto">Авто</string>
+    <string name="profile_seasonNorth">Север</string>
+    <string name="profile_seasonSouth">Юг</string>
+    <string name="profile_seasonOff">Выкл</string>
+    <string name="profile_seasonAutoNorth">Авто: северное полушарие — с ноября по февраль поливаем в 1,5 раза реже</string>
+    <string name="profile_seasonAutoSouth">Авто: южное полушарие — с мая по август поливаем в 1,5 раза реже</string>
+    <string name="profile_seasonAutoTropical">Авто: тропики — без сезонной поправки</string>
+    <string name="profile_seasonAutoUnknown">Авто: часовой пояс не определён — без сезонной поправки</string>
+    <string name="profile_seasonSaveFailed">Не удалось сохранить. Проверьте подключение</string>
     <string name="profile_testNotification">Отправить тестовое уведомление</string>
     <string name="profile_recoveryKey">Ключ восстановления</string>
     <string name="profile_recoveryKeyHint">Сохраните этот ключ для восстановления доступа к аккаунту.</string>
@@ -297,6 +308,7 @@
     <string name="a11y_waterPlant">Полить растение %1$s</string>
     <string name="a11y_openPlant">Открыть карточку растения %1$s</string>
     <string name="a11y_addPlant">Добавить новое растение</string>
+    <string name="a11y_seasonOption">Сезонный полив: %1$s</string>
     <string name="a11y_clearSearch">Очистить поиск</string>
     <string name="a11y_viewModeList">Отображение списком</string>
     <string name="a11y_viewModeCard">Отображение карточками</string>
