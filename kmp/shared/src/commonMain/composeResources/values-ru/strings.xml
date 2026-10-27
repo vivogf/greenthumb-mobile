@@ -386,4 +386,20 @@
     <string name="journal_deleteTitle">Удалить заметку?</string>
     <string name="journal_deleteMessage">Заметка будет удалена из журнала.</string>
     <string name="journal_deleteFailed">Не удалось удалить заметку. Проверьте подключение и повторите.</string>
+    <!-- Photo timeline on plant detail (architecture §5.5). -->
+    <string name="timeline_title">Фото</string>
+    <string name="timeline_addPhoto">Добавить фото</string>
+    <string name="timeline_empty">Фото пока нет</string>
+    <string name="timeline_openPhoto">Открыть фото от %1$s</string>
+    <string name="timeline_captionTitle">Новое фото</string>
+    <string name="timeline_captionPlaceholder">Подпись (необязательно)</string>
+    <string name="timeline_save">Сохранить фото</string>
+    <string name="timeline_uploading">Загрузка…</string>
+    <string name="timeline_networkRequired">Чтобы добавить фото, нужна сеть. Ничего не загружено. Попробуйте снова, когда появится подключение.</string>
+    <string name="timeline_uploadFailed">Не удалось загрузить фото. Попробуйте ещё раз.</string>
+    <string name="timeline_close">Закрыть</string>
+    <string name="timeline_deletePhoto">Удалить фото</string>
+    <string name="timeline_deleteTitle">Удалить это фото?</string>
+    <string name="timeline_deleteMessage">Фото будет удалено из ленты и журнала.</string>
+    <string name="timeline_deleteFailed">Не удалось удалить фото. Проверьте подключение и попробуйте ещё раз.</string>
 </resources>

@@ -3,7 +3,8 @@
 # the caller toggles airplane mode, installs APKs and checks the server with curl between stages.
 #   cache           any build, online: dashboard shows PLANT (local cache warmed)
 #   open            launch, open PLANT, scroll to the journal, screenshot SHOT
-#   offline-note    open PLANT, type NOTE, try to save: network-required message, text kept
+#   offline-note    open PLANT, type NOTE, try to save with the keyboard open: the
+#                   network-required message is on screen without scrolling, text kept
 #   add-note        online: open PLANT, save NOTE, it appears in the journal
 #   retry-note      no relaunch (continues offline-note): tap "Add note" again, note saved
 #   delete-note     open PLANT: NOTE survived reopen; delete asks, Cancel keeps, Delete removes
@@ -85,15 +86,15 @@ name: GreenThumb journal (${STEP})
     when:
       true: ${STEP == 'offline-note'}
     commands:
+      # Keyboard stays open: the message must show up on screen without scrolling.
       - tapOn: "Add a note…"
       - inputText: ${NOTE}
-      - hideKeyboard
       - tapOn: "Add note"
-      - scrollUntilVisible:
-          element: "Network connection required.*"
-          direction: DOWN
+      - extendedWaitUntil:
+          visible: "Network connection required.*"
           timeout: 5000
       - assertVisible: ${NOTE}
+      - assertVisible: "Add note"
       - takeScreenshot: ${SHOT}
 
 - runFlow:

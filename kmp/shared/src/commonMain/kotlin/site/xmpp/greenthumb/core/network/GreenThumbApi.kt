@@ -126,6 +126,28 @@ class GreenThumbApi(private val client: ApiClient) {
         client.request(HttpMethod.Delete, "/api/plants/$plantId/events/$eventId")
     }
 
+    /** GET /api/plants/:id/photos → { photos } newest first. */
+    suspend fun listPhotos(plantId: String): List<TimelinePhotoDto> =
+        request<TimelinePhotosPage>(HttpMethod.Get, "/api/plants/$plantId/photos").photos
+
+    /** POST /api/plants/:id/photos { photo, caption? } → 201 photo + its `photo` event. */
+    suspend fun addPhoto(plantId: String, photoDataUri: String, caption: String?): CreatedTimelinePhotoDto =
+        json.decodeFromString(
+            decodeBody(
+                client.request(
+                    HttpMethod.Post,
+                    "/api/plants/$plantId/photos",
+                    json.encodeToString(PhotoRequest(photo = photoDataUri, caption = caption)),
+                    timeoutMillis = PHOTO_UPLOAD_TIMEOUT_MILLIS,
+                ),
+            ),
+        )
+
+    /** DELETE /api/plants/:id/photos/:photoId → 204; the server also drops its `photo` event. */
+    suspend fun deletePhoto(plantId: String, photoId: String) {
+        client.request(HttpMethod.Delete, "/api/plants/$plantId/photos/$photoId")
+    }
+
     // ------------------------------------------------------------------
     // Species
     // ------------------------------------------------------------------
@@ -218,6 +240,9 @@ class GreenThumbApi(private val client: ApiClient) {
         val note: String,
         @kotlinx.serialization.SerialName("occurred_on") val occurredOn: String? = null,
     )
+
+    @kotlinx.serialization.Serializable
+    private data class PhotoRequest(val photo: String, val caption: String? = null)
 
     @kotlinx.serialization.Serializable
     private data class ExpoSubscribeRequest(@kotlinx.serialization.SerialName("expo_push_token") val expoPushToken: String, val language: String)

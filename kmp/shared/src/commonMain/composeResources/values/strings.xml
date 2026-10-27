@@ -384,4 +384,20 @@
     <string name="journal_deleteTitle">Delete this note?</string>
     <string name="journal_deleteMessage">The note will be removed from the journal.</string>
     <string name="journal_deleteFailed">Couldn’t delete the note. Check your connection and try again.</string>
+    <!-- Photo timeline on plant detail (architecture §5.5). -->
+    <string name="timeline_title">Photos</string>
+    <string name="timeline_addPhoto">Add photo</string>
+    <string name="timeline_empty">No photos yet</string>
+    <string name="timeline_openPhoto">Open photo from %1$s</string>
+    <string name="timeline_captionTitle">New photo</string>
+    <string name="timeline_captionPlaceholder">Caption (optional)</string>
+    <string name="timeline_save">Save photo</string>
+    <string name="timeline_uploading">Uploading…</string>
+    <string name="timeline_networkRequired">Network connection required to add a photo. Nothing was uploaded. Try again when you are online.</string>
+    <string name="timeline_uploadFailed">Couldn’t upload the photo. Try again.</string>
+    <string name="timeline_close">Close</string>
+    <string name="timeline_deletePhoto">Delete photo</string>
+    <string name="timeline_deleteTitle">Delete this photo?</string>
+    <string name="timeline_deleteMessage">The photo will be removed from the timeline and the journal.</string>
+    <string name="timeline_deleteFailed">Couldn’t delete the photo. Check your connection and try again.</string>
 </resources>

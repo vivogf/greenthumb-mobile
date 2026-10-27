@@ -209,6 +209,9 @@ public interface CareEventDao {
     @Query("DELETE FROM care_events WHERE plant_id = :plantId")
     public suspend fun deleteForPlant(plantId: String)
 
+    @Query("DELETE FROM care_events WHERE photo_id = :photoId")
+    public suspend fun deleteByPhotoId(photoId: String)
+
     /** Successful refresh: the server list replaces this plant's rows in one commit. */
     @Transaction
     public suspend fun replaceForPlant(plantId: String, events: List<CareEventEntity>) {
@@ -237,6 +240,21 @@ public interface PlantPhotoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     public suspend fun upsert(entity: PlantPhotoEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsertAll(entities: List<PlantPhotoEntity>)
+
     @Query("DELETE FROM plant_photos WHERE id = :id")
     public suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM plant_photos WHERE plant_id = :plantId")
+    public suspend fun deleteForPlant(plantId: String)
+
+    /** Successful refresh: the server list replaces this plant's rows in one commit. */
+    @Transaction
+    public suspend fun replaceForPlant(plantId: String, photos: List<PlantPhotoEntity>) {
+        deleteForPlant(plantId)
+        if (photos.isNotEmpty()) {
+            upsertAll(photos)
+        }
+    }
 }

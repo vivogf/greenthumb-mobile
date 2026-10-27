@@ -208,7 +208,28 @@ class PlantDetailScreenTest {
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
         /** Care journal of det-1 on the "server", newest first after [sortedEvents]. */
-        data class FakeEvent(val id: String, val type: String, val occurredOn: String, val note: String? = null)
+        data class FakeEvent(
+            val id: String,
+            val type: String,
+            val occurredOn: String,
+            val note: String? = null,
+            val photoId: String? = null,
+        )
+
+        /** Timeline of det-1 on the "server"; served newest first. */
+        data class FakePhoto(val id: String, val takenOn: String, val caption: String? = null)
+
+        val photos = mutableListOf<FakePhoto>()
+        var photoGets = 0
+        var photosThrows: Throwable? = null
+        var photoPosts = 0
+        var photoDeletes = 0
+
+        private fun photoJson(p: FakePhoto): String {
+            val caption = p.caption?.let { "\"$it\"" } ?: "null"
+            return """{"id":"${p.id}","url":"","taken_on":"${p.takenOn}","caption":$caption,""" +
+                """"created_at":"${p.takenOn}T08:00:00.000000Z"}"""
+        }
 
         val events = mutableListOf<FakeEvent>()
         var eventGets = 0
@@ -226,7 +247,7 @@ class PlantDetailScreenTest {
         private fun eventJson(e: FakeEvent): String {
             val note = e.note?.let { "\"$it\"" } ?: "null"
             return """{"id":"${e.id}","plant_id":"det-1","user_id":"73","type":"${e.type}",""" +
-                """"occurred_on":"${e.occurredOn}","note":$note,"photo_id":null,""" +
+                """"occurred_on":"${e.occurredOn}","note":$note,"photo_id":${e.photoId?.let { "\"$it\"" } ?: "null"},""" +
                 """"created_at":"${e.occurredOn}T08:00:00.000000Z"}"""
         }
 
@@ -257,6 +278,23 @@ class PlantDetailScreenTest {
                     val created = FakeEvent("n-${++nextEvent}", "note", "2026-09-24", note)
                     synchronized(events) { events += created }
                     respond(eventJson(created), HttpStatusCode.Created, JSON_HEADERS)
+                }
+                path == "/api/plants/det-1/photos" && request.method == HttpMethod.Get -> {
+                    photoGets++
+                    photosThrows?.let { throw it }
+                    val rows = synchronized(photos) { photos.sortedByDescending { it.takenOn } }
+                    respond("""{"photos":[${rows.joinToString(",") { photoJson(it) }}]}""", HttpStatusCode.OK, JSON_HEADERS)
+                }
+                path == "/api/plants/det-1/photos" && request.method == HttpMethod.Post -> {
+                    photoPosts++
+                    respond("{}", HttpStatusCode.InternalServerError, JSON_HEADERS)
+                }
+                path.startsWith("/api/plants/det-1/photos/") && request.method == HttpMethod.Delete -> {
+                    photoDeletes++
+                    val id = path.substringAfterLast('/')
+                    synchronized(photos) { photos.removeAll { it.id == id } }
+                    synchronized(events) { events.removeAll { it.photoId == id } }
+                    respond("", HttpStatusCode.NoContent, JSON_HEADERS)
                 }
                 path.startsWith("/api/plants/det-1/events/") && request.method == HttpMethod.Delete -> {
                     eventDeletes++
@@ -850,6 +888,10 @@ class PlantDetailScreenTest {
             onNode(hasTestTag("journal_noteInput")).performTextInput("Offline 99")
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntilAtLeastOneExists(hasSubText("Network connection required"), TIMEOUT)
+            // The message sits next to the field, above the button, so it is on screen after the tap.
+            val messageTop = onNode(hasTestTag("journal_message"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            val buttonTop = onNode(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            assertTrue(messageTop < buttonTop, "message $messageTop above button $buttonTop")
             // The typed text stays in the field and nothing reached the journal.
             assertEquals(1, onAllNodes(hasTestTag("journal_noteInput") and hasText("Offline 99")).fetchSemanticsNodes().size)
             assertEquals(1, graph.server.notePosts)
@@ -919,6 +961,168 @@ class PlantDetailScreenTest {
             runOnIdle { graph.close() }
         }
     }
+    private fun seedTimeline(server: FakeServer) {
+        server.photos += FakeServer.FakePhoto("ph-old", "2026-09-30", "First bud")
+        server.photos += FakeServer.FakePhoto("ph-new", "2026-10-02", "New leaf")
+        server.events += FakeServer.FakeEvent("ev-old", "photo", "2026-09-30", photoId = "ph-old")
+        server.events += FakeServer.FakeEvent("ev-new", "photo", "2026-10-02", photoId = "ph-new")
+    }
+
+    private fun openPhotoMatcher(date: String): SemanticsMatcher =
+        hasClickAction() and hasContentDescription("Open photo from $date")
+
+    private fun androidx.compose.ui.test.ComposeUiTest.waitUnmerged(matcher: SemanticsMatcher) {
+        waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun androidx.compose.ui.test.ComposeUiTest.waitGoneUnmerged(matcher: SemanticsMatcher) {
+        waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
+    }
+
+    private fun androidx.compose.ui.test.ComposeUiTest.clickUnmerged(matcher: SemanticsMatcher) {
+        onAllNodes(matcher, useUnmergedTree = true)[0]
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+    }
+
+    @Test
+    fun timeline_rendersNewestFirst_andOpensFullScreen() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        seedTimeline(graph.server)
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            waitUntilAtLeastOneExists(hasText("Photos"), TIMEOUT)
+            waitUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUnmerged(openPhotoMatcher("09/30/2026"))
+            val newTop = onAllNodes(hasTestTag("timeline_photo_ph-new"), useUnmergedTree = true).fetchSemanticsNodes().single().positionInRoot
+            val oldTop = onAllNodes(hasTestTag("timeline_photo_ph-old"), useUnmergedTree = true).fetchSemanticsNodes().single().positionInRoot
+            assertTrue(newTop.y < oldTop.y || (newTop.y == oldTop.y && newTop.x < oldTop.x), "newest first: $newTop $oldTop")
+
+            clickUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUnmerged(hasTestTag("timeline_viewer"))
+            assertEquals(1, onAllNodes(hasTestTag("timeline_viewer_caption") and hasText("New leaf"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            clickLast(hasClickAction() and hasText("Close"))
+            waitGoneUnmerged(hasTestTag("timeline_viewer"))
+            waitUntilAtLeastOneExists(hasText("Photos"), TIMEOUT)
+            assertEquals(0, graph.server.photoDeletes)
+            assertEquals(0, graph.server.photoPosts)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun timeline_rendersInRussian() {
+        val graph = newHarness()
+        seedTimeline(graph.server)
+        val repo = graph.opener.open("73")
+        runBlocking { repo.refresh() }
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
+                        PlantDetailScreen(
+                            userId = "73",
+                            plantId = "det-1",
+                            opener = graph.opener,
+                            onBack = {},
+                            onDeleted = {},
+                            deleteErrorState = PlantDeleteErrorState(),
+                        )
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Добавить фото"), TIMEOUT)
+            waitUnmerged(hasContentDescription("Открыть фото от 02.10.2026"))
+            waitUnmerged(hasContentDescription("Открыть фото от 30.09.2026"))
+            assertTrue(onAllNodes(hasText("timeline", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun timeline_delete_needsConfirmation_andUpdatesTimelineAndJournal() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        seedTimeline(graph.server)
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+            waitUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Photo added"), useUnmergedTree = true).fetchSemanticsNodes().size == 2
+            }
+
+            clickUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUnmerged(hasTestTag("timeline_viewer"))
+            clickLast(hasClickAction() and hasText("Delete photo"))
+            waitUntilAtLeastOneExists(hasText("Delete this photo?"), TIMEOUT)
+            clickLast(hasClickAction() and hasText("Cancel"))
+            waitUntilDoesNotExist(hasText("Delete this photo?"), TIMEOUT)
+            assertEquals(0, graph.server.photoDeletes)
+
+            clickLast(hasClickAction() and hasText("Delete photo"))
+            waitUntilAtLeastOneExists(hasText("Delete this photo?"), TIMEOUT)
+            clickLast(hasClickAction() and hasText("Delete", substring = false))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.photoDeletes == 1 }
+            waitGoneUnmerged(hasTestTag("timeline_viewer"))
+            waitGoneUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUnmerged(openPhotoMatcher("09/30/2026"))
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Photo added"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
+            }
+            assertEquals(listOf("ph-old"), graph.server.photos.map { it.id })
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun timeline_offline_keepsCache_andAddSaysNetworkRequired() {
+        val graph = newHarness()
+        seedTimeline(graph.server)
+        val repo = graph.opener.open("73")
+        runBlocking {
+            repo.refresh()
+            repo.timeline.refresh("det-1")
+        }
+        graph.server.photosThrows = IllegalStateException("Connection reset")
+        graph.server.eventsThrows = IllegalStateException("Connection reset")
+        val offline = MutableStateFlow(false)
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
+                        PlantDetailScreen(
+                            userId = "73",
+                            plantId = "det-1",
+                            opener = graph.opener,
+                            onBack = {},
+                            onDeleted = {},
+                            deleteErrorState = PlantDeleteErrorState(),
+                            isOnline = offline,
+                        )
+                    }
+                }
+            }
+            waitUnmerged(openPhotoMatcher("10/02/2026"))
+            waitUnmerged(hasTestTag("timeline_offline"))
+            clickUnmerged(hasClickAction() and hasTestTag("timeline_addPhoto"))
+            waitUntilAtLeastOneExists(hasSubText("Network connection required to add a photo"), TIMEOUT)
+            // No camera/gallery choice is offered offline, and nothing is sent.
+            assertTrue(onAllNodes(hasText("Camera")).fetchSemanticsNodes().isEmpty())
+            val messageTop = onNode(hasTestTag("timeline_message"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            val photoTop = onAllNodes(hasTestTag("timeline_photo_ph-new"), useUnmergedTree = true).fetchSemanticsNodes().single().positionInRoot.y
+            assertTrue(messageTop < photoTop, "message next to the button, above the photos")
+            assertEquals(0, graph.server.photoPosts)
+            runOnIdle { graph.close() }
+        }
+    }
+
     private companion object {
         const val TIMEOUT: Long = 10_000L
     }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,9 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * cardBorder, радиус [Radii.xl]. Тап по подложке — [onDismissRequest].
  * Тап по карточке не закрывает.
  */
+/** Full-width dialog window whose content receives keyboard insets (see [GtModal]'s imePadding). */
+internal expect fun gtModalDialogProperties(): DialogProperties
+
 @Composable
 internal fun GtModal(
     onDismissRequest: () -> Unit,
@@ -35,7 +39,7 @@ internal fun GtModal(
     val shape = RoundedCornerShape(Radii.xl)
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = gtModalDialogProperties(),
     ) {
         Box(
             modifier = Modifier
@@ -45,7 +49,9 @@ internal fun GtModal(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onDismissRequest,
-                ),
+                )
+                // Keeps a card with a text field above the keyboard instead of under it.
+                .imePadding(),
             contentAlignment = Alignment.Center,
         ) {
             Column(

@@ -63,11 +63,15 @@
              (Stage 9 п.7, deep-link plant_id), а не плодит второй экземпляр
              поверх задачи. VIEW/deep-link фильтров НЕТ (схема greenthumb://
              зарегистрирована только у RN-сборки; KMP маршрутизирует extras
-             launch-intent'а FCM, без VIEW-маршрутов). -->
+             launch-intent'а FCM, без VIEW-маршрутов).
+             adjustResize: клавиатура сжимает окно, а не сдвигает его — иначе
+             скролл деталки не знает о клавиатуре, и кнопка «Add note» с
+             сообщением «нужна сеть» остаются под ней. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@android:style/Theme.Material.Light.NoActionBar"
             android:configChanges="uiMode">
             <intent-filter>

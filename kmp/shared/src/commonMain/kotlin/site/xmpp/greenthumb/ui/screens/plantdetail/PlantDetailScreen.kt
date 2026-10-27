@@ -370,6 +370,9 @@ public fun PlantDetailScreen(
             val photoPicker = rememberPhotoPicker { bytes ->
                 update(PatchPlantDto(photoUrl = Patch.Value(photoDataUri(bytes))))
             }
+            // Timeline uploads use their own picker: the crop result goes to a caption dialog, not the cover.
+            val timelinePick = remember(plant.id) { TimelinePick() }
+            val timelinePicker = rememberPhotoPicker { bytes -> timelinePick.bytes = bytes }
 
             fun performDelete() {
                 if (deleting) return
@@ -763,6 +766,17 @@ public fun PlantDetailScreen(
                             }
                         }
 
+                        // ── Photo timeline (architecture §5.5) ──
+                        PlantTimelineSection(
+                            timeline = repo.timeline,
+                            plantId = plant.id,
+                            online = online,
+                            refreshKey = journalRefreshKey,
+                            locale = locale,
+                            picker = timelinePicker,
+                            pick = timelinePick,
+                        )
+
                         // ── Journal (architecture §5.5) ──
                         PlantJournalSection(
                             journal = repo.journal,
@@ -785,6 +799,7 @@ public fun PlantDetailScreen(
                 }
                 // Пикер фото поверх экрана (Stage 8 п.1).
                 PhotoPickerHost(photoPicker)
+                PhotoPickerHost(timelinePicker)
             }
 
             // ── Подтверждение удаления (RN confirmDelete showAlert) ──

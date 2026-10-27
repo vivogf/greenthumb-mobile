@@ -98,6 +98,9 @@ public class PlantRepository(
     /** Care journal on the same per-user database and session. */
     public val journal: PlantJournal = PlantJournal(db, api, session) { closed }
 
+    /** Photo timeline on the same per-user database and session. */
+    public val timeline: PlantTimeline = PlantTimeline(db, api, session) { closed }
+
     public fun observePlants(): Flow<List<PlantDto>> =
         observeWhileOpen { db.plants().observeAll().map { rows -> rows.map { it.toDto() } } }
 

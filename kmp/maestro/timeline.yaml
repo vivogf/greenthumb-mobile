@@ -1,0 +1,265 @@
+# Photo timeline on plant detail (feature m4-timeline-ui, VAL-TIMELINE-011..014,
+# VAL-CROSS-015). Keyless, signed in, English UI on elt_test. The caller seeds
+# plant "TimelineFern" with one server photo captioned "Seed photo from server"
+# and pushes a distinguishable JPEG as the newest gallery item. STEP selects one
+# stage:
+#   online-add     open the timeline from detail, add the gallery photo with a
+#                  caption, see it first, open it full-screen
+#   camera-add     add a photo from the emulator camera without a caption
+#                  (run after online-add)
+#   delete         delete the captioned photo after confirmation; the journal
+#                  photo entry goes too
+#   reopen         after delete: a fresh start still shows the camera photo and
+#                  the seed photo, the deleted caption is gone, the journal has
+#                  two "Photo added" rows
+#   navigate       detail → journal → full-screen photo → Back closes the viewer
+#                  → Back returns to the dashboard (no event/photo change)
+#   ru             Russian UI (switch with journal.yaml lang-ru first): labels,
+#                  dates and the full-screen viewer
+#   offline        airplane mode (switched by the caller): cached photos and the
+#                  viewer still work; "Add photo" shows "network required" next
+#                  to the button and opens no picker, so nothing is sent
+appId: com.greenthumbplantcare.debug
+name: GreenThumb photo timeline (${STEP})
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile|Профиль"
+    timeout: 30000
+- takeScreenshot: ${STEP}-dashboard
+- tapOn: "TimelineFern"
+- scrollUntilVisible:
+    element:
+      text: "Photos|Фото"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Add photo|Добавить фото"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Journal|Журнал"
+    direction: DOWN
+
+- runFlow:
+    when:
+      true: ${STEP == 'online-add'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Seed photo from server"
+          timeout: 15000
+      - tapOn: "Add photo"
+      - tapOn: "Gallery"
+      - extendedWaitUntil:
+          visible: "Photo taken on.*"
+          timeout: 10000
+      - tapOn:
+          text: "Photo taken on.*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Done"
+          timeout: 10000
+      - tapOn: "Done"
+      - extendedWaitUntil:
+          visible: "New photo"
+          timeout: 10000
+      - tapOn: "Caption (optional)"
+      - inputText: "Gallery splash"
+      - tapOn: "Save photo"
+
+- runFlow:
+    when:
+      true: ${STEP == 'online-add'}
+    commands:
+      - extendedWaitUntil:
+          notVisible: "New photo"
+          timeout: 40000
+      - assertVisible: "Gallery splash"
+      - assertVisible: "Seed photo from server"
+      - takeScreenshot: online-added
+      - tapOn:
+          text: "Open photo from .*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Delete photo"
+          timeout: 5000
+      - assertVisible: "Close"
+      - assertVisible: "Gallery splash"
+      - takeScreenshot: online-viewer
+      - tapOn: "Close"
+      - assertNotVisible: "Delete photo"
+
+- runFlow:
+    when:
+      true: ${STEP == 'camera-add'}
+    commands:
+      - tapOn: "Add photo"
+      - tapOn: "Camera"
+      - runFlow:
+          when:
+            visible: "While using the app|Only this time"
+          commands:
+            - tapOn: "While using the app|Only this time"
+      - extendedWaitUntil:
+          visible:
+            id: ".*shutter.*"
+          timeout: 20000
+      - tapOn:
+          id: ".*shutter.*"
+      - extendedWaitUntil:
+          visible:
+            id: ".*done.*"
+          timeout: 15000
+      - tapOn:
+          id: ".*done.*"
+      - extendedWaitUntil:
+          visible: "Done"
+          timeout: 15000
+      - tapOn: "Done"
+      - extendedWaitUntil:
+          visible: "New photo"
+          timeout: 10000
+      - tapOn: "Save photo"
+      - extendedWaitUntil:
+          notVisible: "New photo"
+          timeout: 40000
+      - takeScreenshot: camera-added
+      - tapOn:
+          text: "Open photo from .*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Delete photo"
+          timeout: 5000
+      - takeScreenshot: camera-viewer
+      - tapOn: "Close"
+
+- runFlow:
+    when:
+      true: ${STEP == 'delete'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Gallery splash"
+          timeout: 15000
+      # Newest first after camera-add: camera photo, "Gallery splash", seed.
+      - tapOn:
+          text: "Open photo from .*"
+          index: 1
+      - extendedWaitUntil:
+          visible: "Delete photo"
+          timeout: 5000
+      - assertVisible: "Gallery splash"
+      - tapOn: "Delete photo"
+      - extendedWaitUntil:
+          visible: "Delete this photo?"
+          timeout: 5000
+      - takeScreenshot: delete-confirm
+      - tapOn: "Cancel"
+      - assertVisible: "Delete photo"
+      - assertVisible: "Gallery splash"
+      - tapOn: "Delete photo"
+      - tapOn: "Delete"
+      - extendedWaitUntil:
+          notVisible: "Delete photo"
+          timeout: 20000
+      - assertNotVisible: "Gallery splash"
+      - assertVisible: "Seed photo from server"
+      - takeScreenshot: deleted
+
+- runFlow:
+    when:
+      true: ${STEP == 'offline'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Seed photo from server"
+          timeout: 15000
+      - assertVisible: "Gallery splash"
+      - takeScreenshot: offline-cache
+      - tapOn: "Add photo"
+      - extendedWaitUntil:
+          visible: "Network connection required to add a photo.*"
+          timeout: 5000
+      - assertNotVisible: "Gallery"
+      - assertNotVisible: "New photo"
+      - takeScreenshot: offline-network-required
+      - tapOn:
+          text: "Open photo from .*"
+          index: 1
+      - extendedWaitUntil:
+          visible: "Delete photo"
+          timeout: 5000
+      - assertVisible: "Seed photo from server"
+      - takeScreenshot: offline-viewer
+      - tapOn: "Close"
+
+- runFlow:
+    when:
+      true: ${STEP == 'reopen'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Seed photo from server"
+          timeout: 15000
+      - assertNotVisible: "Gallery splash"
+      - assertVisible:
+          text: "Open photo from .*"
+          index: 1
+      - takeScreenshot: reopen-timeline
+      - scrollUntilVisible:
+          element:
+            text: "Photo added"
+            index: 1
+          direction: DOWN
+      - takeScreenshot: reopen-journal
+
+- runFlow:
+    when:
+      true: ${STEP == 'navigate'}
+    commands:
+      - assertVisible: "Add a note…"
+      - takeScreenshot: navigate-journal
+      - scrollUntilVisible:
+          element:
+            text: "Photos"
+          direction: UP
+      - tapOn:
+          text: "Open photo from .*"
+          index: 1
+      - extendedWaitUntil:
+          visible: "Delete photo"
+          timeout: 5000
+      - assertVisible: "Seed photo from server"
+      - takeScreenshot: navigate-viewer
+      - back
+      - assertNotVisible: "Delete photo"
+      - assertVisible: "Add photo"
+      - takeScreenshot: navigate-timeline
+      - back
+      - extendedWaitUntil:
+          visible: "Profile"
+          timeout: 5000
+      - assertVisible: "TimelineFern"
+      - takeScreenshot: navigate-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'ru'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Seed photo from server"
+          timeout: 15000
+      - assertVisible: "\\d\\d\\.\\d\\d\\.\\d{4}"
+      - scrollUntilVisible:
+          element:
+            text: "Добавить фото"
+          direction: UP
+      - takeScreenshot: ru-timeline
+      - tapOn:
+          text: "Открыть фото от .*"
+          index: 1
+      - extendedWaitUntil:
+          visible: "Удалить фото"
+          timeout: 5000
+      - assertVisible: "Закрыть"
+      - takeScreenshot: ru-viewer
+      - tapOn: "Закрыть"
+      - assertNotVisible: "Удалить фото"
