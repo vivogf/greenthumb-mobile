@@ -43,6 +43,24 @@ RES_DIR = (
 # Ключи KMP, которых нет в RN-локалях (не пропуск — осознанное расширение).
 # Каждое имя обязано присутствовать в ОБОИХ strings.xml.
 KMP_ONLY_KEYS = {
+    # journal.* — care journal on plant detail (architecture §5.5); RN has none.
+    "journal.title",
+    "journal.typeWater",
+    "journal.typeFertilize",
+    "journal.typeRepot",
+    "journal.typePrune",
+    "journal.typeNote",
+    "journal.typePhoto",
+    "journal.typeOther",
+    "journal.empty",
+    "journal.notePlaceholder",
+    "journal.addNote",
+    "journal.networkRequired",
+    "journal.saveFailed",
+    "journal.deleteNote",
+    "journal.deleteTitle",
+    "journal.deleteMessage",
+    "journal.deleteFailed",
     # species.* — offline species catalog (architecture §5.4); RN has none.
     "species.choose",
     "species.change",

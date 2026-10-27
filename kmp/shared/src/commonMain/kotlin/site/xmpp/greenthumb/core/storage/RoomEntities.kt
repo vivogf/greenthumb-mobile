@@ -101,3 +101,63 @@ public data class PendingMutationEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 )
+
+/**
+ * Cached server care event (architecture §5.5, `care_events` on the server).
+ * Room holds the last confirmed server copy per plant; nothing here is a
+ * pending write. Dates are `YYYY-MM-DD`; `created_at` is the server ISO
+ * string with microseconds, so text order equals time order.
+ *
+ * Added in schema v3 ([GreenThumbMigrations.MIGRATION_2_3]).
+ */
+@Entity(
+    tableName = "care_events",
+    indices = [
+        Index(value = ["plant_id", "occurred_on", "created_at"]),
+    ],
+)
+public data class CareEventEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    val id: String,
+    @ColumnInfo(name = "plant_id")
+    val plantId: String,
+    @ColumnInfo(name = "user_id")
+    val userId: String,
+    @ColumnInfo(name = "type")
+    val type: String,
+    @ColumnInfo(name = "occurred_on")
+    val occurredOn: String,
+    @ColumnInfo(name = "note")
+    val note: String?,
+    @ColumnInfo(name = "photo_id")
+    val photoId: String?,
+    @ColumnInfo(name = "created_at")
+    val createdAt: String,
+)
+
+/**
+ * Cached timeline photo (server `plant_photos`). Added in schema v3 together
+ * with [CareEventEntity] so the timeline needs no further schema bump.
+ */
+@Entity(
+    tableName = "plant_photos",
+    indices = [
+        Index(value = ["plant_id", "taken_on"]),
+    ],
+)
+public data class PlantPhotoEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    val id: String,
+    @ColumnInfo(name = "plant_id")
+    val plantId: String,
+    @ColumnInfo(name = "url")
+    val url: String,
+    @ColumnInfo(name = "taken_on")
+    val takenOn: String,
+    @ColumnInfo(name = "caption")
+    val caption: String?,
+    @ColumnInfo(name = "created_at")
+    val createdAt: String,
+)

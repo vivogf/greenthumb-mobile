@@ -366,4 +366,22 @@
     <string name="species_searchCatalog">Search the catalog</string>
     <string name="species_poweredBy">Powered by Pl@ntNet</string>
     <string name="species_plantNetLogo">Pl@ntNet logo</string>
+    <!-- Care journal on plant detail (architecture §5.5). -->
+    <string name="journal_title">Journal</string>
+    <string name="journal_typeWater">Watered</string>
+    <string name="journal_typeFertilize">Fertilized</string>
+    <string name="journal_typeRepot">Repotted</string>
+    <string name="journal_typePrune">Pruned</string>
+    <string name="journal_typeNote">Note</string>
+    <string name="journal_typePhoto">Photo added</string>
+    <string name="journal_typeOther">Entry</string>
+    <string name="journal_empty">No entries yet</string>
+    <string name="journal_notePlaceholder">Add a note…</string>
+    <string name="journal_addNote">Add note</string>
+    <string name="journal_networkRequired">Network connection required. The note is not saved; your text is kept. Try again when you are online.</string>
+    <string name="journal_saveFailed">Couldn’t save the note</string>
+    <string name="journal_deleteNote">Delete note</string>
+    <string name="journal_deleteTitle">Delete this note?</string>
+    <string name="journal_deleteMessage">The note will be removed from the journal.</string>
+    <string name="journal_deleteFailed">Couldn’t delete the note. Check your connection and try again.</string>
 </resources>

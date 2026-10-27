@@ -100,6 +100,33 @@ class GreenThumbApi(private val client: ApiClient) {
         request<MassActionResult>(HttpMethod.Post, "/api/plants/postpone-all")
 
     // ------------------------------------------------------------------
+    // Care journal (architecture §5.5)
+    // ------------------------------------------------------------------
+
+    /** GET /api/plants/:id/events?limit&before → one page, newest first. */
+    suspend fun listEvents(
+        plantId: String,
+        limit: Int = CARE_EVENTS_PAGE_LIMIT,
+        before: String? = null,
+    ): CareEventsPage {
+        val cursor = if (before == null) "" else "&before=$before"
+        return request<CareEventsPage>(HttpMethod.Get, "/api/plants/$plantId/events?limit=$limit$cursor")
+    }
+
+    /** POST /api/plants/:id/events { type: "note", note } → 201 created event. */
+    suspend fun addNote(plantId: String, note: String, occurredOn: String? = null): CareEventDto =
+        request<CareEventDto, NoteRequest>(
+            HttpMethod.Post,
+            "/api/plants/$plantId/events",
+            NoteRequest(type = CareEventType.NOTE, note = note, occurredOn = occurredOn),
+        )
+
+    /** DELETE /api/plants/:id/events/:eventId → 204; non-note 409, missing 404. */
+    suspend fun deleteEvent(plantId: String, eventId: String) {
+        client.request(HttpMethod.Delete, "/api/plants/$plantId/events/$eventId")
+    }
+
+    // ------------------------------------------------------------------
     // Species
     // ------------------------------------------------------------------
 
@@ -184,6 +211,13 @@ class GreenThumbApi(private val client: ApiClient) {
 
     @kotlinx.serialization.Serializable
     private data class NotificationTimeRequest(@kotlinx.serialization.SerialName("notification_time") val notificationTime: String)
+
+    @kotlinx.serialization.Serializable
+    private data class NoteRequest(
+        val type: String,
+        val note: String,
+        @kotlinx.serialization.SerialName("occurred_on") val occurredOn: String? = null,
+    )
 
     @kotlinx.serialization.Serializable
     private data class ExpoSubscribeRequest(@kotlinx.serialization.SerialName("expo_push_token") val expoPushToken: String, val language: String)

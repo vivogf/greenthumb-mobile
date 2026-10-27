@@ -1,0 +1,206 @@
+# Plant journal on the device (feature m4-journal-ui; VAL-JOURNAL-014/015/016/018/020, VAL-CROSS-011).
+# Keyless, signed in, English UI unless the stage switches language. STEP selects one stage;
+# the caller toggles airplane mode, installs APKs and checks the server with curl between stages.
+#   cache           any build, online: dashboard shows PLANT (local cache warmed)
+#   open            launch, open PLANT, scroll to the journal, screenshot SHOT
+#   offline-note    open PLANT, type NOTE, try to save: network-required message, text kept
+#   add-note        online: open PLANT, save NOTE, it appears in the journal
+#   retry-note      no relaunch (continues offline-note): tap "Add note" again, note saved
+#   delete-note     open PLANT: NOTE survived reopen; delete asks, Cancel keeps, Delete removes
+#   water           open PLANT, tap Water, journal shows a Watered entry
+#   water-offline   airplane mode: water PLANT in detail, dashboard shows it as not saved yet
+#   pending         airplane mode after force-stop: PLANT still shows the unsaved watering
+#   lang-ru/lang-en switch the app language in Profile
+appId: com.greenthumbplantcare.debug
+name: GreenThumb journal (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP != 'retry-note'}
+    commands:
+      - stopApp
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'cache'}
+    commands:
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 20000
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'open' || STEP == 'offline-note' || STEP == 'add-note' || STEP == 'delete-note' || STEP == 'water'}
+    commands:
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 20000
+      - tapOn: ${PLANT}
+      - extendedWaitUntil:
+          visible: "Water Plant|Полить.*"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'water'}
+    commands:
+      - tapOn: "Water Plant|Полить.*"
+      - extendedWaitUntil:
+          visible: "Watered!|Полито!"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'open' || STEP == 'offline-note' || STEP == 'add-note' || STEP == 'delete-note' || STEP == 'water'}
+    commands:
+      - scrollUntilVisible:
+          element: "Journal|Журнал"
+          direction: DOWN
+      - scrollUntilVisible:
+          element: "Add a note…|Добавить заметку…"
+          direction: DOWN
+
+- runFlow:
+    when:
+      true: ${STEP == 'water'}
+    commands:
+      - scrollUntilVisible:
+          element: "Watered|Полили"
+          direction: DOWN
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'open'}
+    commands:
+      - scroll
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'offline-note'}
+    commands:
+      - tapOn: "Add a note…"
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - tapOn: "Add note"
+      - scrollUntilVisible:
+          element: "Network connection required.*"
+          direction: DOWN
+          timeout: 5000
+      - assertVisible: ${NOTE}
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'add-note'}
+    commands:
+      - tapOn: "Add a note…"
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - tapOn: "Add note"
+      - extendedWaitUntil:
+          visible: "Add a note…"
+          timeout: 15000
+      - scrollUntilVisible:
+          element: ${NOTE}
+          direction: DOWN
+      - assertNotVisible: "Network connection required.*"
+      - takeScreenshot: ${SHOT}
+- runFlow:
+    when:
+      true: ${STEP == 'retry-note'}
+    commands:
+      - assertVisible: ${NOTE}
+      - assertVisible: "Network connection required.*"
+      - tapOn: "Add note"
+      - extendedWaitUntil:
+          notVisible: "Network connection required.*"
+          timeout: 15000
+      - scrollUntilVisible:
+          element: ${NOTE}
+          direction: DOWN
+      - assertVisible: "Note"
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'delete-note'}
+    commands:
+      - scrollUntilVisible:
+          element: ${NOTE}
+          direction: DOWN
+      - takeScreenshot: ${SHOT}-reopened
+      - tapOn: "Delete note"
+      - assertVisible: "Delete this note?"
+      - takeScreenshot: ${SHOT}-confirm
+      - tapOn: "Cancel"
+      - assertNotVisible: "Delete this note?"
+      - assertVisible: ${NOTE}
+      - tapOn: "Delete note"
+      - assertVisible: "Delete this note?"
+      - tapOn: "Delete"
+      - extendedWaitUntil:
+          notVisible: ${NOTE}
+          timeout: 10000
+      - assertNotVisible: "Delete note"
+      - takeScreenshot: ${SHOT}-deleted
+
+- runFlow:
+    when:
+      true: ${STEP == 'water-offline'}
+    commands:
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 20000
+      - tapOn: ${PLANT}
+      - tapOn: "Water Plant|Полить.*"
+      - extendedWaitUntil:
+          visible: "Today.*|Сегодня.*"
+          timeout: 10000
+      - takeScreenshot: ${SHOT}-detail
+      - tapOn: "Back|Назад"
+      - extendedWaitUntil:
+          visible: ".*not saved yet.*|.*не сохранено.*"
+          timeout: 10000
+      - takeScreenshot: ${SHOT}-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'pending'}
+    commands:
+      - extendedWaitUntil:
+          visible: ${PLANT}
+          timeout: 20000
+      - assertVisible: ".*not saved yet.*|.*не сохранено.*"
+      - takeScreenshot: ${SHOT}
+- runFlow:
+    when:
+      true: ${STEP == 'lang-ru' || STEP == 'lang-en'}
+    commands:
+      - tapOn: "Profile|Профиль"
+      - scrollUntilVisible:
+          element: "Language|Язык"
+          direction: DOWN
+      - tapOn: "Language|Язык"
+      - runFlow:
+          when:
+            true: ${STEP == 'lang-ru'}
+          commands:
+            - tapOn: "Русский"
+            - extendedWaitUntil:
+                visible: "Мой профиль"
+                timeout: 5000
+      - runFlow:
+          when:
+            true: ${STEP == 'lang-en'}
+          commands:
+            - tapOn: "English"
+            - extendedWaitUntil:
+                visible: "My Profile"
+                timeout: 5000

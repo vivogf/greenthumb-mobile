@@ -179,3 +179,64 @@ public interface PlantStoreDao {
         deletePending(pendingId)
     }
 }
+
+/**
+ * Journal cache of one plant. Order matches the server list: newest day
+ * first, then newest write, then id.
+ *
+ * Kotlin syntax ≤2.3: KSP 2.3.12 processes this file.
+ */
+@Dao
+public interface CareEventDao {
+    @Query(
+        "SELECT * FROM care_events WHERE plant_id = :plantId " +
+            "ORDER BY occurred_on DESC, created_at DESC, id DESC",
+    )
+    public fun observeForPlant(plantId: String): Flow<List<CareEventEntity>>
+
+    @Query("SELECT * FROM care_events WHERE id = :id")
+    public suspend fun getById(id: String): CareEventEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsert(entity: CareEventEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsertAll(entities: List<CareEventEntity>)
+
+    @Query("DELETE FROM care_events WHERE id = :id")
+    public suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM care_events WHERE plant_id = :plantId")
+    public suspend fun deleteForPlant(plantId: String)
+
+    /** Successful refresh: the server list replaces this plant's rows in one commit. */
+    @Transaction
+    public suspend fun replaceForPlant(plantId: String, events: List<CareEventEntity>) {
+        deleteForPlant(plantId)
+        if (events.isNotEmpty()) {
+            upsertAll(events)
+        }
+    }
+}
+
+/** Timeline photo cache of one plant, newest first. */
+@Dao
+public interface PlantPhotoDao {
+    @Query(
+        "SELECT * FROM plant_photos WHERE plant_id = :plantId " +
+            "ORDER BY taken_on DESC, created_at DESC, id DESC",
+    )
+    public suspend fun listForPlant(plantId: String): List<PlantPhotoEntity>
+
+    @Query(
+        "SELECT * FROM plant_photos WHERE plant_id = :plantId " +
+            "ORDER BY taken_on DESC, created_at DESC, id DESC",
+    )
+    public fun observeForPlant(plantId: String): Flow<List<PlantPhotoEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsert(entity: PlantPhotoEntity)
+
+    @Query("DELETE FROM plant_photos WHERE id = :id")
+    public suspend fun deleteById(id: String)
+}

@@ -368,4 +368,22 @@
     <string name="species_searchCatalog">Искать в каталоге</string>
     <string name="species_poweredBy">Powered by Pl@ntNet</string>
     <string name="species_plantNetLogo">Логотип Pl@ntNet</string>
+    <!-- Care journal on plant detail (architecture §5.5). -->
+    <string name="journal_title">Журнал</string>
+    <string name="journal_typeWater">Полили</string>
+    <string name="journal_typeFertilize">Подкормили</string>
+    <string name="journal_typeRepot">Пересадили</string>
+    <string name="journal_typePrune">Обрезали</string>
+    <string name="journal_typeNote">Заметка</string>
+    <string name="journal_typePhoto">Фото</string>
+    <string name="journal_typeOther">Запись</string>
+    <string name="journal_empty">Записей пока нет</string>
+    <string name="journal_notePlaceholder">Добавить заметку…</string>
+    <string name="journal_addNote">Сохранить заметку</string>
+    <string name="journal_networkRequired">Нужна сеть. Заметка не сохранена, текст остался — повторите, когда появится подключение.</string>
+    <string name="journal_saveFailed">Не удалось сохранить заметку</string>
+    <string name="journal_deleteNote">Удалить заметку</string>
+    <string name="journal_deleteTitle">Удалить заметку?</string>
+    <string name="journal_deleteMessage">Заметка будет удалена из журнала.</string>
+    <string name="journal_deleteFailed">Не удалось удалить заметку. Проверьте подключение и повторите.</string>
 </resources>

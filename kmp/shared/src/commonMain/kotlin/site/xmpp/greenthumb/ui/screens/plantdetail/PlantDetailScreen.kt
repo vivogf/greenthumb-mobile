@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -66,6 +70,7 @@ import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.data.WateringStatus
 import site.xmpp.greenthumb.data.daysUntilWatering
 import site.xmpp.greenthumb.data.wateringStatus
@@ -238,6 +243,8 @@ public fun PlantDetailScreen(
     onDeleted: () -> Unit,
     /** Алерт ошибки удаления — переживает экран (см. [PlantDeleteErrorState]). */
     deleteErrorState: PlantDeleteErrorState,
+    /** Network state; on reconnect the screen replays the queue and refreshes the journal. */
+    isOnline: StateFlow<Boolean> = AlwaysOnline,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
@@ -256,6 +263,22 @@ public fun PlantDetailScreen(
     }.collectAsState(initial = PlantState.Loading)
 
     val locale = LocalAppLocale.current
+    val online by isOnline.collectAsState()
+    // Bumped when the server journal moved: confirmed care update or replay.
+    var journalRefreshKey by remember(plantId) { mutableIntStateOf(0) }
+    var sawOffline by remember(plantId) { mutableStateOf(false) }
+    LaunchedEffect(repo, online) {
+        if (!online) {
+            sawOffline = true
+            return@LaunchedEffect
+        }
+        if (!sawOffline) return@LaunchedEffect
+        // The dashboard is not composed under this screen: replay here so an
+        // offline watering reaches the server (one water event) before the
+        // journal refresh reads it back.
+        runCatching { repo.replayPending() }
+        journalRefreshKey++
+    }
 
     // Тексты — до корутин (stringResource композабелен, catch — нет).
     val errorTitle = stringResource(Res.string.common_error)
@@ -332,7 +355,7 @@ public fun PlantDetailScreen(
             fun update(patch: PatchPlantDto) {
                 scope.launch {
                     try {
-                        repo.updateOrQueue(plant.id, patch)
+                        if (repo.updateOrQueue(plant.id, patch) is SaveOutcome.Saved) journalRefreshKey++
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (error: Throwable) {
@@ -388,7 +411,9 @@ public fun PlantDetailScreen(
                 waterPending = true
                 scope.launch {
                     try {
-                        repo.updateOrQueue(plant.id, PatchPlantDto(lastWateredDate = Patch.Value(today.toString())))
+                        val outcome =
+                            repo.updateOrQueue(plant.id, PatchPlantDto(lastWateredDate = Patch.Value(today.toString())))
+                        if (outcome is SaveOutcome.Saved) journalRefreshKey++
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (error: Throwable) {
@@ -737,6 +762,15 @@ public fun PlantDetailScreen(
                                 )
                             }
                         }
+
+                        // ── Journal (architecture §5.5) ──
+                        PlantJournalSection(
+                            journal = repo.journal,
+                            plantId = plant.id,
+                            online = online,
+                            refreshKey = journalRefreshKey,
+                            locale = locale,
+                        )
 
                         // ── Удаление ──
                         DestructiveButton(
@@ -1402,3 +1436,6 @@ private fun SettingsDateField(
         )
     }
 }
+
+/** Default network state of direct compositions (tests, previews). */
+private val AlwaysOnline: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()

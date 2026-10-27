@@ -276,6 +276,7 @@ public fun GtAppNavGraph(
                     // состоянием вкладки.
                     onDeleted = { navController.popBackStack() },
                     deleteErrorState = deleteErrorState,
+                    isOnline = connectivity.isOnline,
                 )
             }
         }

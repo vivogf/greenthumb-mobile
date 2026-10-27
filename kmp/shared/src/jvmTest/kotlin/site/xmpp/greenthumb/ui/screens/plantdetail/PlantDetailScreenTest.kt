@@ -6,6 +6,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
 import androidx.compose.ui.test.onAllNodesWithText
@@ -205,6 +207,29 @@ class PlantDetailScreenTest {
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
+        /** Care journal of det-1 on the "server", newest first after [sortedEvents]. */
+        data class FakeEvent(val id: String, val type: String, val occurredOn: String, val note: String? = null)
+
+        val events = mutableListOf<FakeEvent>()
+        var eventGets = 0
+        var eventsThrows: Throwable? = null
+        var notePosts = 0
+        var lastNoteBody: String? = null
+        var noteThrows: Throwable? = null
+        var eventDeletes = 0
+        private var nextEvent = 0
+
+        private fun sortedEvents(): List<FakeEvent> = synchronized(events) {
+            events.sortedWith(compareByDescending<FakeEvent> { it.occurredOn }.thenByDescending { it.id })
+        }
+
+        private fun eventJson(e: FakeEvent): String {
+            val note = e.note?.let { "\"$it\"" } ?: "null"
+            return """{"id":"${e.id}","plant_id":"det-1","user_id":"73","type":"${e.type}",""" +
+                """"occurred_on":"${e.occurredOn}","note":$note,"photo_id":null,""" +
+                """"created_at":"${e.occurredOn}T08:00:00.000000Z"}"""
+        }
+
         private fun userJson(): String =
             """{"user":{"id":73,"name":"kmp-val-detail","recovery_key":"fixture-not-credential",""" +
                 """"created_at":"2026-09-27T10:00:00.000Z"}}"""
@@ -214,6 +239,31 @@ class PlantDetailScreenTest {
             when {
                 path == "/api/auth/me" ->
                     respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                path == "/api/plants/det-1/events" && request.method == HttpMethod.Get -> {
+                    eventGets++
+                    eventsThrows?.let { throw it }
+                    respond(
+                        """{"events":[${sortedEvents().joinToString(",") { eventJson(it) }}],"nextCursor":null}""",
+                        HttpStatusCode.OK,
+                        JSON_HEADERS,
+                    )
+                }
+                path == "/api/plants/det-1/events" && request.method == HttpMethod.Post -> {
+                    notePosts++
+                    val body = (request.body as? TextContent)?.text
+                    lastNoteBody = body
+                    noteThrows?.let { throw it }
+                    val note = Regex("\"note\":\"([^\"]*)\"").find(body ?: "")!!.groupValues[1]
+                    val created = FakeEvent("n-${++nextEvent}", "note", "2026-09-24", note)
+                    synchronized(events) { events += created }
+                    respond(eventJson(created), HttpStatusCode.Created, JSON_HEADERS)
+                }
+                path.startsWith("/api/plants/det-1/events/") && request.method == HttpMethod.Delete -> {
+                    eventDeletes++
+                    val id = path.substringAfterLast('/')
+                    synchronized(events) { events.removeAll { it.id == id } }
+                    respond("", HttpStatusCode.NoContent, JSON_HEADERS)
+                }
                 path == "/api/plants" && request.method == HttpMethod.Get -> {
                     plantsCount++
                     respond("""[${detailFixturePlant().let { p ->
@@ -229,6 +279,10 @@ class PlantDetailScreenTest {
                     val body = (request.body as? TextContent)?.text
                     lastPatchBody = body
                     lastPatchPath = path
+                    // The server journals a changed watering date (inferCareEvents).
+                    Regex("\"last_watered_date\":\"([0-9-]+)\"").find(body ?: "")?.groupValues?.get(1)?.let { day ->
+                        synchronized(events) { events += FakeEvent("w-${++nextEvent}", "water", day) }
+                    }
                     // Сервер эхом возвращает обновлённое растение (контракт
                     // PATCH): имя — из тела патча (если прислан), остальное —
                     // как в фикстуре.
@@ -650,6 +704,221 @@ class PlantDetailScreenTest {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Journal (VAL-JOURNAL-014/015/016/018)
+    // ------------------------------------------------------------------
+
+    private fun seedAllEventTypes(server: FakeServer) {
+        synchronized(server.events) {
+            server.events += listOf(
+                FakeServer.FakeEvent("e-water", "water", "2026-09-20"),
+                FakeServer.FakeEvent("e-note", "note", "2026-09-22", "Moved to the window"),
+                FakeServer.FakeEvent("e-photo", "photo", "2026-09-21"),
+                FakeServer.FakeEvent("e-fert", "fertilize", "2026-08-01"),
+                FakeServer.FakeEvent("e-prune", "prune", "2026-03-15"),
+                FakeServer.FakeEvent("e-repot", "repot", "2026-01-10"),
+            )
+        }
+    }
+
+    private fun androidx.compose.ui.test.ComposeUiTest.topOf(text: String): Float =
+        onAllNodes(hasText(text), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInRoot.top
+
+    private fun deleteNoteMatcher(): SemanticsMatcher =
+        hasClickAction() and hasContentDescription("Delete note")
+
+    @Test
+    fun journal_rendersAllTypes_newestFirst_inEnglish() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        seedAllEventTypes(graph.server)
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            waitUntilAtLeastOneExists(hasText("Journal"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Moved to the window"), TIMEOUT)
+            listOf("Watered", "Fertilized", "Repotted", "Pruned", "Note", "Photo added").forEach { label ->
+                waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
+            }
+            val dates = listOf("09/22/2026", "09/21/2026", "09/20/2026", "08/01/2026", "03/15/2026", "01/10/2026")
+            dates.forEach { date ->
+                assertEquals(1, onAllNodes(hasText(date), useUnmergedTree = true).fetchSemanticsNodes().size, date)
+            }
+            val tops = dates.map { topOf(it) }
+            assertEquals(tops.sorted(), tops, "newest first: $tops")
+            // Only the note is offered for deletion.
+            assertEquals(1, onAllNodes(deleteNoteMatcher(), useUnmergedTree = true).fetchSemanticsNodes().size)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun journal_rendersInRussian_withRussianDates() {
+        val graph = newHarness()
+        seedAllEventTypes(graph.server)
+        val repo = graph.opener.open("73")
+        runBlocking { repo.refresh() }
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
+                        PlantDetailScreen(
+                            userId = "73",
+                            plantId = "det-1",
+                            opener = graph.opener,
+                            onBack = {},
+                            onDeleted = {},
+                            deleteErrorState = PlantDeleteErrorState(),
+                        )
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Журнал"), TIMEOUT)
+            listOf("Полили", "Подкормили", "Пересадили", "Обрезали", "Заметка", "Фото").forEach { label ->
+                waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
+            }
+            waitUntilAtLeastOneExists(hasText("22.09.2026"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("10.01.2026"), TIMEOUT)
+            assertTrue(onAllNodes(hasText("09/22/2026"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun note_add_survivesReopen_andDeleteNeedsConfirmation() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
+            onNode(hasTestTag("journal_noteInput")).performTextInput("Unique note 4711")
+            clickAt(hasClickAction() and hasText("Add note"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
+            assertEquals("""{"type":"note","note":"Unique note 4711"}""", graph.server.lastNoteBody)
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Unique note 4711") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
+            }
+
+            // Leave and reopen: the note is still there, once.
+            onAllNodes(hasContentDescription("Back"), useUnmergedTree = true)[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntilAtLeastOneExists(hasSubText("Ficus"), TIMEOUT)
+            openPlantDetail()
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Unique note 4711")).fetchSemanticsNodes().size == 1
+            }
+
+            // Cancel keeps the note.
+            onAllNodes(deleteNoteMatcher(), useUnmergedTree = true)[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntilAtLeastOneExists(hasText("Delete this note?"), TIMEOUT)
+            clickLast(hasClickAction() and hasText("Cancel"))
+            waitUntilDoesNotExist(hasText("Delete this note?"), TIMEOUT)
+            assertEquals(0, graph.server.eventDeletes)
+            waitUntilAtLeastOneExists(hasText("Unique note 4711"), TIMEOUT)
+
+            // Confirm removes it.
+            onAllNodes(deleteNoteMatcher(), useUnmergedTree = true)[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntilAtLeastOneExists(hasText("Delete this note?"), TIMEOUT)
+            clickLast(hasClickAction() and hasText("Delete", substring = false))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.eventDeletes == 1 }
+            waitUntilDoesNotExist(hasText("Unique note 4711"), TIMEOUT)
+            assertEquals(1, graph.server.notePosts)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun note_offline_keepsText_isNotSentOnItsOwn_andRetrySavesOnce() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        graph.server.noteThrows = IllegalStateException("Connection reset")
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
+            onNode(hasTestTag("journal_noteInput")).performTextInput("Offline 99")
+            clickAt(hasClickAction() and hasText("Add note"))
+            waitUntilAtLeastOneExists(hasSubText("Network connection required"), TIMEOUT)
+            // The typed text stays in the field and nothing reached the journal.
+            assertEquals(1, onAllNodes(hasTestTag("journal_noteInput") and hasText("Offline 99")).fetchSemanticsNodes().size)
+            assertEquals(1, graph.server.notePosts)
+            assertTrue(graph.server.events.isEmpty())
+
+            // Network is back: nothing is sent until the user retries.
+            graph.server.noteThrows = null
+            Thread.sleep(500)
+            waitForIdle()
+            assertEquals(1, graph.server.notePosts)
+
+            clickAt(hasClickAction() and hasText("Add note"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 2 }
+            waitUntilDoesNotExist(hasSubText("Network connection required"), TIMEOUT)
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Offline 99") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
+            }
+            assertEquals(1, graph.server.events.count { it.note == "Offline 99" })
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun journal_offline_showsCachedEntries_withSavedDataBanner() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        seedAllEventTypes(graph.server)
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+            waitUntilAtLeastOneExists(hasText("Moved to the window"), TIMEOUT)
+
+            onAllNodes(hasContentDescription("Back"), useUnmergedTree = true)[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntilAtLeastOneExists(hasSubText("Ficus"), TIMEOUT)
+            graph.server.eventsThrows = IllegalStateException("Connection reset")
+            val getsBefore = graph.server.eventGets
+            openPlantDetail()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.eventGets > getsBefore }
+            waitUntilAtLeastOneExists(hasSubText("showing saved data"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Moved to the window"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Watered"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun watering_online_addsOneWaterEntry() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+            waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
+
+            onAllNodes(hasClickAction() and hasContentDescription("Water plant Ficus"), useUnmergedTree = true)[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastPatchBody?.contains("last_watered_date") == true }
+            waitUntilAtLeastOneExists(hasText("Watered"), TIMEOUT)
+            assertEquals(1, graph.server.events.count { it.type == "water" })
+            assertEquals(1, onAllNodes(hasText("Watered"), useUnmergedTree = true).fetchSemanticsNodes().size)
+
+            runOnIdle { graph.close() }
+        }
+    }
     private companion object {
         const val TIMEOUT: Long = 10_000L
     }

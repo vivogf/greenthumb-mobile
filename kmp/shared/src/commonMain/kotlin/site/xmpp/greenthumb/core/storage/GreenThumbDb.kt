@@ -11,7 +11,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 
 /** Версия схемы. Следующая — только через [GreenThumbMigrations], без удаления данных. */
-public const val GREEN_THUMB_DB_VERSION: Int = 2
+public const val GREEN_THUMB_DB_VERSION: Int = 3
 
 /**
  * Зарегистрированные миграции. Каждая может только ДОБАВЛЯТЬ колонки или
@@ -31,7 +31,30 @@ public object GreenThumbMigrations {
         }
     }
 
-    public val ALL: List<Migration> = listOf(MIGRATION_1_2)
+    /**
+     * v2 → v3: journal cache tables (M4). The statements equal the
+     * `createSql` of the exported `3.json`; Room validates the result on open.
+     */
+    public val SQL_2_3: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `care_events` (`id` TEXT NOT NULL, `plant_id` TEXT NOT NULL, " +
+            "`user_id` TEXT NOT NULL, `type` TEXT NOT NULL, `occurred_on` TEXT NOT NULL, `note` TEXT, " +
+            "`photo_id` TEXT, `created_at` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "CREATE INDEX IF NOT EXISTS `index_care_events_plant_id_occurred_on_created_at` " +
+            "ON `care_events` (`plant_id`, `occurred_on`, `created_at`)",
+        "CREATE TABLE IF NOT EXISTS `plant_photos` (`id` TEXT NOT NULL, `plant_id` TEXT NOT NULL, " +
+            "`url` TEXT NOT NULL, `taken_on` TEXT NOT NULL, `caption` TEXT, `created_at` TEXT NOT NULL, " +
+            "PRIMARY KEY(`id`))",
+        "CREATE INDEX IF NOT EXISTS `index_plant_photos_plant_id_taken_on` " +
+            "ON `plant_photos` (`plant_id`, `taken_on`)",
+    )
+
+    public val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+        override fun migrate(connection: SQLiteConnection) {
+            SQL_2_3.forEach { connection.execSQL(it) }
+        }
+    }
+
+    public val ALL: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
 }
 
 /**
@@ -45,6 +68,8 @@ public object GreenThumbMigrations {
         PlantEntity::class,
         SyncMetaEntity::class,
         PendingMutationEntity::class,
+        CareEventEntity::class,
+        PlantPhotoEntity::class,
     ],
     version = GREEN_THUMB_DB_VERSION,
     exportSchema = true,
@@ -56,6 +81,10 @@ public abstract class GreenThumbDb : RoomDatabase() {
     public abstract fun syncMeta(): SyncMetaDao
 
     public abstract fun pendingMutations(): PendingMutationDao
+
+    public abstract fun careEvents(): CareEventDao
+
+    public abstract fun plantPhotos(): PlantPhotoDao
 
     /** Транзакционные записи репозитория (Room KMP не имеет withTransaction). */
     public abstract fun store(): PlantStoreDao
