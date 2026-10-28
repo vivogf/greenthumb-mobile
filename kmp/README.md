@@ -34,7 +34,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 | **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 7` / `versionName 2.0.0`; the debug build is `com.greenthumbplantcare.debug` ("GreenThumb Debug", `2.0.0-debug`, signed with `~/.android/debug.keystore`) and installs beside the release package |
 | **`desktopApp/`** | JVM harness: `main.kt` (GUI launch, hot reload `hotRun`/`hotMcpServer`), `RealApiProbe.kt` (manual probe of the live API) |
 | **`scripts/`** | `check.sh` (the gate), `grep-rules-selftest.sh`, `i18n_check.py`, `mcp-driver.mjs` |
-| **`maestro/`** | `smoke.yaml` + `render-smoke.sh`, `delete-account.yaml` + `render-delete-account.sh`, `push-enable.yaml` (rendered with `GT_FLOW=push-enable.yaml render-smoke.sh`); all target `com.greenthumbplantcare.debug`. `GT_KEY_FILE` and `GT_DEVICE` override the key file and the device |
+| **`maestro/`** | `smoke.yaml` + `render-smoke.sh`, `delete-account.yaml` + `render-delete-account.sh`, `push-enable.yaml` (rendered with `GT_FLOW=push-enable.yaml render-smoke.sh`) target `com.greenthumbplantcare.debug`; `GT_KEY_FILE` and `GT_DEVICE` override the key file and the device. `release-smoke.yaml` targets the release package; `vault-wording.yaml` checks the neutral password-manager strings (debug package). Known quirk: on macOS bash 3.2, `render-smoke.sh` can fail when `GT_STEP` is unset; set `GT_STEP` (fix deferred) |
 
 ## Build and run
 
@@ -188,18 +188,52 @@ probes never reach the baseline.
 
 `./gradlew :androidApp:bundleRelease :androidApp:assembleRelease` builds the release with R8
 (`isMinifyEnabled`, `isShrinkResources`); custom keep rules live in `androidApp/proguard-rules.pro`,
-each with its reason. The R8 mapping is at `androidApp/build/outputs/mapping/release/mapping.txt`, and
+each with its reason. Today there is one rule: it keeps the `androidx.work.InputMerger` constructor
+(without it, R8 full mode breaks the widget worker and the widget stays on a loading spinner). The R8 mapping is at `androidApp/build/outputs/mapping/release/mapping.txt`, and
 `uploadCrashlyticsMappingFileRelease` sends it to Crashlytics.
 
 Signing values are read from `~/.config/greenthumb/release-signing.properties` (outside the
 repository) with exactly these keys: `storeFile` (absolute path), `storePassword`, `keyAlias`,
-`keyPassword`. `-PgtReleaseSigning=<path>` overrides the path. When the file is absent, the build
+`keyPassword`. Keep the file at mode 600; the upload keystore is
+`~/.config/greenthumb/upload-keystore.jks`. `-PgtReleaseSigning=<path>` overrides the path. When the file is absent, the build
 prints `GreenThumb: release signing file … not found` and the release APK/AAB is unsigned (no fallback
 key). A file with a missing key fails the build and names the key.
 
 Emulator smoke of the minified build: sign `androidApp-release-unsigned.apk` with this Mac's
 `~/.android/debug.keystore` (`zipalign -p 4`, then `apksigner sign`), install it on `elt_test` only
-(never on the Samsung), and run `maestro/release-smoke.yaml` stage by stage (see its header).
+(never on the Samsung), and run `maestro/release-smoke.yaml` stage by stage
+(`STEP=create|plant|widget|progress|offline|delete|saved-key`, see its header).
+`maestro/vault-wording.yaml` checks the neutral "save key to password manager" strings in ru and en.
+
+Certificate fingerprints (public values):
+
+| Certificate | SHA-256 |
+|---|---|
+| Upload key | `47:D0:AA:F4:6F:D5:4F:27:3B:6F:F9:8D:47:E4:0A:1B:BE:9A:9E:FE:C6:E6:C2:2D:D2:EC:BC:3C:24:ED:88:DB` |
+| Play App Signing | `C1:48:76:7E:22:54:51:7A:05:B5:F9:F6:ED:D6:F8:0F:59:35:23:B4:AA:8B:A5:A9:53:8C:36:F1:EA:5C:6C:49` |
+
+`https://greenthumb.xmpp.site/.well-known/assetlinks.json` lists both packages. The server reads
+the fingerprints from the env vars `ASSETLINKS_FINGERPRINTS_RELEASE` and
+`ASSETLINKS_FINGERPRINTS_DEBUG` on the VPS; after a change, run
+`pm2 reload ecosystem.config.cjs --update-env`.
+
+### Release checklist (2.0.0 / 7)
+
+The **owner** performs these steps by hand, in this order:
+
+1. `git push` — GitHub Pages publishes `docs/privacy.html` and `docs/account-deletion.html`
+   only after a push.
+2. Back up `~/.config/greenthumb/upload-keystore.jks` and `release-signing.properties` offline.
+3. Firebase Console: enable Crashlytics; publish the Remote Config parameter
+   `min_supported_build` = 0.
+4. Play Console: upload the signed AAB to internal testing. Rebuild it with
+   `cd kmp && ./gradlew :androidApp:bundleRelease`; the output is
+   `androidApp/build/outputs/bundle/release/androidApp-release.aab`.
+5. Play Console: fill in the Data Safety form from [`kmp/docs/data-safety.md`](docs/data-safety.md).
+6. Play Console → App integrity: check that the app signing SHA-256 equals `C1:48:…:6C:49`
+   (table above). If it differs, update `ASSETLINKS_FINGERPRINTS_RELEASE` on the server.
+7. Closed testing (20 testers × 14 days), then the rollout ladder from
+   [`kmp/docs/release-gate-rollout.md`](docs/release-gate-rollout.md).
 
 ### Rollout
 The full rollout contract lives in `kmp/docs/`:
