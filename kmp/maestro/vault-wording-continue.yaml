@@ -1,0 +1,19 @@
+# Subflow of vault-wording.yaml: leave the show-key screen and the reminders offer.
+appId: com.greenthumbplantcare.debug
+---
+- scrollUntilVisible:
+    element:
+      text: "Я сохранил ключ — Продолжить|I've Saved My Key — Continue"
+    direction: DOWN
+- tapOn: "Я сохранил ключ — Продолжить|I've Saved My Key — Continue"
+- extendedWaitUntil:
+    visible: "Включить напоминания\\?|Enable reminders\\?|Мои растения|My Plants"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "Позже|Maybe later"
+    commands:
+      - tapOn: "Позже|Maybe later"
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 30000

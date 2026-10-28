@@ -84,7 +84,7 @@ import site.xmpp.greenthumb.ui.components.GtSunMark
 import site.xmpp.greenthumb.ui.components.GtSwitch
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.res.Res
-import site.xmpp.greenthumb.ui.screens.login.SaveKeyToGoogle
+import site.xmpp.greenthumb.ui.screens.login.SaveKeyToPasswordManager
 import site.xmpp.greenthumb.ui.screens.login.rememberVaultSaver
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_error
@@ -236,7 +236,7 @@ public fun ProfileScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf<SuccessEvent?>(null) }
     val vaultSaver = rememberVaultSaver()
-    // After regeneration the Google entry still holds the old key until saved again.
+    // After regeneration the password-manager entry still holds the old key until saved again.
     var keyIsNew by remember { mutableStateOf(false) }
 
     val themePreference by settings.theme.collectAsState(initial = null)
@@ -631,7 +631,7 @@ public fun ProfileScreen(
                             color = scheme.primary,
                         )
                     }
-                    SaveKeyToGoogle(
+                    SaveKeyToPasswordManager(
                         saver = vaultSaver,
                         userId = user.id,
                         recoveryKey = user.recoveryKey,

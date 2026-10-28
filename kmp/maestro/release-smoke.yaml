@@ -2,7 +2,7 @@
 # Targets the release package com.greenthumbplantcare: install only a release APK on elt_test
 # (emulator-5554), never on a phone. English UI (elt_test runs en-US). STEP selects one stage;
 # the caller runs them in this order and places the widget with adb between "plant" and "widget":
-#   create     fresh install: intro → Create New Account (name gt-test-…) → "Save key to Google"
+#   create     fresh install: intro → Create New Account (name gt-test-…) → "Save key to password manager"
 #              shows the unsupported note (no credential provider) → continue → Maybe later.
 #              The key screen is never captured.
 #   plant      add a plant with a gallery photo (PHOTO = content-desc regex of a readable item in
@@ -43,9 +43,9 @@ name: GreenThumb release smoke (${STEP})
       - extendedWaitUntil:
           visible: "Account Created!"
           timeout: 30000
-      - tapOn: "Save key to Google"
+      - tapOn: "(Сохранить ключ в менеджер паролей|Save key to password manager)"
       - extendedWaitUntil:
-          visible: "Google Password Manager isn't available on this device.*"
+          visible: "(На этом устройстве нет менеджера паролей|No password manager is available on this device).*"
           timeout: 15000
       - tapOn: "I've Saved My Key — Continue"
       - tapOn: "Maybe later"
@@ -280,6 +280,6 @@ name: GreenThumb release smoke (${STEP})
       # manager is unavailable. Either message proves the Credentials path ran without a crash.
       - tapOn: "Sign in with saved key"
       - extendedWaitUntil:
-          visible: "(No saved key found on this device|Google Password Manager isn't available on this device).*"
+          visible: "(No saved key found on this device|No password manager is available on this device|На этом устройстве нет менеджера паролей).*"
           timeout: 15000
       - takeScreenshot: saved-key-unavailable

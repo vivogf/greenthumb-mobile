@@ -1,0 +1,182 @@
+# Provider-neutral vault wording on elt_test (feature m8-vault-neutral-wording; VAL-RELEASE-020).
+# elt_test has no credential provider, so tapping the save button shows the no-password-manager
+# message. Runs ru first, then en, with three throwaway accounts created in the app and deleted in
+# the app (Profile → Delete Account). Screenshots are cropped to the button and to the message, so
+# the recovery key never lands in a screenshot. Leaves the app language set to English; the caller
+# clears app data afterwards (pm clear) to restore "nothing saved".
+appId: com.greenthumbplantcare.debug
+name: GreenThumb vault wording ru/en
+---
+# A run that stopped midway leaves a signed-in throwaway account: delete it before clearing data.
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "Аккаунт создан!|Account Created!|Мои растения|My Plants|Все растения в одном месте|Your plants, organized|Создать аккаунт|Create New Account|Welcome Back|С возвращением"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Аккаунт создан!|Account Created!"
+    commands:
+      - runFlow:
+          file: vault-wording-continue.yaml
+- runFlow:
+    when:
+      visible: "Мои растения|My Plants"
+    commands:
+      - tapOn: "Профиль|Profile"
+      - extendedWaitUntil:
+          visible: "Мой профиль|My Profile"
+          timeout: 20000
+      - runFlow:
+          file: vault-wording-delete.yaml
+- killApp
+- launchApp:
+    clearState: true
+- repeat:
+    times: 5
+    while:
+      notVisible: "Skip"
+    commands:
+      - launchApp
+
+# Account A (English UI): only used to switch the app language to Russian.
+- runFlow:
+    file: vault-wording-create.yaml
+- runFlow:
+    file: vault-wording-continue.yaml
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Language"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Language"
+- extendedWaitUntil:
+    visible: "Choose Language"
+    timeout: 10000
+- tapOn: "Русский"
+- extendedWaitUntil:
+    visible: "Язык"
+    timeout: 10000
+
+# Profile (ru): full new label, tap → no-password-manager message.
+- scrollUntilVisible:
+    element:
+      text: "Сохранить ключ в менеджер паролей"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Сохранить ключ в менеджер паролей"
+- takeScreenshot:
+    path: profile-button-ru
+    cropOn:
+      text: "Сохранить ключ в менеджер паролей"
+- tapOn: "Сохранить ключ в менеджер паролей"
+- extendedWaitUntil:
+    visible: "На этом устройстве нет менеджера паролей. Скопируйте ключ и храните в надёжном месте."
+    timeout: 15000
+- takeScreenshot:
+    path: profile-message-ru
+    cropOn:
+      text: "На этом устройстве нет менеджера паролей. Скопируйте ключ и храните в надёжном месте."
+- runFlow:
+    file: vault-wording-delete.yaml
+
+# Account B (Russian UI): show-key screen in ru, then Profile in en.
+- runFlow:
+    file: vault-wording-create.yaml
+- extendedWaitUntil:
+    visible: "Аккаунт создан!"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Сохранить ключ в менеджер паролей"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Сохранить ключ в менеджер паролей"
+- takeScreenshot:
+    path: showkey-button-ru
+    cropOn:
+      text: "Сохранить ключ в менеджер паролей"
+- tapOn: "Сохранить ключ в менеджер паролей"
+- extendedWaitUntil:
+    visible: "На этом устройстве нет менеджера паролей. Скопируйте ключ и храните в надёжном месте."
+    timeout: 15000
+- takeScreenshot:
+    path: showkey-message-ru
+    cropOn:
+      text: "На этом устройстве нет менеджера паролей. Скопируйте ключ и храните в надёжном месте."
+- runFlow:
+    file: vault-wording-continue.yaml
+- tapOn: "Профиль"
+- extendedWaitUntil:
+    visible: "Мой профиль"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Язык"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Язык"
+- extendedWaitUntil:
+    visible: "Выберите язык"
+    timeout: 10000
+- tapOn: "English"
+- extendedWaitUntil:
+    visible: "Language"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Save key to password manager"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Save key to password manager"
+- takeScreenshot:
+    path: profile-button-en
+    cropOn:
+      text: "Save key to password manager"
+- tapOn: "Save key to password manager"
+- extendedWaitUntil:
+    visible: "No password manager is available on this device. Copy the key and keep it in a safe place."
+    timeout: 15000
+- takeScreenshot:
+    path: profile-message-en
+    cropOn:
+      text: "No password manager is available on this device. Copy the key and keep it in a safe place."
+- runFlow:
+    file: vault-wording-delete.yaml
+
+# Account C (English UI): show-key screen in en.
+- runFlow:
+    file: vault-wording-create.yaml
+- extendedWaitUntil:
+    visible: "Account Created!"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Save key to password manager"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Save key to password manager"
+- takeScreenshot:
+    path: showkey-button-en
+    cropOn:
+      text: "Save key to password manager"
+- tapOn: "Save key to password manager"
+- extendedWaitUntil:
+    visible: "No password manager is available on this device. Copy the key and keep it in a safe place."
+    timeout: 15000
+- takeScreenshot:
+    path: showkey-message-en
+    cropOn:
+      text: "No password manager is available on this device. Copy the key and keep it in a safe place."
+- runFlow:
+    file: vault-wording-continue.yaml
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible: "My Profile"
+    timeout: 20000
+- runFlow:
+    file: vault-wording-delete.yaml

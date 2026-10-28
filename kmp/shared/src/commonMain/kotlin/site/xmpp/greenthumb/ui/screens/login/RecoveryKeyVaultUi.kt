@@ -25,8 +25,8 @@ import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.vault_saveFailed
-import site.xmpp.greenthumb.ui.res.vault_saveNewToGoogle
-import site.xmpp.greenthumb.ui.res.vault_saveToGoogle
+import site.xmpp.greenthumb.ui.res.vault_saveKey
+import site.xmpp.greenthumb.ui.res.vault_saveNewKey
 import site.xmpp.greenthumb.ui.res.vault_saveUnavailable
 import site.xmpp.greenthumb.ui.res.vault_saved
 import site.xmpp.greenthumb.ui.res.vault_signInWithSavedKey
@@ -35,7 +35,7 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 
 internal enum class VaultSaveStatus { Idle, Saving, Saved, Failed, Unavailable }
 
-/** Save-to-Google state of one screen; a cancelled sheet keeps the previous status. */
+/** Save-to-password-manager state of one screen; a cancelled sheet keeps the previous status. */
 @Stable
 internal class VaultSaver(private val vault: RecoveryKeyVault, private val scope: CoroutineScope) {
     var status: VaultSaveStatus by mutableStateOf(
@@ -74,11 +74,11 @@ internal fun rememberVaultSaver(): VaultSaver {
 }
 
 /**
- * "Save key to Google" with its inline status. Without a password manager the
+ * "Save key to password manager" with its inline status. Without a password manager the
  * button is replaced by an explanation; copying the key stays the fallback.
  */
 @Composable
-internal fun SaveKeyToGoogle(
+internal fun SaveKeyToPasswordManager(
     saver: VaultSaver,
     userId: String,
     recoveryKey: String,
@@ -97,7 +97,7 @@ internal fun SaveKeyToGoogle(
             return@Column
         }
         SecondaryButton(
-            text = stringResource(if (isNewKey) Res.string.vault_saveNewToGoogle else Res.string.vault_saveToGoogle),
+            text = stringResource(if (isNewKey) Res.string.vault_saveNewKey else Res.string.vault_saveKey),
             onClick = { saver.save(userId, recoveryKey) },
             enabled = saver.status != VaultSaveStatus.Saving,
             modifier = Modifier.gtButtonWidth().testTag("vault_save"),

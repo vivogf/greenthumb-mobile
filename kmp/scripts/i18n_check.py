@@ -141,10 +141,10 @@ KMP_ONLY_KEYS = {
     "diagnosis.retry",
     "diagnosis.newDiagnosis",
     "diagnosis.backToPlant",
-    # vault.* — recovery key in Google Password Manager (architecture §5.3);
+    # vault.* — recovery key in the device password manager (architecture §5.3);
     # the RN app has no Credential Manager bridge.
-    "vault.saveToGoogle",
-    "vault.saveNewToGoogle",
+    "vault.saveKey",
+    "vault.saveNewKey",
     "vault.saved",
     "vault.saveFailed",
     "vault.saveUnavailable",

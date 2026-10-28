@@ -1,0 +1,20 @@
+# Subflow of vault-wording.yaml: from Profile, delete the throwaway account in the app.
+appId: com.greenthumbplantcare.debug
+---
+- scrollUntilVisible:
+    element:
+      text: "Удалить аккаунт|Delete Account"
+    direction: DOWN
+- tapOn: "Удалить аккаунт|Delete Account"
+- extendedWaitUntil:
+    visible: "Удаление аккаунта|Delete account"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Удалить аккаунт|Delete my account"
+    direction: DOWN
+- tapOn: "Удалить аккаунт|Delete my account"
+# After deletion the app opens the intro or, when the intro was already seen, the login choice.
+- extendedWaitUntil:
+    visible: "Все растения в одном месте|Your plants, organized|Создать аккаунт|Create New Account"
+    timeout: 30000

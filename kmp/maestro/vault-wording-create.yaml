@@ -1,0 +1,36 @@
+# Subflow of vault-wording.yaml: from the intro or the login choice to the show-key screen of a
+# new throwaway account. Bilingual (ru|en) because the app language changes between runs.
+appId: com.greenthumbplantcare.debug
+---
+- repeat:
+    times: 10
+    while:
+      notVisible: "Создание аккаунта|Create Account"
+    commands:
+      - runFlow:
+          when:
+            visible: "Все растения в одном месте|Your plants, organized"
+          commands:
+            - tapOn: "Пропустить|Skip"
+      - runFlow:
+          when:
+            visible: "Создать аккаунт|Create New Account"
+          commands:
+            - tapOn: "Создать аккаунт|Create New Account"
+# ru: the title is «Создание аккаунта», so the only «Создать аккаунт» is the button;
+# en: the title and the button both read "Create Account".
+- runFlow:
+    when:
+      visible: "Создание аккаунта"
+    commands:
+      - tapOn: "Создать аккаунт"
+- runFlow:
+    when:
+      visible: "Create Account"
+    commands:
+      - tapOn:
+          text: "Create Account"
+          index: 1
+- extendedWaitUntil:
+    visible: "Аккаунт создан!|Account Created!"
+    timeout: 30000

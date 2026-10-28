@@ -10,8 +10,9 @@ Filling the form in Play Console is the user's step.
 
 - **Shared** means transferred to a third party. Transfers to service providers that process data on our
   behalf (Cloudflare R2, Pl@ntNet, OpenAI with `store: false`, Firebase) are **not** sharing under Play's
-  service-provider exception. Saving the key to Google Password Manager is a user-initiated transfer through
-  the Android system dialog, which Play also does not count as sharing.
+  service-provider exception. Saving the key to the device's password manager (Google Password Manager, or on
+  Android 14+ another password manager the user selected) is a user-initiated transfer through the Android
+  system dialog, which Play also does not count as sharing.
 - **Ephemeral** means the data is held only in memory for one request and not stored. It applies only to the
   photos sent for identification or diagnosis; the same data type is also stored elsewhere (plant photos),
   so the form answer for the type is "not ephemeral".
@@ -57,7 +58,7 @@ web browsing, app interactions, in-app search history, installed apps, other act
 | Photos and context for diagnosis (OpenAI, `store:false`, up to 30 days abuse monitoring, no training) | Photos + Other user-generated content |
 | Crash reports and diagnostics (Crashlytics) | Crash logs + Diagnostics |
 | Firebase installation ID (Crashlytics, Remote Config, FCM) | Device or other IDs |
-| Google Password Manager saving (optional, stored by Google) | User IDs (user-initiated transfer; not sharing) |
+| Saving the key to the device's password manager (optional; Google Password Manager, or on Android 14+ another password manager the user selected; stored by that provider) | User IDs (user-initiated transfer; not sharing) |
 | Server logs (IP address, ~15 days; error logs ~8 weeks) | Not declared: IP addresses kept only in operational security logs and not used to derive location. Revisit if Play guidance changes |
 
 ## Notes for the form

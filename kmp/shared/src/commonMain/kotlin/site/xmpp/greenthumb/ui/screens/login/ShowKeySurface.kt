@@ -192,7 +192,7 @@ public fun ShowKeySurface(
                 }
             }
 
-            SaveKeyToGoogle(saver = vaultSaver, userId = userId, recoveryKey = recoveryKey)
+            SaveKeyToPasswordManager(saver = vaultSaver, userId = userId, recoveryKey = recoveryKey)
 
             // «Я сохранил» — единственный выход из шлюза (RN handleContinue
             // login.tsx:88 → router.replace на enable-notifications).

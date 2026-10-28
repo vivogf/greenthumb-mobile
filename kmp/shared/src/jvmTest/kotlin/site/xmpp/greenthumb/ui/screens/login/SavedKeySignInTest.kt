@@ -16,7 +16,7 @@ import site.xmpp.greenthumb.core.platform.recoveryKeyCredentialId
 import site.xmpp.greenthumb.core.storage.SessionState
 
 /**
- * Recovery key in Google Password Manager (architecture §5.3): the outcome of
+ * Recovery key in the device password manager (architecture §5.3): the outcome of
  * "Sign in with saved key" for every vault result, and the jvm actual.
  */
 class SavedKeySignInTest {

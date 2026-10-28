@@ -309,7 +309,7 @@ class RecoveryKeyVaultUiTest {
         waitUntilAtLeastOneExists(hasText("Key regenerated"), TIMEOUT)
         onNodeWithText("OK").performClick()
         waitForIdle()
-        // The offer to update the Google entry replaces the plain save label.
+        // The offer to update the saved entry replaces the plain save label.
         waitUntilAtLeastOneExists(hasText(BTN_SAVE_NEW), TIMEOUT)
         onNodeWithText(BTN_SAVE).assertDoesNotExist()
         onNodeWithText(BTN_SAVE_NEW).performClick()
@@ -328,16 +328,16 @@ class RecoveryKeyVaultUiTest {
         const val TAG_SAVE = "vault_save"
         const val TAG_MESSAGE = "vault_message"
         const val GATE = "I've Saved My Key — Continue"
-        const val BTN_SAVE = "Save key to Google"
-        const val BTN_SAVE_NEW = "Save new key to Google"
+        const val BTN_SAVE = "Save key to password manager"
+        const val BTN_SAVE_NEW = "Save new key to password manager"
         const val BTN_SIGN_IN_SAVED = "Sign in with saved key"
-        const val MSG_SAVED = "Key saved to Google Password Manager."
-        const val MSG_FAILED_SAVE = "Couldn't save the key to Google. Copy it and keep it in a safe place."
+        const val MSG_SAVED = "Key saved to your password manager."
+        const val MSG_FAILED_SAVE = "Couldn't save the key to a password manager. Copy it and keep it in a safe place."
         const val MSG_UNAVAILABLE_SAVE =
-            "Google Password Manager isn't available on this device. Copy the key and keep it in a safe place."
+            "No password manager is available on this device. Copy the key and keep it in a safe place."
         const val MSG_NO_CREDENTIAL = "No saved key found on this device. Enter your recovery key manually."
         const val MSG_UNAVAILABLE_RESTORE =
-            "Google Password Manager isn't available on this device. Enter your recovery key manually."
+            "No password manager is available on this device. Enter your recovery key manually."
         const val MSG_STALE = "This saved key is out of date. Enter your current recovery key manually."
     }
 }
