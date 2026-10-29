@@ -352,7 +352,7 @@ private fun ResultContent(result: DiagnosisResult, onNew: () -> Unit, onBack: ()
                 Text(
                     text = stringResource(Res.string.diagnosis_likelihood, likelihoodWord(cause.likelihood)),
                     style = MaterialTheme.typography.labelMedium,
-                    color = scheme.primary,
+                    color = scheme.tertiary,
                     modifier = Modifier.testTag("diagnosis_likelihood_$index"),
                 )
                 Text(

@@ -127,7 +127,7 @@ fun GtAlertDialog(
                 val color = when (button.style) {
                     GtAlertButtonStyle.Destructive -> scheme.error
                     GtAlertButtonStyle.Cancel -> scheme.onSurfaceVariant
-                    GtAlertButtonStyle.Default -> scheme.primary
+                    GtAlertButtonStyle.Default -> scheme.tertiary
                 }
                 TextButton(
                     onClick = {

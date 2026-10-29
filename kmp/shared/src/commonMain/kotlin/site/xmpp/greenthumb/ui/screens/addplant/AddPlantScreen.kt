@@ -343,7 +343,7 @@ public fun AddPlantScreen(
                                     )
                                 }
                             }
-                            TextAction(text = stringResource(Res.string.species_change), color = scheme.primary) {
+                            TextAction(text = stringResource(Res.string.species_change), color = scheme.tertiary) {
                                 speciesPickerOpen = true
                             }
                             TextAction(text = stringResource(Res.string.species_clear), color = scheme.error) {

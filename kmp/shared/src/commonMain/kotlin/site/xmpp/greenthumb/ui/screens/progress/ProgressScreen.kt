@@ -304,7 +304,7 @@ private fun StreakCard(label: String, value: Int, tag: String, modifier: Modifie
         Text(
             text = value.toString(),
             style = MaterialTheme.typography.headlineLarge,
-            color = scheme.primary,
+            color = scheme.tertiary,
             modifier = Modifier.testTag(tag),
         )
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
@@ -341,7 +341,7 @@ private fun AchievementTile(cell: AchievementCell, modifier: Modifier) {
             Text(
                 text = stateLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (cell.unlocked) scheme.primary else scheme.onSurfaceVariant,
+                color = if (cell.unlocked) scheme.tertiary else scheme.onSurfaceVariant,
             )
         }
         Text(

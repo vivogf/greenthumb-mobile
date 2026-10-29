@@ -226,7 +226,7 @@ private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
                 Text(
                     text = SUPPORT_EMAIL,
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.primary,
+                    color = scheme.tertiary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
                         .clickable(

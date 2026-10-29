@@ -130,11 +130,11 @@ fun GtImagePickerField(
                 style = MaterialTheme.typography.titleMedium,
                 color = scheme.onSurface,
             )
-            SourceRow(cameraLabel, scheme.primary) {
+            SourceRow(cameraLabel, scheme.tertiary) {
                 open = false
                 onPickRequested(GtImageSource.Camera)
             }
-            SourceRow(galleryLabel, scheme.primary) {
+            SourceRow(galleryLabel, scheme.tertiary) {
                 open = false
                 onPickRequested(GtImageSource.Gallery)
             }

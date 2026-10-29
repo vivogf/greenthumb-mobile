@@ -8,3 +8,6 @@ public actual fun SyncWindowColors(page: Color, dark: Boolean) = Unit
 
 @Composable
 public actual fun lastWindowDark(): Boolean? = null
+
+@Composable
+public actual fun SyncAppNightMode(mode: AppNightMode) = Unit

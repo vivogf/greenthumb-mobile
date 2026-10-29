@@ -1,11 +1,13 @@
 package site.xmpp.greenthumb.core.platform
 
 import android.app.Activity
+import android.app.UiModeManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
@@ -27,6 +29,26 @@ public actual fun SyncWindowColors(page: Color, dark: Boolean) {
     SideEffect { WindowColors.apply(activity, pageArgb, dark) }
 }
 
+/**
+ * Android 12+ draws the starting window from the app's own night mode, so `values-v31` (light page)
+ * or `values-night-v31` (dark page) matches the in-app choice. FollowSystem clears the override,
+ * so Auto keeps tracking the system and the app configuration reports the system mode again.
+ */
+@Composable
+public actual fun SyncAppNightMode(mode: AppNightMode) {
+    if (Build.VERSION.SDK_INT < 31) return
+    val context = LocalContext.current
+    LaunchedEffect(mode) {
+        val uiModeManager = context.getSystemService(UiModeManager::class.java) ?: return@LaunchedEffect
+        uiModeManager.setApplicationNightMode(
+            when (mode) {
+                AppNightMode.Light -> UiModeManager.MODE_NIGHT_NO
+                AppNightMode.Dark -> UiModeManager.MODE_NIGHT_YES
+                AppNightMode.FollowSystem -> UiModeManager.MODE_NIGHT_AUTO
+            },
+        )
+    }
+}
 /**
  * The manifest theme paints the dark page before Compose starts. The last in-app choice is kept
  * in SharedPreferences (read synchronously in onCreate, unlike DataStore), so a Light user's

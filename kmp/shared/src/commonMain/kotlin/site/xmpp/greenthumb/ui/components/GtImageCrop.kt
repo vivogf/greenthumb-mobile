@@ -117,7 +117,7 @@ internal fun GtImageCropScreen(
                     textAlign = TextAlign.Center,
                 )
                 TextButton(onClick = { confirm() }, enabled = intrinsic != null) {
-                    Text(text = doneText, color = scheme.primary)
+                    Text(text = doneText, color = scheme.tertiary)
                 }
             }
 

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
@@ -420,6 +421,8 @@ class RecoveryKeyQrScreenTest {
             waitUntilAtLeastOneExists(hasTestTag("keyQr_code"), TIMEOUT)
             waitUntilAtLeastOneExists(hasTestTag("keyQr_newCode"), TIMEOUT)
             fun decode(tag: String): String {
+                // With the M10 type scale the second code sits below the fold of the test window.
+                onNode(hasTestTag(tag)).performScrollTo()
                 val image = onNode(hasTestTag(tag)).captureToImage()
                 val pixels = IntArray(image.width * image.height)
                 image.readPixels(pixels)

@@ -591,7 +591,7 @@ public fun ProfileScreen(
                             if (keyVisible) Res.string.profile_hide else Res.string.profile_show,
                         ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = scheme.primary,
+                        color = scheme.tertiary,
                         modifier = Modifier
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -630,7 +630,7 @@ public fun ProfileScreen(
                     Text(
                         text = stringResource(Res.string.profile_keyChangeRetry),
                         style = MaterialTheme.typography.bodySmall,
-                        color = scheme.primary,
+                        color = scheme.tertiary,
                         modifier = Modifier
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -775,11 +775,11 @@ public fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        GtKeyMark(tint = scheme.primary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
+                        GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
                         Text(
                             text = stringResource(Res.string.profile_showKeyQr),
                             style = MaterialTheme.typography.bodySmall,
-                            color = scheme.primary,
+                            color = scheme.tertiary,
                         )
                     }
                     // No offer while a change is unproven: a password-manager entry must not trade a
@@ -860,7 +860,7 @@ public fun ProfileScreen(
                 Text(
                     text = SUPPORT_EMAIL,
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.primary,
+                    color = scheme.tertiary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
                         .clickable(

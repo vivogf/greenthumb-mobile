@@ -81,7 +81,7 @@ public fun GtBottomTabs(
         )
         Row(modifier = Modifier.fillMaxSize()) {
             GtTab.entries.forEach { tab ->
-                val tint = if (tab == selected) scheme.primary else scheme.onSurfaceVariant
+                val tint = if (tab == selected) scheme.tertiary else scheme.onSurfaceVariant
                 Column(
                     modifier = Modifier
                         .weight(1f)

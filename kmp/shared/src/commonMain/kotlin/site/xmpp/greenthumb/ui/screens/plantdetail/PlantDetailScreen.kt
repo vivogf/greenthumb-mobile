@@ -448,7 +448,7 @@ public fun PlantDetailScreen(
             val waterColor = when (waterStatus) {
                 WateringStatus.Overdue -> MaterialTheme.colorScheme.error
                 WateringStatus.Today -> extended.amber
-                WateringStatus.Healthy -> MaterialTheme.colorScheme.primary
+                WateringStatus.Healthy -> MaterialTheme.colorScheme.tertiary
             }
             val waterBadgeText = when (waterStatus) {
                 WateringStatus.Overdue ->
@@ -619,7 +619,7 @@ public fun PlantDetailScreen(
                                         Text(
                                             text = stringResource(Res.string.plantDetails_winterMode),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MaterialTheme.colorScheme.tertiary,
                                             modifier = Modifier.testTag("detail_winterMode"),
                                         )
                                     }
@@ -755,7 +755,7 @@ public fun PlantDetailScreen(
                                     Text(
                                         text = editLabel,
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = MaterialTheme.colorScheme.tertiary,
                                         modifier = Modifier.clickableNoIndication {
                                             editedNotes = plant.notes
                                             editingNotes = true
@@ -1021,7 +1021,7 @@ private fun NotFoundScreen(
             Text(
                 text = goHomeText,
                 style = MaterialTheme.typography.bodyLarge,
-                color = scheme.primary,
+                color = scheme.tertiary,
                 modifier = Modifier.clickableNoIndication(onGoHome),
             )
         }
@@ -1117,7 +1117,7 @@ private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
         CareUrgency.NotSet -> scheme.onSurfaceVariant
         CareUrgency.Overdue -> scheme.error
         CareUrgency.Today -> extended.amber
-        CareUrgency.Later -> scheme.primary
+        CareUrgency.Later -> scheme.tertiary
     }
     val daysText = when (val value = careDaysText(card.days)) {
         CareDaysText.NotSet -> stringResource(Res.string.plantDetails_careNotSet)
@@ -1185,7 +1185,7 @@ private fun SettingsRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            icon(scheme.primary)
+            icon(scheme.secondary)
             Column {
                 Text(
                     text = label,
@@ -1222,7 +1222,7 @@ private fun PhotoSheetRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        icon?.invoke(scheme.primary)
+        icon?.invoke(scheme.secondary)
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
@@ -1270,7 +1270,7 @@ private fun CareSettingsModal(
         GtModalHeader(
             title = title,
             leading = GtModalHeaderAction(cancelText, scheme.onSurfaceVariant, onDismiss),
-            trailing = GtModalHeaderAction(saveText, scheme.primary, onSave),
+            trailing = GtModalHeaderAction(saveText, scheme.tertiary, onSave),
         )
 
         Column(
@@ -1389,7 +1389,7 @@ private fun SettingsSpeciesRow(
             Text(
                 text = stringResource(if (form.speciesId == null) Res.string.species_choose else Res.string.species_change),
                 style = MaterialTheme.typography.labelLarge,
-                color = scheme.primary,
+                color = scheme.tertiary,
                 modifier = Modifier.clickableNoIndication(onChoose).padding(Spacing.xs),
             )
             if (form.speciesId != null || form.speciesName != null) {

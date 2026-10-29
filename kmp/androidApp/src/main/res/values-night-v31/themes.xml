@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ dark window: the same as values/themes.xml (see values-v31 for why it exists). -->
+    <style name="Theme.GreenThumb" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/gt_page</item>
+        <item name="android:colorBackground">@color/gt_page</item>
+        <item name="android:statusBarColor">@color/gt_page</item>
+        <item name="android:navigationBarColor">@color/gt_page</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/gt_page</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/gt_page</item>
+    </style>
+</resources>

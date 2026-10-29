@@ -28,13 +28,34 @@ import androidx.compose.ui.unit.dp
  *   На шкале Spacing его нет; ближайшие токены [xs] и [sm]. Радиус 10 — это [Radii.md]
  * - 13, 15, 18, 34 — единичные (add-plant, DatePickerInput, plant detail)
  * - 32, 40, 100 — крупные отступы секций и пустых состояний, не шаг сетки
+ *
+ * M10 (D§3.3): new code uses only 4/8/12/16/24 ([xxs], [xs], [sm], [lg], [xxl]) and [Sizes].
  */
 object Spacing {
     val xxs = 4.dp
     val xs = 8.dp
     val sm = 12.dp
+
+    /** 14: kept for existing screens only, not for new code (D§3.3). */
     val md = 14.dp
     val lg = 16.dp
+
+    /** 20: kept for existing screens only, not for new code (D§3.3). */
     val xl = 20.dp
     val xxl = 24.dp
+}
+
+/** Layout sizes of the «Лес» design (D§3.3). */
+object Sizes {
+    /** Minimum touch target. */
+    val touch = 48.dp
+
+    /** Height of a bottom-sheet row. */
+    val sheetRow = 56.dp
+
+    /** Fixed icon slot in sheet rows, so labels line up with and without an icon. */
+    val iconSlot = 24.dp
+    val screenPadding = Spacing.lg
+    val cardPadding = Spacing.lg
+    val cardGap = Spacing.sm
 }

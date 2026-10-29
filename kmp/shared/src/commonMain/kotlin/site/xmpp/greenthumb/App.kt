@@ -21,7 +21,9 @@ import site.xmpp.greenthumb.core.platform.KillSwitchVerdict
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.platform.RemoteKillSwitch
+import site.xmpp.greenthumb.core.platform.SyncAppNightMode
 import site.xmpp.greenthumb.core.platform.SyncWindowColors
+import site.xmpp.greenthumb.core.platform.appNightMode
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.platform.lastWindowDark
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
@@ -230,6 +232,7 @@ fun App(
         val darkTheme = resolveDarkTheme(themePreference, systemDark, themePreferenceRead, lastWindowDark)
         GreenThumbTheme(darkTheme = darkTheme) {
             SyncWindowColors(page = greenThumbExtendedColors().page, dark = darkTheme)
+            if (themePreferenceRead) SyncAppNightMode(appNightMode(themePreference))
             // Блокирующий экран обновления ВЫШЕ маршрутизации и сессии (план
             // Stage 12 п.1): отозванная версия не показывает ни растений, ни
             // входа — только ссылку в стор. Пока Allowed/проверка идёт —

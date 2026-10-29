@@ -37,6 +37,22 @@ class ThemeResourceTest {
         assertEquals(GreenThumbExtendedColors.dark.page.toArgb(), page.removePrefix("#").toLong(16).toInt())
     }
 
+    @Test
+    fun api31WindowThemesFollowTheAppNightMode() {
+        val light = items(styleIn("values-v31"))
+        val dark = items(styleIn("values-night-v31"))
+        for (attr in listOf("android:windowBackground", "android:colorBackground", "android:statusBarColor", "android:navigationBarColor", "android:windowSplashScreenBackground", "android:windowSplashScreenIconBackgroundColor")) {
+            assertEquals("@color/gt_page_light", light[attr], "values-v31 $attr")
+            assertEquals("@color/gt_page", dark[attr], "values-night-v31 $attr")
+        }
+        assertEquals("true", light["android:windowLightStatusBar"])
+        assertEquals("false", dark["android:windowLightStatusBar"])
+        val pageLight = colors().getValue("gt_page_light")
+        assertEquals(GreenThumbExtendedColors.light.page.toArgb(), pageLight.removePrefix("#").toLong(16).toInt())
+    }
+
+    private fun styleIn(dir: String): Element =
+        elements(File(res, "$dir/themes.xml"), "style").single { it.getAttribute("name") == "Theme.GreenThumb" }
     private fun styles(): List<Element> = elements(File(res, "values/themes.xml"), "style")
 
     private fun items(style: Element): Map<String, String> {

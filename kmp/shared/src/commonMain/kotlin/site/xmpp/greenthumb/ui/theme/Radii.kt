@@ -1,5 +1,7 @@
 package site.xmpp.greenthumb.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -27,4 +29,13 @@ object Radii {
     val md = 10.dp
     val lg = 12.dp
     val xl = 16.dp
+
+    /** «Лес» (D§3.1): cards and the top corners of sheets. */
+    val card = 24.dp
+
+    /** «Лес»: text fields, chips, photo box. */
+    val field = 16.dp
+
+    /** «Лес»: buttons and progress bars, half the height of the control. */
+    val pill: Shape = RoundedCornerShape(percent = 50)
 }

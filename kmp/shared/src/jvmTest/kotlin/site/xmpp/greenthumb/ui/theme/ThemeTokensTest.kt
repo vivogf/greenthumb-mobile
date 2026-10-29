@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composition
 import androidx.compose.runtime.Recomposer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
@@ -18,73 +19,126 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 /**
- * VAL-DS-001: каждый токен light/dark равен hex (или rgba) из `lib/constants.ts:24-60`.
- * Эталон зашит здесь литералами, не читается из реализации.
+ * VAL-LOOK-005 / VAL-LOOK-006: dark «Лес» = the D§3.1 token table of the approved mockup
+ * (`body[data-style=solar]`), light «Лес» = the derived variant of architecture §9.3.
+ * Expected values are literals here, not read from the implementation.
  */
 class ThemeTokensTest {
 
     @Test
-    fun light_scheme_matches_constants_hex() {
-        val scheme = GreenThumbColors.light
-        assertHex(scheme.background, "#ffffff")
-        assertHex(scheme.onBackground, "#1a1a1a")
-        assertHex(scheme.surface, "#fafafa")
-        assertHex(scheme.onSurface, "#1a1a1a")
-        assertHex(scheme.outline, "#e5e5e5")
-        assertHex(scheme.outlineVariant, "#f0f0f0")
-        assertHex(scheme.surfaceVariant, "#ebebea")
-        assertHex(scheme.onSurfaceVariant, "#8a8a85")
-        assertHex(scheme.primary, "#2e7740")
-        assertHex(scheme.onPrimary, "#f0f9f2")
-        assertHex(scheme.error, "#993333")
-        assertHex(scheme.onError, "#fef2f2")
-        assertHex(scheme.surfaceContainerHighest, "#c0c0c0")
-        assertHex(scheme.surfaceTint, "#2e7740")
-        assertHex(scheme.inversePrimary, "#4a9a5a")
-        assertHex(scheme.inverseSurface, "#1c1a14")
-        assertHex(scheme.inverseOnSurface, "#f3f2ef")
-    }
-
-    @Test
-    fun dark_scheme_matches_constants_hex() {
+    fun dark_scheme_matches_forest_tokens() {
         val scheme = GreenThumbColors.dark
-        assertHex(scheme.background, "#15130e")
-        assertHex(scheme.onBackground, "#f3f2ef")
-        assertHex(scheme.surface, "#1c1a14")
-        assertHex(scheme.onSurface, "#f3f2ef")
-        assertHex(scheme.outline, "#302d27")
-        assertHex(scheme.outlineVariant, "#272420")
-        assertHex(scheme.surfaceVariant, "#2a2822")
-        assertHex(scheme.onSurfaceVariant, "#a89f92")
-        assertHex(scheme.primary, "#4a9a5a")
+        assertHex(scheme.background, "#0e1610")
+        assertHex(scheme.surfaceContainerLowest, "#0e1610")
+        assertHex(scheme.surface, "#152018")
+        assertHex(scheme.surfaceContainer, "#152018")
+        assertHex(scheme.surfaceVariant, "#1c2a1f")
+        assertHex(scheme.surfaceContainerHigh, "#1c2a1f")
+        assertHex(scheme.outline, "#2a3d2e")
+        assertHex(scheme.outlineVariant, "#2a3d2e")
+        assertHex(scheme.onBackground, "#eef4ec")
+        assertHex(scheme.onSurface, "#eef4ec")
+        assertHex(scheme.onSurfaceVariant, "#a8b9a6")
+        assertHex(scheme.primary, "#277a40")
         assertHex(scheme.onPrimary, "#f0f9f2")
-        assertHex(scheme.error, "#a33535")
-        assertHex(scheme.onError, "#fef2f2")
-        assertHex(scheme.surfaceContainerHighest, "#3d3b35")
-        assertHex(scheme.surfaceTint, "#4a9a5a")
-        assertHex(scheme.inversePrimary, "#2e7740")
-        assertHex(scheme.inverseSurface, "#fafafa")
-        assertHex(scheme.inverseOnSurface, "#1a1a1a")
+        assertHex(scheme.secondary, "#3da35b")
+        assertHex(scheme.tertiary, "#86d69c")
+        assertHex(scheme.error, "#ee8e72")
     }
 
     @Test
-    fun extended_colors_match_constants() {
-        val light = GreenThumbExtendedColors.light
-        assertHex(light.amber, "#d97706")
-        assertRgba(light.amberBg, 217, 119, 6, 0.08f, "light.amberBg")
-        assertRgba(light.amberBorder, 217, 119, 6, 0.20f, "light.amberBorder")
-        assertHex(light.cardBorder, "#f0f0f0")
-
+    fun dark_extended_matches_forest_tokens() {
         val dark = GreenThumbExtendedColors.dark
-        assertHex(dark.amber, "#d97706")
-        assertRgba(dark.amberBg, 217, 119, 6, 0.12f, "dark.amberBg")
-        assertRgba(dark.amberBorder, 217, 119, 6, 0.25f, "dark.amberBorder")
-        assertHex(dark.cardBorder, "#272420")
         assertHex(dark.page, "#0a100b")
-        assertHex(light.page, "#f3f6f1")
+        assertHex(dark.accentText, "#86d69c")
+        assertHex(dark.amber, "#e0a25a")
+        assertHex(dark.glow, "#7fe3a0")
+        assertHex(dark.causeHigh, "#ee8e72")
+        assertHex(dark.causeLow, "#a39b8c")
+        assertHex(dark.cardBorder, "#2a3d2e")
+        assertRgba(dark.amberBg, 0xE0, 0xA2, 0x5A, 0.12f, "dark.amberBg")
+        assertRgba(dark.amberBorder, 0xE0, 0xA2, 0x5A, 0.25f, "dark.amberBorder")
+        assertRgba(dark.chipSelected, 0x4A, 0x9A, 0x5A, 0.2f, "dark.chipSelected")
+    }
 
-        assertEquals(GreenThumbColors.light.outlineVariant.toArgb(), light.cardBorder.toArgb())
-        assertEquals(GreenThumbColors.dark.outlineVariant.toArgb(), dark.cardBorder.toArgb())
+    @Test
+    fun light_scheme_is_the_derived_forest_variant() {
+        val scheme = GreenThumbColors.light
+        assertHex(scheme.background, "#f3f6f1")
+        assertHex(scheme.surface, "#ffffff")
+        assertHex(scheme.surfaceVariant, "#e7ede4")
+        assertHex(scheme.outline, "#cbd6c7")
+        assertHex(scheme.onBackground, "#142016")
+        assertHex(scheme.onSurface, "#142016")
+        assertHex(scheme.onSurfaceVariant, "#4e5e4d")
+        assertHex(scheme.primary, "#277a40")
+        assertHex(scheme.onPrimary, "#f0f9f2")
+        assertHex(scheme.secondary, "#2e8a4a")
+        assertHex(scheme.tertiary, "#1f6b36")
+        assertHex(scheme.error, "#b4472a")
+
+        val light = GreenThumbExtendedColors.light
+        assertHex(light.page, "#f3f6f1")
+        assertHex(light.amber, "#a86412")
+        assertHex(light.causeHigh, "#b4472a")
+        assertHex(light.accentText, "#1f6b36")
+    }
+
+    @Test
+    fun light_differs_from_dark_and_drops_the_old_palettes() {
+        val old = listOf(
+            "#ffffff" to "background", "#fafafa" to "surface", "#2e7740" to "primary", "#1a1a1a" to "onSurface",
+            "#15130e" to "background", "#1c1a14" to "surface", "#4a9a5a" to "primary",
+        )
+        val light = GreenThumbColors.light
+        val dark = GreenThumbColors.dark
+        for (role in listOf("background", "surface", "onSurface", "secondary", "tertiary")) {
+            assertTrue(role(light, role) != role(dark, role), "light and dark share $role")
+        }
+        for ((hex, role) in old) {
+            for (scheme in listOf(light, dark)) {
+                assertTrue(role(scheme, role).toArgb() != argb(hex), "$role still uses the old $hex")
+            }
+        }
+    }
+
+    @Test
+    fun text_roles_have_at_least_4_5_contrast() {
+        for ((name, scheme) in listOf("light" to GreenThumbColors.light, "dark" to GreenThumbColors.dark)) {
+            val pairs = listOf(
+                "onSurface/surface" to (scheme.onSurface to scheme.surface),
+                "onBackground/background" to (scheme.onBackground to scheme.background),
+                "onSurfaceVariant/surface" to (scheme.onSurfaceVariant to scheme.surface),
+                "onSurfaceVariant/background" to (scheme.onSurfaceVariant to scheme.background),
+                "onPrimary/primary" to (scheme.onPrimary to scheme.primary),
+                "tertiary/surface" to (scheme.tertiary to scheme.surface),
+                "tertiary/background" to (scheme.tertiary to scheme.background),
+                "error/surface" to (scheme.error to scheme.surface),
+                "onError/error" to (scheme.onError to scheme.error),
+            )
+            for ((label, pair) in pairs) {
+                val ratio = contrast(pair.first, pair.second)
+                assertTrue(ratio >= 4.5, "$name $label contrast $ratio < 4.5")
+            }
+            // D§3.1: acc (secondary) never carries text; onSecondary only marks icons on it (non-text, 3:1).
+            val onAccent = contrast(scheme.onSecondary, scheme.secondary)
+            assertTrue(onAccent >= 3.0, "$name onSecondary/secondary contrast $onAccent < 3")
+        }
+        for ((name, ext, scheme) in listOf(
+            Triple("light", GreenThumbExtendedColors.light, GreenThumbColors.light),
+            Triple("dark", GreenThumbExtendedColors.dark, GreenThumbColors.dark),
+        )) {
+            for ((label, c) in listOf("amber" to ext.amber, "causeHigh" to ext.causeHigh, "causeLow" to ext.causeLow)) {
+                val ratio = contrast(c, scheme.surface)
+                assertTrue(ratio >= 4.5, "$name $label on surface contrast $ratio < 4.5")
+            }
+        }
+    }
+
+    @Test
+    fun extended_card_border_is_the_outline_variant() {
+        assertEquals(GreenThumbColors.light.outlineVariant.toArgb(), GreenThumbExtendedColors.light.cardBorder.toArgb())
+        assertEquals(GreenThumbColors.dark.outlineVariant.toArgb(), GreenThumbExtendedColors.dark.cardBorder.toArgb())
     }
 
     @Test
@@ -92,7 +146,7 @@ class ThemeTokensTest {
         val allowed = paletteArgb() + GreenThumbColors.modalScrim.toArgb() + GreenThumbColors.darkScrim.toArgb()
         for (scheme in listOf(GreenThumbColors.light, GreenThumbColors.dark)) {
             for ((name, color) in slots(scheme)) {
-                assertTrue(color.toArgb() in allowed, "$name ${color.toArgb().toUInt().toString(16)} is not a constants.ts color or the modal scrim")
+                assertTrue(color.toArgb() in allowed, "$name ${color.toArgb().toUInt().toString(16)} is not a «Лес» token or the modal scrim")
             }
         }
         assertRgba(GreenThumbColors.modalScrim, 0, 0, 0, 0.5f, "modalScrim")
@@ -113,11 +167,24 @@ class ThemeTokensTest {
     }
 
     @Test
+    fun layout_sizes_match_design() {
+        assertEquals(48.dp, Sizes.touch)
+        assertEquals(56.dp, Sizes.sheetRow)
+        assertEquals(24.dp, Sizes.iconSlot)
+        assertEquals(Spacing.lg, Sizes.screenPadding)
+        assertEquals(Spacing.lg, Sizes.cardPadding)
+        assertEquals(Spacing.sm, Sizes.cardGap)
+    }
+
+    @Test
     fun radii_are_the_rn_scale() {
         assertEquals(8.dp, Radii.sm)
         assertEquals(10.dp, Radii.md)
         assertEquals(12.dp, Radii.lg)
         assertEquals(16.dp, Radii.xl)
+        assertEquals(24.dp, Radii.card)
+        assertEquals(16.dp, Radii.field)
+        assertEquals(RoundedCornerShape(percent = 50), Radii.pill)
         assertEquals(RoundedCornerShape(Radii.sm), GreenThumbShapes.extraSmall)
         assertEquals(RoundedCornerShape(Radii.md), GreenThumbShapes.small)
         assertEquals(RoundedCornerShape(Radii.lg), GreenThumbShapes.medium)
@@ -176,12 +243,12 @@ class ThemeTokensTest {
                 seen.lightAmberBg = LocalGreenThumbExtendedColors.current.amberBg
             }
         }
-        assertHex(seen.darkPrimary ?: error("dark primary not composed"), "#4a9a5a")
-        assertHex(seen.darkAmber ?: error("dark amber not composed"), "#d97706")
-        assertHex(seen.darkCardBorder ?: error("dark cardBorder not composed"), "#272420")
+        assertHex(seen.darkPrimary ?: error("dark primary not composed"), "#277a40")
+        assertHex(seen.darkAmber ?: error("dark amber not composed"), "#e0a25a")
+        assertHex(seen.darkCardBorder ?: error("dark cardBorder not composed"), "#2a3d2e")
         assertEquals(RoundedCornerShape(Radii.md), seen.darkShape)
-        assertHex(seen.lightBackground ?: error("light background not composed"), "#ffffff")
-        assertRgba(seen.lightAmberBg ?: error("light amberBg not composed"), 217, 119, 6, 0.08f, "composed amberBg")
+        assertHex(seen.lightBackground ?: error("light background not composed"), "#f3f6f1")
+        assertRgba(seen.lightAmberBg ?: error("light amberBg not composed"), 0xA8, 0x64, 0x12, 0.08f, "composed amberBg")
     }
 }
 
@@ -239,16 +306,32 @@ private fun assertRgba(color: Color, red: Int, green: Int, blue: Int, alpha: Flo
     assertEquals(alphaByte, (argb ushr 24) and 0xFF, "$label alpha")
 }
 
-private fun paletteArgb(): Set<Int> = listOf(
-    "#ffffff", "#fafafa", "#f0f0f0", "#1a1a1a", "#e5e5e5", "#ebebea", "#8a8a85",
-    "#2e7740", "#f0f9f2", "#993333", "#fef2f2", "#c0c0c0",
-    "#15130e", "#1c1a14", "#272420", "#f3f2ef", "#302d27", "#2a2822", "#a89f92",
-    "#4a9a5a", "#a33535", "#3d3b35", "#d97706",
-).map { hex ->
-    val rgb = hex.removePrefix("#").toLong(16)
-    (0xFF000000L or rgb).toInt()
-}.toSet()
+private fun argb(hex: String): Int = (0xFF000000L or hex.removePrefix("#").toLong(16)).toInt()
 
+private fun paletteArgb(): Set<Int> = listOf(
+    // dark «Лес»
+    "#0e1610", "#152018", "#1c2a1f", "#2a3d2e", "#eef4ec", "#a8b9a6", "#277a40", "#f0f9f2",
+    "#3da35b", "#86d69c", "#ee8e72", "#0a100b",
+    // light «Лес»
+    "#f3f6f1", "#ffffff", "#e7ede4", "#cbd6c7", "#142016", "#4e5e4d", "#2e8a4a", "#1f6b36", "#b4472a",
+).map(::argb).toSet()
+
+private fun role(scheme: ColorScheme, name: String): Color = when (name) {
+    "background" -> scheme.background
+    "surface" -> scheme.surface
+    "onSurface" -> scheme.onSurface
+    "primary" -> scheme.primary
+    "secondary" -> scheme.secondary
+    "tertiary" -> scheme.tertiary
+    else -> error(name)
+}
+
+/** WCAG 2 contrast ratio of two opaque colours. */
+private fun contrast(a: Color, b: Color): Double {
+    val la = a.luminance().toDouble()
+    val lb = b.luminance().toDouble()
+    return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+}
 private fun slots(scheme: ColorScheme): List<Pair<String, Color>> = listOf(
     "primary" to scheme.primary,
     "onPrimary" to scheme.onPrimary,

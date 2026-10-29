@@ -933,7 +933,7 @@ private fun ViewModeButton(
         contentDescription = label,
         selected = selected,
     ) {
-        mark(if (selected) scheme.primary else scheme.onSurfaceVariant)
+        mark(if (selected) scheme.secondary else scheme.onSurfaceVariant)
     }
 }
 
@@ -1180,7 +1180,7 @@ private fun statusAccent(plant: PlantDto, today: LocalDate, season: SeasonContex
     return when (wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)) {
         WateringStatus.Overdue -> scheme.error
         WateringStatus.Today -> greenThumbExtendedColors().amber
-        WateringStatus.Healthy -> scheme.primary
+        WateringStatus.Healthy -> scheme.tertiary
     }
 }
 
@@ -1205,7 +1205,7 @@ private fun statusPill(plant: PlantDto, today: LocalDate, season: SeasonContext)
         )
         WateringStatus.Healthy -> StatusPillInfo(
             text = pluralStringResource(Res.plurals.plant_daysLeft, days, days),
-            color = scheme.primary,
+            color = scheme.tertiary,
             bg = scheme.primary.copy(alpha = StatusPillAlpha),
         )
     }

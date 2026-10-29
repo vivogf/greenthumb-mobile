@@ -185,7 +185,7 @@ private fun CandidateRow(candidate: IdentifyCandidate, language: String, index: 
                 Text(
                     text = stringResource(Res.string.species_inCatalog),
                     style = MaterialTheme.typography.labelMedium,
-                    color = scheme.primary,
+                    color = scheme.tertiary,
                     modifier = Modifier.testTag("identify_inCatalog_$index"),
                 )
             }
@@ -243,7 +243,7 @@ private fun DialogRow(label: String, tag: String, muted: Boolean = false, onClic
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color = if (muted) scheme.onSurfaceVariant else scheme.primary,
+            color = if (muted) scheme.onSurfaceVariant else scheme.tertiary,
         )
     }
 }

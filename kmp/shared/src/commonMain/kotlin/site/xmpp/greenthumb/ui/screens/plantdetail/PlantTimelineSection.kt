@@ -330,7 +330,7 @@ private fun SourceRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        icon?.invoke(scheme.primary)
+        icon?.invoke(scheme.secondary)
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,

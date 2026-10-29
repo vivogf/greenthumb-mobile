@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -128,12 +129,16 @@ fun GtDatePickerField(
                         open = false
                     },
                     enabled = canConfirm,
+                    colors = ButtonDefaults.textButtonColors(contentColor = scheme.tertiary),
                 ) {
                     Text(text = confirmLabel)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { open = false }) {
+                TextButton(
+                    onClick = { open = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = scheme.onSurfaceVariant),
+                ) {
                     Text(text = dismissLabel)
                 }
             },

@@ -74,6 +74,7 @@ fun GreenThumbTheme(
         MaterialTheme(
             colorScheme = scheme,
             shapes = GreenThumbShapes,
+            typography = GtTypeScale,
             content = content,
         )
     }
