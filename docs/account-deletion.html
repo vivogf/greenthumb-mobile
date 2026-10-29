@@ -39,7 +39,7 @@
 <body>
 
 <h1>Account &amp; Data Deletion</h1>
-<p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov. Updated: 2026-10-28</p>
+<p class="meta">For the <strong>GreenThumb — Plant Care</strong> application by Ton Tsukanov. Updated: 2026-10-29</p>
 
 <p>
   This page explains how to delete your account and associated data from the
@@ -115,7 +115,7 @@
 <h2>What data will be deleted</h2>
 
 <ul>
-  <li>Your <strong>user record</strong> (recovery key, reminder time, language, seasonal mode and time zone) — after which the recovery key stops working</li>
+  <li>Your <strong>user record</strong> (the hash of your recovery key, the optional display name, reminder time, language, seasonal mode and time zone) — after which the recovery key stops working. The server never stores the key itself, only its one-way SHA-256 hash</li>
   <li>All <strong>plants</strong> you created (names, species, care schedules, care dates and notes)</li>
   <li>All <strong>cover photos and timeline photos</strong> with their captions; the photo files are removed from photo storage</li>
   <li>Your <strong>care journal</strong> (watering, fertilizing, repotting and pruning events, and journal notes)</li>
@@ -155,6 +155,7 @@
 
 <p>
   Backups are kept in private storage and are used only to restore the service after a failure.
+  They contain only the hash of your recovery key, never the key itself.
 </p>
 
 <h2>What data may be retained</h2>
@@ -166,16 +167,16 @@
     then deletes them. They do not contain your recovery key or account number.
   </li>
   <li>
-    <strong>Server logs:</strong> web server access logs (IP address, time, requested address)
-    are deleted after about 15 days; technical error logs after about 8 weeks.
+    <strong>Server logs:</strong> the server keeps no logs about people (no access or error logs
+    with IP addresses, requests or account numbers), so there are no logs about you to delete.
   </li>
   <li>
     <strong>Usage counters:</strong> the daily counts of identification and diagnosis requests
     are kept as anonymous totals that are not linked to any account, so daily limits stay correct.
   </li>
   <li>
-    <strong>Crash reports</strong> in Firebase Crashlytics are not linked to your account and stay
-    under Firebase's retention rules.
+    <strong>Crash and ANR reports and session events</strong> in Firebase Crashlytics are not linked
+    to your account, so they cannot be found by account, and they stay under Firebase's retention rules.
   </li>
   <li>
     <strong>Google Password Manager:</strong> if you saved your recovery key there, the entry stays

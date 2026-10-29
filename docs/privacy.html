@@ -34,7 +34,7 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="meta">Effective date: 2026-10-28</p>
+<p class="meta">Effective date: 2026-10-29</p>
 
 <p>
   This privacy policy applies to the <strong>GreenThumb — Plant Care</strong> app
@@ -50,19 +50,20 @@
 <p>The Application collects only the information necessary to provide its functions:</p>
 
 <ul>
-  <li><strong>Recovery key and account number</strong> — an anonymous random key created when you create an account, and an internal account number on the Service Provider's server. The key is your account key instead of an email and password. The Service Provider cannot recover this key if you lose it.</li>
+  <li><strong>Recovery key and account number</strong> — an anonymous random key created when you create an account, and an internal account number on the Service Provider's server. The key is your account key instead of an email and password. The server never stores the key itself: it stores only a one-way SHA-256 hash of it, which is enough to check the key when you sign in but cannot be turned back into the key. The Service Provider cannot recover this key if you lose it.</li>
+  <li><strong>Display name (optional)</strong> — a name you may enter when you create an account. It can be any nickname, it is shown only to you in the Application, and you can leave it empty.</li>
   <li><strong>Plant data</strong> — plant names, species, care schedules, care dates and notes that you enter.</li>
   <li><strong>Plant photos</strong> — the cover photo of a plant and the timeline photos you add to a plant, with their captions. They are stored in Cloudflare R2 object storage in the European Union (see "Service providers" below).</li>
   <li><strong>Care journal</strong> — the care events you record for a plant (watering, fertilizing, repotting, pruning) and the journal notes you write. Achievements and streaks are calculated from this journal and stored with your account.</li>
   <li><strong>Account settings</strong> — reminder time, language, seasonal watering mode and your device's time zone. The server stores the time zone as an IANA time zone name (for example <code>Europe/Berlin</code>) so that reminders and "today" are calculated in your local time. The time zone is not a precise or approximate location.</li>
   <li><strong>Push notification token</strong> — issued by Firebase Cloud Messaging (FCM) and stored on the Service Provider's server only if you turn on watering reminders. It is used only to deliver reminders to your device.</li>
   <li><strong>Photos you send for species identification or plant diagnosis</strong> — these are sent through the Service Provider's server to the providers described below. The server does not store them for these features, and it does not store identification or diagnosis results. A photo is stored only if you also save it as a plant photo.</li>
-  <li><strong>Crash reports and diagnostics</strong> — when the Application crashes, a crash report is sent to Firebase Crashlytics so defects can be found and fixed. A crash report contains the stack trace, device model, operating system version, app version, free memory and a random installation identifier. It does not contain your plants, photos or recovery key, and it is not linked to your account.</li>
-  <li><strong>Server logs</strong> — the Service Provider's web server keeps standard access logs (IP address, time, requested address, response code and app user agent) to operate and secure the service. They are deleted after about 15 days. The server also keeps technical error logs, deleted after about 8 weeks.</li>
+  <li><strong>Crash reports and diagnostics</strong> — when the Application crashes or stops responding (an "ANR", Application Not Responding), a report is sent to Firebase Crashlytics so defects can be found and fixed. A report contains the stack trace, device model, operating system version, app version, free memory and a random installation identifier. In addition, when the Application starts, Crashlytics sends a session event (a random session identifier, the random installation identifier, the time, the app version and the device and operating system details), so the share of sessions with a crash can be calculated. Reports and session events do not contain your plants, photos, display name or recovery key, and they are not linked to your account.</li>
+  <li><strong>Server logs</strong> — the Service Provider's server keeps no logs about people: the web server and the application server keep no access logs and no error logs, so your IP address, your requests and your account number are not recorded. Only automated maintenance jobs (backups and reminders) write a status line, such as a response code or "backup ok", and the database writes short technical messages (for example, maintenance checkpoints) without your data.</li>
 </ul>
 
 <p>
-  The Application does <strong>not</strong> collect your name, email, phone number, age,
+  Apart from the optional display name, the Application does <strong>not</strong> collect your name, email, phone number, age,
   gender, contacts, precise or approximate location, or microphone input. It does not
   collect analytics about your usage (screens visited, time spent). No user-tracking or
   advertising SDK is integrated.
@@ -171,8 +172,10 @@
   <strong>Delete Account</strong> and confirm. The server removes your user record, plants,
   cover and timeline photos, care journal, achievements and push subscriptions from its live
   systems immediately, and the Application removes the account data stored on your device.
-  Copies in database backups disappear as the backups rotate. See
-  <a href="./account-deletion.html">Account &amp; Data Deletion</a> for the exact retention periods.
+  Copies in database backups disappear as the backups rotate: hourly backups are kept for 48 hours,
+  daily backups for 14 days, and at most 10 snapshots made before database upgrades are kept until
+  newer ones replace them. Backups contain only the hash of your recovery key, never the key itself. See
+  <a href="./account-deletion.html">Account &amp; Data Deletion</a> for the details.
 </p>
 
 <p>
@@ -205,7 +208,8 @@
   cannot read and which is excluded from Android cloud backups and device-to-device transfer. One
   copy of the key is encrypted with a key held in Android Keystore. The Application also keeps your
   account details, including the key, in its private storage without that extra encryption, so it
-  can work offline. The key is sent to the server only over HTTPS when you sign in.
+  can work offline. The key is sent to the server only over HTTPS when you sign in, and the server
+  keeps only its SHA-256 hash.
 </p>
 
 <h2>Changes to this Policy</h2>
