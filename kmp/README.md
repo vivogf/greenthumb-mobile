@@ -31,7 +31,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 | Module | What's inside |
 |---|---|
 | **`shared/`** | all shared code (`commonMain` + `androidMain`/`jvmMain`, tests in `jvmTest`):<br>• `core.network` — `ApiClient` (Ktor, 10 s timeout, cookies in memory) and `ApiError`; the only path to the network (grep rule K1)<br>• `core.storage` — SecureStore (AES-GCM + AndroidKeyStore; a file on JVM), `AppSettings` (DataStore: language, theme, grid, `cached_user`), Room `GreenThumbDb` (per-user database `plants_${userId}.db`)<br>• `core.platform` — expect/actual: Connectivity, RemoteKillSwitch, Haptics, pickImage/resizeJpeg and more (stubs on desktop where the platform has no equivalent)<br>• `data/` — `PlantRepository`, offline mutation journal, `WateringStatus`, `RefreshCoordinator`<br>• `ui.theme` / `ui.components` / `ui.screens.*` (welcome, login, enablenotifications, dashboard, addplant, plantdetail, profile, update, gallery) / `ui.nav`; en/ru strings live in `composeResources` |
-| **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 7` / `versionName 2.0.0`; the debug build is `com.greenthumbplantcare.debug` ("GreenThumb Debug", `2.0.0-debug`, signed with `~/.android/debug.keystore`) and installs beside the release package |
+| **`androidApp/`** | a thin shell: `MainActivity`, `GreenThumbApplication`, `GtFirebaseMessagingService`, `google-services.json`, backup rules (`full_backup_content.xml`, `data_extraction_rules.xml` — recovery-key files are excluded from them). `applicationId com.greenthumbplantcare`, `versionCode 7` / `versionName 0.8.0`; the debug build is `com.greenthumbplantcare.debug` ("GreenThumb Debug", `0.8.0-debug`, signed with `~/.android/debug.keystore`) and installs beside the release package |
 | **`desktopApp/`** | JVM harness: `main.kt` (GUI launch, hot reload `hotRun`/`hotMcpServer`), `RealApiProbe.kt` (manual probe of the live API) |
 | **`scripts/`** | `check.sh` (the gate), `grep-rules-selftest.sh`, `i18n_check.py`, `mcp-driver.mjs` |
 | **`maestro/`** | `smoke.yaml` + `render-smoke.sh`, `delete-account.yaml` + `render-delete-account.sh`, `push-enable.yaml` (rendered with `GT_FLOW=push-enable.yaml render-smoke.sh`) target `com.greenthumbplantcare.debug`; `GT_KEY_FILE` and `GT_DEVICE` override the key file and the device. `release-smoke.yaml` targets the release package; `vault-wording.yaml` checks the neutral password-manager strings (debug package). For staged flows, `GT_STEP` passes `STEP=<stage>` to Maestro |
@@ -217,7 +217,7 @@ the fingerprints from the env vars `ASSETLINKS_FINGERPRINTS_RELEASE` and
 `ASSETLINKS_FINGERPRINTS_DEBUG` on the VPS; after a change, run
 `pm2 reload ecosystem.config.cjs --update-env`.
 
-### Release checklist (2.0.0 / 7)
+### Release checklist (0.8.0 / 7)
 
 The **owner** performs these steps by hand, in this order:
 

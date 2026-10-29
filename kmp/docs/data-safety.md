@@ -1,4 +1,4 @@
-# Play Console Data Safety answers — GreenThumb 2.0.0 (KMP release)
+# Play Console Data Safety answers — GreenThumb 0.8.0 (KMP release)
 
 Source of truth for the Data Safety form. Keep it consistent with
 [`docs/privacy.html`](../../docs/privacy.html) and
