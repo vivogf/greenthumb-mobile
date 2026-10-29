@@ -220,6 +220,31 @@
         <item quantity="other">Пора полить: %1$d дней назад</item>
     </plurals>
     <string name="plantDetails_lastWateredLine">Последний полив: %1$s</string>
+    <string name="plantDetails_careSheetTitle">Уход за растением</string>
+    <string name="plantDetails_careWatering">Полив</string>
+    <string name="plantDetails_careAlwaysOn">Всегда включён</string>
+    <string name="plantDetails_careOn">Включено</string>
+    <string name="plantDetails_careOff">Выключено — напоминаний нет</string>
+    <string name="plantDetails_careHowOften">Как часто</string>
+    <string name="plantDetails_careDecrease">%1$s: меньше</string>
+    <string name="plantDetails_careIncrease">%1$s: больше</string>
+    <plurals name="plantDetails_careDays">
+        <item quantity="one">день</item>
+        <item quantity="few">дня</item>
+        <item quantity="many">дней</item>
+        <item quantity="other">дней</item>
+    </plurals>
+    <plurals name="plantDetails_careMonths">
+        <item quantity="one">месяц</item>
+        <item quantity="few">месяца</item>
+        <item quantity="many">месяцев</item>
+        <item quantity="other">месяцев</item>
+    </plurals>
+    <string name="plantDetails_careRejected">Сервер не принял изменения. Проверьте значения и попробуйте ещё раз.</string>
+    <string name="plantDetails_careServerError">Не удалось сохранить: ошибка сервера. Попробуйте позже.</string>
+    <string name="plantDetails_careOffline">Нет связи. Попробуйте ещё раз, когда появится интернет.</string>
+    <string name="plantDetails_careQueuedTitle">Сохранено на телефоне</string>
+    <string name="plantDetails_careQueuedBody">Изменения отправятся, когда появится связь.</string>
     <string name="plantDetails_fertilizingFrequency">Частота удобрения (дней)</string>
     <string name="plantDetails_repottingFrequency">Частота пересадки (месяцев)</string>
     <string name="plantDetails_pruningFrequency">Частота обрезки (месяцев)</string>

@@ -318,6 +318,20 @@ KMP_ONLY_KEYS = {
     "plantDetails.placeOffice",
     "plantDetails.placeCustom",
     "plantDetails.placeCustomHint",
+    # Care settings sheet, variant A (M10 D§1 item 7a); unit plurals are in KMP_ONLY_PLURALS.
+    "plantDetails.careSheetTitle",
+    "plantDetails.careWatering",
+    "plantDetails.careAlwaysOn",
+    "plantDetails.careOn",
+    "plantDetails.careOff",
+    "plantDetails.careHowOften",
+    "plantDetails.careDecrease",
+    "plantDetails.careIncrease",
+    "plantDetails.careRejected",
+    "plantDetails.careServerError",
+    "plantDetails.careOffline",
+    "plantDetails.careQueuedTitle",
+    "plantDetails.careQueuedBody",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of
@@ -326,6 +340,9 @@ KMP_ONLY_PLURALS = frozenset({
     # Watering line on plant detail (M10 D§1 item 4).
     "plantDetails.waterIn",
     "plantDetails.waterOverdue",
+    # Stepper unit words of the care settings sheet (M10 D§1 item 7a).
+    "plantDetails.careDays",
+    "plantDetails.careMonths",
 })
 
 # RN keys whose KMP text is deliberately rewritten (privacy wording of the KMP

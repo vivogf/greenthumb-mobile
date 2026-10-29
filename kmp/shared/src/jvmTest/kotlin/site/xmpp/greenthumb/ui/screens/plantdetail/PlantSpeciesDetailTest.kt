@@ -101,7 +101,7 @@ class PlantSpeciesDetailTest {
         val p = plant()
         val wire = ApiClient.json.encodeToString(
             PatchPlantDto.serializer(),
-            CareSettingsPatch.build(p, CareSettingsForm.of(p).copy(waterFrequencyText = "5")),
+            CareSettingsPatch.build(p, CareSettingsForm.of(p).step(CareType.Water, -2)),
         )
         assertFalse(wire.contains("species"), wire)
     }

@@ -1,0 +1,210 @@
+# Care settings sheet, variant A (feature m10-care-cards; VAL-CARD-008..011).
+# Keyless: the app is already signed in (photos-signin.yaml through render-smoke.sh) to a throwaway account
+# with one plant «Care Fern»: water 7, fertilize 30, repot 12, prune off. STEP selects one stage; between
+# stages the caller changes the plant with curl, reads GET /api/plants and dumps the screen with uiautomator.
+#   open     the sheet in English (left open for a dump of the 48 dp controls)
+#   min      watering at 1 (set by curl): «Watering: decrease» is disabled and the value stays 1
+#   max      watering at 365 (set by curl): «Watering: increase» is disabled and the value stays 365
+#   default  pruning off → switch on shows the default 6 months; ✕ saves nothing
+#   save     fertilizing 30 → 14 with 16 × «−», repotting switched off, «Save»; the repot card leaves the
+#            care grid; reopening shows 14 and repotting off
+#   offline  (airplane mode on, watering 7 in the app cache) watering + 2, «Save» → «Saved on this phone»; the caller turns airplane mode
+#            off and checks the server value
+#   ru       after switching the app to Russian: the sheet in Russian (left open)
+# SHOT_PREFIX must be relative: Maestro writes screenshots under ~/.maestro/tests/<run>/…/takeScreenshot/.
+# Selectors are texts and content descriptions: Compose test tags are not resource ids on the device.
+# A switch carries its title as content description: index 0 is the card title, index 1 the switch.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb care cards (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP != 'ru'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "My Plants"
+          timeout: 30000
+      - tapOn: "Care Fern"
+      - extendedWaitUntil:
+          visible: "Water.*"
+          timeout: 10000
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - tapOn: "Care Settings"
+      - extendedWaitUntil:
+          visible: "Plant care"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'open'}
+    commands:
+      - assertVisible: "Always on"
+      - assertVisible: "How often"
+      - assertVisible: "Watering: decrease"
+      - assertVisible: "Watering: increase"
+      - assertVisible: "Fertilizing: decrease"
+      - takeScreenshot: ${SHOT_PREFIX}-open-en
+
+- runFlow:
+    when:
+      true: ${STEP == 'min'}
+    commands:
+      - repeat:
+          times: 5
+          while:
+            notVisible: "day"
+          commands:
+            - tapOn: "Cancel"
+            - extendedWaitUntil:
+                notVisible: "Plant care"
+                timeout: 5000
+            - tapOn: "Care Settings"
+            - extendedWaitUntil:
+                visible: "Plant care"
+                timeout: 10000
+      - assertVisible: "day"
+      - assertVisible:
+          text: "Watering: decrease"
+          enabled: false
+      - tapOn: "Watering: decrease"
+      - assertVisible: "1"
+      - assertVisible: "day"
+      - takeScreenshot: ${SHOT_PREFIX}-min
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Plant care"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'max'}
+    commands:
+      # The list may show the cached plant before the refresh lands; reopen until the server value is there.
+      - repeat:
+          times: 5
+          while:
+            notVisible: "365"
+          commands:
+            - tapOn: "Cancel"
+            - extendedWaitUntil:
+                notVisible: "Plant care"
+                timeout: 5000
+            - tapOn: "Care Settings"
+            - extendedWaitUntil:
+                visible: "Plant care"
+                timeout: 10000
+      - assertVisible: "365"
+      - assertVisible:
+          text: "Watering: increase"
+          enabled: false
+      - tapOn: "Watering: increase"
+      - assertVisible: "365"
+      - assertNotVisible: "366"
+      - takeScreenshot: ${SHOT_PREFIX}-max
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Plant care"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'default'}
+    commands:
+      - scrollUntilVisible:
+          element: "Pruning"
+          direction: DOWN
+      - assertNotVisible: "Pruning: increase"
+      - tapOn:
+          text: "Pruning"
+          index: 1
+      - scrollUntilVisible:
+          element: "Pruning: increase"
+          direction: DOWN
+      - assertVisible: "6"
+      - assertVisible: "months"
+      - takeScreenshot: ${SHOT_PREFIX}-default
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Plant care"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'save'}
+    commands:
+      - repeat:
+          times: 16
+          commands:
+            - tapOn: "Fertilizing: decrease"
+      - assertVisible: "14"
+      - scrollUntilVisible:
+          element: "Repotting: decrease"
+          direction: DOWN
+      - tapOn:
+          text: "Repotting"
+          index: 1
+      - assertNotVisible: "Repotting: decrease"
+      - takeScreenshot: ${SHOT_PREFIX}-save-before
+      - tapOn: "Save"
+      - extendedWaitUntil:
+          notVisible: "Plant care"
+          timeout: 15000
+      - assertNotVisible: "Repotting"
+      - takeScreenshot: ${SHOT_PREFIX}-save-after
+      - scrollUntilVisible:
+          element: "Care Settings"
+          direction: DOWN
+      - tapOn: "Care Settings"
+      - extendedWaitUntil:
+          visible: "Plant care"
+          timeout: 10000
+      - assertVisible: "14"
+      - scrollUntilVisible:
+          element: "Repotting"
+          direction: DOWN
+      - assertNotVisible: "Repotting: decrease"
+      - takeScreenshot: ${SHOT_PREFIX}-save-reopen
+      - tapOn: "Cancel"
+
+- runFlow:
+    when:
+      true: ${STEP == 'offline'}
+    commands:
+      - tapOn: "Watering: increase"
+      - tapOn: "Watering: increase"
+      - assertVisible: "9"
+      - tapOn: "Save"
+      - extendedWaitUntil:
+          visible: "Saved on this phone"
+          timeout: 20000
+      - takeScreenshot: ${SHOT_PREFIX}-offline
+      - tapOn: "OK"
+
+- runFlow:
+    when:
+      true: ${STEP == 'ru'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Мои растения"
+          timeout: 30000
+      - tapOn: "Care Fern"
+      - extendedWaitUntil:
+          visible: "Полить.*"
+          timeout: 10000
+      - scrollUntilVisible:
+          element: "Настройки ухода"
+          direction: DOWN
+      - tapOn: "Настройки ухода"
+      - extendedWaitUntil:
+          visible: "Уход за растением"
+          timeout: 10000
+      - assertVisible: "Всегда включён"
+      - assertVisible: "Как часто"
+      - assertVisible: "Полив: меньше"
+      - takeScreenshot: ${SHOT_PREFIX}-open-ru

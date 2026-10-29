@@ -5,6 +5,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.plus
 import site.xmpp.greenthumb.catalog.CatalogRepository
 import site.xmpp.greenthumb.catalog.SpeciesEntry
+import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
@@ -187,22 +188,91 @@ public fun plantSpeciesInfo(plant: PlantDto, catalog: CatalogRepository?): Plant
 }
 
 /**
- * Состояние формы модалки настроек ухода — порт `settingsForm` (RN
- * `app/plant/[id].tsx:66-76`) и `openSettings` (строки в поля ввода,
- * null-частота → ''). Даты — `YYYY-MM-DD` или null.
+ * The four care types of the care settings sheet (M10 D§1 item 7a) with the stepper range of each.
+ *
+ * The ranges follow the server validator `GreenThumbPWA/server/plants/plantInput.ts`: water 1..365,
+ * fertilize `optionalInt(3650)`, repot and prune `optionalInt(120)`. `optionalInt` also accepts 0, but
+ * the server schedule and the web client treat 0 as "no reminder" (`!!days`, `|| null`); here that is the
+ * switch (null), so a switched-on stepper starts at 1. [default] is the first value of a switch turned on
+ * for a type that never had one.
+ */
+public enum class CareType(public val range: IntRange, public val default: Int, public val inMonths: Boolean) {
+    Water(1..365, default = 7, inMonths = false),
+    Fertilize(1..3650, default = 30, inMonths = false),
+    Repot(1..120, default = 12, inMonths = true),
+    Prune(1..120, default = 6, inMonths = true),
+    ;
+
+    /** The server maximum; one more is a 400 (VAL-CARD-009). */
+    public val serverMax: Int get() = range.last
+
+    /** Watering has no switch: every plant has a watering interval. */
+    public val switchable: Boolean get() = this != Water
+}
+
+/** On/off and the number of one care type; [value] is kept while the type is off. */
+public data class CareSetting(public val on: Boolean, public val value: Int)
+
+/**
+ * Care settings sheet state: one [CareSetting] per [CareType], the last-done dates (`YYYY-MM-DD` or null)
+ * and the species. Values are always inside [CareType.range]; there is no free text to parse.
  */
 public data class CareSettingsForm(
-    public val waterFrequencyText: String,
+    public val water: Int,
+    public val fertilize: CareSetting,
+    public val repot: CareSetting,
+    public val prune: CareSetting,
     public val lastWateredDate: String?,
-    public val fertilizeFrequencyText: String,
     public val lastFertilizedDate: String?,
-    public val repotFrequencyText: String,
     public val lastRepottedDate: String?,
-    public val pruneFrequencyText: String,
     public val lastPrunedDate: String?,
     public val speciesId: String? = null,
     public val speciesName: String? = null,
 ) {
+    public fun setting(type: CareType): CareSetting = when (type) {
+        CareType.Water -> CareSetting(on = true, value = water)
+        CareType.Fertilize -> fertilize
+        CareType.Repot -> repot
+        CareType.Prune -> prune
+    }
+
+    public fun isOn(type: CareType): Boolean = setting(type).on
+
+    public fun value(type: CareType): Int = setting(type).value
+
+    /** The value the server should hold: null when the type is off. */
+    public fun effective(type: CareType): Int? = setting(type).let { if (it.on) it.value else null }
+
+    private fun with(type: CareType, setting: CareSetting): CareSettingsForm = when (type) {
+        CareType.Water -> copy(water = setting.value)
+        CareType.Fertilize -> copy(fertilize = setting)
+        CareType.Repot -> copy(repot = setting)
+        CareType.Prune -> copy(prune = setting)
+    }
+
+    /** One − or + press, clamped to [CareType.range]. */
+    public fun step(type: CareType, delta: Int): CareSettingsForm {
+        val current = setting(type)
+        return with(type, current.copy(value = (current.value + delta).coerceIn(type.range)))
+    }
+
+    public fun setOn(type: CareType, on: Boolean): CareSettingsForm =
+        if (!type.switchable) this else with(type, setting(type).copy(on = on))
+
+    public fun withDate(type: CareType, date: String): CareSettingsForm = when (type) {
+        CareType.Water -> copy(lastWateredDate = date)
+        CareType.Fertilize -> copy(lastFertilizedDate = date)
+        CareType.Repot -> copy(lastRepottedDate = date)
+        CareType.Prune -> copy(lastPrunedDate = date)
+    }
+
+    public fun date(type: CareType): String? = when (type) {
+        CareType.Water -> lastWateredDate
+        CareType.Fertilize -> lastFertilizedDate
+        CareType.Repot -> lastRepottedDate
+        CareType.Prune -> lastPrunedDate
+    }
+
     /** Picks another catalog species; intervals are left to the user. */
     public fun withSpecies(species: SpeciesEntry): CareSettingsForm =
         copy(speciesId = species.id, speciesName = species.scientificName)
@@ -210,15 +280,21 @@ public data class CareSettingsForm(
     public fun withoutSpecies(): CareSettingsForm = copy(speciesId = null, speciesName = null)
 
     public companion object {
-        /** Порт RN openSettings (`app/plant/[id].tsx:232-247`). */
+        private fun settingOf(type: CareType, stored: Int?): CareSetting =
+            if (stored == null || stored <= 0) {
+                CareSetting(on = false, value = type.default)
+            } else {
+                CareSetting(on = true, value = stored.coerceIn(type.range))
+            }
+
         public fun of(plant: PlantDto): CareSettingsForm = CareSettingsForm(
-            waterFrequencyText = plant.waterFrequencyDays.toString(),
+            water = plant.waterFrequencyDays.coerceIn(CareType.Water.range),
+            fertilize = settingOf(CareType.Fertilize, plant.fertilizeFrequencyDays),
+            repot = settingOf(CareType.Repot, plant.repotFrequencyMonths),
+            prune = settingOf(CareType.Prune, plant.pruneFrequencyMonths),
             lastWateredDate = plant.lastWateredDate,
-            fertilizeFrequencyText = plant.fertilizeFrequencyDays?.toString() ?: "",
             lastFertilizedDate = plant.lastFertilizedDate,
-            repotFrequencyText = plant.repotFrequencyMonths?.toString() ?: "",
             lastRepottedDate = plant.lastRepottedDate,
-            pruneFrequencyText = plant.pruneFrequencyMonths?.toString() ?: "",
             lastPrunedDate = plant.lastPrunedDate,
             speciesId = plant.speciesId,
             speciesName = plant.speciesName,
@@ -227,63 +303,33 @@ public data class CareSettingsForm(
 }
 
 /**
- * Тело PATCH из модалки настроек — 1:1 порт RN saveSettings
- * (`app/plant/[id].tsx:262-331`):
- * - частота полива уходит ВСЕГДА (Value), fallback — текущее значение
- *   растения (`parse(...) ?? plant.water_frequency_days`);
- * - дата уходит только если задана (if (settingsForm.last_watered_date));
- * - очищенная частота удобрения/пересадки/обрезки → ЯВНЫЙ null
- *   ([Patch.Null]), только если у растения она была (else — поле не трогаем);
- * - имя/локация/фото/заметки модалкой не правятся (Absent).
- *
- * VAL-DETAIL-003: сброс частоты = серверная колонка null → уход отключён.
+ * PATCH body of the care settings sheet: only what differs from the plant. A type switched off is an
+ * explicit null (VAL-DETAIL-003); a stored 0 and "off" are the same thing, so that is no change. Name,
+ * place, photo and notes are never touched. An unchanged form gives an empty patch, and nothing is sent.
  */
 public object CareSettingsPatch {
-    /** RN parse: не-число или <1 → undefined. */
-    private fun parseFrequency(text: String): Int? =
-        text.trim().toIntOrNull()?.takeIf { it >= 1 }
+    private fun stored(value: Int?): Int? = value?.takeIf { it > 0 }
 
-    private fun parseDate(date: String?): String? = date?.trim()?.takeIf { it.isNotEmpty() }
+    private fun frequency(old: Int?, new: Int?): Patch<Int> = when {
+        stored(old) == new -> Patch.Absent
+        new == null -> Patch.Null
+        else -> Patch.Value(new)
+    }
+
+    private fun date(old: String?, new: String?): Patch<String> =
+        new?.trim()?.takeIf { it.isNotEmpty() && it != old }?.let { Patch.Value(it) } ?: Patch.Absent
 
     public fun build(plant: PlantDto, form: CareSettingsForm): PatchPlantDto {
         var patch = PatchPlantDto(
-            waterFrequencyDays = Patch.Value(
-                parseFrequency(form.waterFrequencyText) ?: plant.waterFrequencyDays,
-            ),
+            waterFrequencyDays = frequency(plant.waterFrequencyDays, form.water),
+            lastWateredDate = date(plant.lastWateredDate, form.lastWateredDate),
+            fertilizeFrequencyDays = frequency(plant.fertilizeFrequencyDays, form.effective(CareType.Fertilize)),
+            lastFertilizedDate = date(plant.lastFertilizedDate, form.lastFertilizedDate),
+            repotFrequencyMonths = frequency(plant.repotFrequencyMonths, form.effective(CareType.Repot)),
+            lastRepottedDate = date(plant.lastRepottedDate, form.lastRepottedDate),
+            pruneFrequencyMonths = frequency(plant.pruneFrequencyMonths, form.effective(CareType.Prune)),
+            lastPrunedDate = date(plant.lastPrunedDate, form.lastPrunedDate),
         )
-        parseDate(form.lastWateredDate)?.let {
-            patch = patch.copy(lastWateredDate = Patch.Value(it))
-        }
-
-        val fertilize = parseFrequency(form.fertilizeFrequencyText)
-        patch = when {
-            fertilize != null -> patch.copy(fertilizeFrequencyDays = Patch.Value(fertilize))
-            plant.fertilizeFrequencyDays != null -> patch.copy(fertilizeFrequencyDays = Patch.Null)
-            else -> patch
-        }
-        parseDate(form.lastFertilizedDate)?.let {
-            patch = patch.copy(lastFertilizedDate = Patch.Value(it))
-        }
-
-        val repot = parseFrequency(form.repotFrequencyText)
-        patch = when {
-            repot != null -> patch.copy(repotFrequencyMonths = Patch.Value(repot))
-            plant.repotFrequencyMonths != null -> patch.copy(repotFrequencyMonths = Patch.Null)
-            else -> patch
-        }
-        parseDate(form.lastRepottedDate)?.let {
-            patch = patch.copy(lastRepottedDate = Patch.Value(it))
-        }
-
-        val prune = parseFrequency(form.pruneFrequencyText)
-        patch = when {
-            prune != null -> patch.copy(pruneFrequencyMonths = Patch.Value(prune))
-            plant.pruneFrequencyMonths != null -> patch.copy(pruneFrequencyMonths = Patch.Null)
-            else -> patch
-        }
-        parseDate(form.lastPrunedDate)?.let {
-            patch = patch.copy(lastPrunedDate = Patch.Value(it))
-        }
         // Both species fields travel together so the server never holds an
         // id from one species and a name from another.
         if (form.speciesId != plant.speciesId || form.speciesName != plant.speciesName) {
@@ -294,6 +340,27 @@ public object CareSettingsPatch {
         }
         return patch
     }
+}
+
+/** True when the patch would send no field at all. */
+public fun PatchPlantDto.isEmpty(): Boolean = this == PatchPlantDto()
+
+/** Why a care settings save failed; the sheet stays open with the edited values and shows the reason. */
+public enum class CareSaveError {
+    /** 4xx: the server rejected the values. */
+    Rejected,
+
+    /** 5xx or an unexpected failure. */
+    Server,
+
+    /** No connection and the change could not be queued. */
+    Offline,
+}
+
+public fun careSaveError(error: Throwable): CareSaveError = when {
+    isHeldForReplay(error) -> CareSaveError.Offline
+    error is ApiError.Client -> CareSaveError.Rejected
+    else -> CareSaveError.Server
 }
 
 /**

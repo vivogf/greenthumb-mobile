@@ -38,6 +38,7 @@ fun GtSwitch(
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
     contentDescription: String,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
     val trackColor by animateColorAsState(
@@ -51,7 +52,7 @@ fun GtSwitch(
         label = "switchThumb",
     )
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(width = SwitchWidth, height = SwitchHeight)
             .background(trackColor, RoundedCornerShape(percent = 50))
             .toggleable(

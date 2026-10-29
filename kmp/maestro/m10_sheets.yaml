@@ -155,12 +155,28 @@ name: M10 sheets (${STEP})
       true: ${STEP == 'theme'}
     commands:
       - tapOn: "Профиль"
+      # Profile keeps its scroll position between visits; start from the top so «Тема» is reached going down.
+      - repeat:
+          times: 3
+          commands:
+            - swipe:
+                direction: DOWN
       - scrollUntilVisible:
           element: "Тема"
+          direction: DOWN
       - tapOn: "Тема"
+      - extendedWaitUntil:
+          visible: "Выберите тему"
+          timeout: 5000
       - tapOn: ${THEME}
-      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          notVisible: "Выберите тему"
+          timeout: 5000
+      - assertVisible: ${THEME}
       - tapOn: "Растения"
+      - extendedWaitUntil:
+          visible: "Sheet Fern"
+          timeout: 10000
 
 - runFlow:
     when:

@@ -11,7 +11,6 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
@@ -165,20 +164,18 @@ class PlantDetailDialogFocusTest {
             waitUnmerged(hasText("Delete this plant?"), present = false)
             assertNothingFocused("no field keeps focus after the delete-plant confirmation")
 
-            // Species picker from Care Settings, with a care field focused first.
+            // Species picker from Care Settings (the sheet has no text fields: steppers only).
             focusNote()
             onNode(hasClickAction() and hasText("Care Settings")).performSemanticsAction(SemanticsActions.OnClick)
-            waitUnmerged(hasText("Watering Frequency (days)"))
-            val careField = onAllNodes(hasSetTextAction() and !noteInput, useUnmergedTree = true)[0]
-            careField.performSemanticsAction(SemanticsActions.RequestFocus)
-            careField.assertIsFocused()
+            waitUnmerged(hasText("Plant care"))
+            assertNothingFocused("the note loses focus when Care Settings opens")
             clickUnmerged(hasClickAction() and hasText("Choose species"))
             waitUnmerged(hasText(SPECIES_HINT))
             clickLast("Cancel")
             waitUnmerged(hasText(SPECIES_HINT), present = false)
-            assertNothingFocused("the care field does not get focus back after the picker")
-            clickLast("Cancel")
-            waitUnmerged(hasText("Watering Frequency (days)"), present = false)
+            assertNothingFocused("nothing gets focus back after the picker")
+            clickUnmerged(hasTestTag(CareTags.CLOSE))
+            waitUnmerged(hasText("Plant care"), present = false)
             assertNothingFocused("no field keeps focus after Care Settings")
 
             assertEquals(1, onAllNodes(noteInput and hasText("Draft")).fetchSemanticsNodes().size, "typed note survives")

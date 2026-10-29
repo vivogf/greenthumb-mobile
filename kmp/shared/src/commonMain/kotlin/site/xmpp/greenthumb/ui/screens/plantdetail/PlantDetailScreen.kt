@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,7 +45,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -85,8 +83,6 @@ import site.xmpp.greenthumb.ui.components.GtGalleryMark
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtModal
-import site.xmpp.greenthumb.ui.components.GtModalHeader
-import site.xmpp.greenthumb.ui.components.GtModalHeaderAction
 import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtPotMark
@@ -118,6 +114,8 @@ import site.xmpp.greenthumb.ui.res.plant_delete
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.plantDetails_advancedCare
 import site.xmpp.greenthumb.ui.res.plantDetails_careNotSet
+import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedBody
+import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_careSettings
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
 import site.xmpp.greenthumb.ui.res.plantDetails_photoGallery
@@ -130,14 +128,9 @@ import site.xmpp.greenthumb.ui.res.plantDetails_deleteTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_edit
 import site.xmpp.greenthumb.ui.res.plantDetails_fertilize
 import site.xmpp.greenthumb.ui.res.plantDetails_fertilizing
-import site.xmpp.greenthumb.ui.res.plantDetails_fertilizingFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_goHome
-import site.xmpp.greenthumb.ui.res.plantDetails_lastTime
-import site.xmpp.greenthumb.ui.res.plantDetails_lastWatered
 import site.xmpp.greenthumb.ui.res.plantDetails_lastWateredLine
-import site.xmpp.greenthumb.ui.res.plantDetails_leaveEmpty
 import site.xmpp.greenthumb.ui.res.plantDetails_noNotes
-import site.xmpp.greenthumb.ui.res.plantDetails_notSpecified
 import site.xmpp.greenthumb.ui.res.plantDetails_namePlaceTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_placeBalcony
 import site.xmpp.greenthumb.ui.res.plantDetails_placeBathroom
@@ -150,15 +143,12 @@ import site.xmpp.greenthumb.ui.res.plantDetails_notesPlaceholder
 import site.xmpp.greenthumb.ui.res.plantDetails_plantNotFound
 import site.xmpp.greenthumb.ui.res.plantDetails_prune
 import site.xmpp.greenthumb.ui.res.plantDetails_pruning
-import site.xmpp.greenthumb.ui.res.plantDetails_pruningFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_repot
 import site.xmpp.greenthumb.ui.res.plantDetails_repotting
-import site.xmpp.greenthumb.ui.res.plantDetails_repottingFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_save
 import site.xmpp.greenthumb.ui.res.plantDetails_today
 import site.xmpp.greenthumb.ui.res.plantDetails_waterPlant
 import site.xmpp.greenthumb.ui.res.plant_watered
-import site.xmpp.greenthumb.ui.res.plantDetails_wateringFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_winterMode
 import site.xmpp.greenthumb.season.SeasonContext
 import site.xmpp.greenthumb.ui.res.plantDetails_yesterday
@@ -318,25 +308,17 @@ public fun PlantDetailScreen(
     val notesLabel = stringResource(Res.string.plantDetails_notes)
     val notesPlaceholder = stringResource(Res.string.plantDetails_notesPlaceholder)
     val noNotesText = stringResource(Res.string.plantDetails_noNotes)
-    val lastWateredLabel = stringResource(Res.string.plantDetails_lastWatered)
     val todayText = stringResource(Res.string.plantDetails_today)
     val yesterdayText = stringResource(Res.string.plantDetails_yesterday)
-    val notSpecifiedText = stringResource(Res.string.plantDetails_notSpecified)
-    val leaveEmptyHint = stringResource(Res.string.plantDetails_leaveEmpty)
-    val lastTimeText = stringResource(Res.string.plantDetails_lastTime)
     val photoSheetTitle = stringResource(Res.string.plantDetails_photoSheetTitle)
     val photoNewText = stringResource(Res.string.plantDetails_photoNew)
     val photoGalleryText = stringResource(Res.string.plantDetails_photoGallery)
-    val waterFrequencyLabel = stringResource(Res.string.plantDetails_wateringFrequency)
     val fertilizingLabel = stringResource(Res.string.plantDetails_fertilizing)
     val repottingLabel = stringResource(Res.string.plantDetails_repotting)
     val pruningLabel = stringResource(Res.string.plantDetails_pruning)
     val fertilizeAction = stringResource(Res.string.plantDetails_fertilize)
     val repotAction = stringResource(Res.string.plantDetails_repot)
     val pruneAction = stringResource(Res.string.plantDetails_prune)
-    val fertilizingFrequencyLabel = stringResource(Res.string.plantDetails_fertilizingFrequency)
-    val repottingFrequencyLabel = stringResource(Res.string.plantDetails_repottingFrequency)
-    val pruningFrequencyLabel = stringResource(Res.string.plantDetails_pruningFrequency)
     val doneText = stringResource(Res.string.common_done)
     val namePlaceTitle = stringResource(Res.string.plantDetails_namePlaceTitle)
     val placeLabels = listOf(
@@ -358,12 +340,15 @@ public fun PlantDetailScreen(
     var namePlaceForm by remember { mutableStateOf<NamePlaceForm?>(null) }
     var editingNotes by remember { mutableStateOf(false) }
     var editedNotes by remember { mutableStateOf("") }
-    var showSettings by remember { mutableStateOf(false) }
     // Every dialog below clears focus on open and close; a focused note field would otherwise get
     // focus back with the input connection open and no keyboard drawn (VAL-TIMELINE-017).
     val focusManager = LocalFocusManager.current
     var showPhotoSheet by remember { mutableStateOf(false) }
+    // Open care settings sheet; null when closed. The sheet stays open on a failed save.
     var settingsForm by remember { mutableStateOf<CareSettingsForm?>(null) }
+    var careSaving by remember { mutableStateOf(false) }
+    var careError by remember { mutableStateOf<CareSaveError?>(null) }
+    var careQueuedNotice by remember { mutableStateOf(false) }
     var deleteConfirmOpen by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
@@ -719,8 +704,8 @@ public fun PlantDetailScreen(
                             label = careSettingsLabel,
                             onClick = {
                                 focusManager.clearFocus()
+                                careError = null
                                 settingsForm = CareSettingsForm.of(plant)
-                                showSettings = true
                             },
                         )
 
@@ -870,41 +855,53 @@ public fun PlantDetailScreen(
                 )
             }
 
-            // ── Модалка настроек ухода (RN Care Settings Modal) ──
+            // ── Care settings sheet (M10 item 7a) ──
             val openForm = settingsForm
-            if (showSettings && openForm != null) {
-                CareSettingsModal(
+            if (openForm != null) {
+                PlantCareSettingsSheet(
                     form = openForm,
-                    title = careSettingsLabel,
-                    waterFrequencyLabel = waterFrequencyLabel,
-                    fertilizingLabel = fertilizingLabel,
-                    repottingLabel = repottingLabel,
-                    pruningLabel = pruningLabel,
-                    fertilizingFrequencyLabel = fertilizingFrequencyLabel,
-                    repottingFrequencyLabel = repottingFrequencyLabel,
-                    pruningFrequencyLabel = pruningFrequencyLabel,
-                    leaveEmptyHint = leaveEmptyHint,
-                    lastTimeText = lastTimeText,
-                    notSpecifiedText = notSpecifiedText,
-                    lastWateredText = lastWateredLabel,
-                    cancelText = cancelText,
-                    saveText = saveText,
-                    doneText = doneText,
-                    locale = locale,
+                    plantName = plant.name,
                     catalog = catalog,
+                    locale = locale,
+                    saving = careSaving,
+                    error = careError,
+                    onFormChange = { settingsForm = it },
                     onChooseSpecies = {
                         focusManager.clearFocus()
                         speciesPickerOpen = true
                     },
-                    onFormChange = { settingsForm = it },
-                    onSave = {
-                        showSettings = false
-                        focusManager.clearFocus()
-                        update(CareSettingsPatch.build(plant, openForm))
+                    onCancel = {
+                        if (!careSaving) {
+                            settingsForm = null
+                            careError = null
+                            focusManager.clearFocus()
+                        }
                     },
-                    onDismiss = {
-                        showSettings = false
-                        focusManager.clearFocus()
+                    onSave = save@{
+                        if (careSaving) return@save
+                        val patch = CareSettingsPatch.build(plant, openForm)
+                        if (patch.isEmpty()) {
+                            settingsForm = null
+                            careError = null
+                            return@save
+                        }
+                        careSaving = true
+                        careError = null
+                        scope.launch {
+                            try {
+                                when (repo.updateOrQueue(plant.id, patch)) {
+                                    is SaveOutcome.Saved -> journalRefreshKey++
+                                    is SaveOutcome.Queued -> careQueuedNotice = true
+                                }
+                                settingsForm = null
+                            } catch (cancellation: CancellationException) {
+                                throw cancellation
+                            } catch (error: Throwable) {
+                                careError = careSaveError(error)
+                            } finally {
+                                careSaving = false
+                            }
+                        }
                     },
                 )
             }
@@ -973,6 +970,15 @@ public fun PlantDetailScreen(
                         onClick = closePhotoSheet,
                     )
                 }
+            }
+
+            if (careQueuedNotice) {
+                GtAlertDialog(
+                    title = stringResource(Res.string.plantDetails_careQueuedTitle),
+                    message = stringResource(Res.string.plantDetails_careQueuedBody),
+                    buttons = listOf(GtAlertButton(text = "OK")),
+                    onDismissRequest = { careQueuedNotice = false },
+                )
             }
 
             // Ошибка мутации (RN showAlert(t('common.error'), err.message)).
@@ -1165,140 +1171,17 @@ private fun SettingsRow(
                 }
             }
         }
-        GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.md))
-    }
-}
-
-/**
- * Модалка настроек ухода (RN Care Settings Modal, pageSheet): частота полива
- * + дата последнего полива; частота/дата удобрения, пересадки, обрезки с
- * подсказкой «оставьте пустым» (эмодзи RN-лейблов KMP не повторяет — решение
- * фичи screen-add-plant). Сохранение — [CareSettingsPatch.build]: очищенная
- * частота при наличии у растения → явный null (VAL-DETAIL-003).
- */
-@Composable
-private fun CareSettingsModal(
-    form: CareSettingsForm,
-    title: String,
-    waterFrequencyLabel: String,
-    fertilizingLabel: String,
-    repottingLabel: String,
-    pruningLabel: String,
-    fertilizingFrequencyLabel: String,
-    repottingFrequencyLabel: String,
-    pruningFrequencyLabel: String,
-    leaveEmptyHint: String,
-    lastTimeText: String,
-    notSpecifiedText: String,
-    lastWateredText: String,
-    cancelText: String,
-    saveText: String,
-    doneText: String,
-    locale: String,
-    catalog: CatalogRepository?,
-    onChooseSpecies: () -> Unit,
-    onFormChange: (CareSettingsForm) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    GtModal(onDismissRequest = onDismiss) {
-        // The modal has its own focus owner: a care field focused here must be cleared from inside.
-        val modalFocus = LocalFocusManager.current
-        GtModalHeader(
-            title = title,
-            leading = GtModalHeaderAction(cancelText, scheme.onSurfaceVariant, onDismiss),
-            trailing = GtModalHeaderAction(saveText, scheme.tertiary, onSave),
+        GtChevronMark(
+            tint = scheme.onSurfaceVariant,
+            modifier = Modifier.size(Spacing.md),
+            direction = GtChevronDirection.Right,
         )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.xl)
-                .padding(bottom = Spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-        ) {
-            SettingsSpeciesRow(
-                form = form,
-                catalog = catalog,
-                locale = locale,
-                onChoose = {
-                    modalFocus.clearFocus()
-                    onChooseSpecies()
-                },
-                onClear = { onFormChange(form.withoutSpecies()) },
-            )
-            SettingsFrequencyField(
-                label = waterFrequencyLabel,
-                hint = null,
-                value = form.waterFrequencyText,
-                onValueChange = { onFormChange(form.copy(waterFrequencyText = it)) },
-            )
-            SettingsDateField(
-                label = lastWateredText,
-                value = form.lastWateredDate,
-                onValueChange = { onFormChange(form.copy(lastWateredDate = it)) },
-                placeholder = notSpecifiedText,
-                doneText = doneText,
-                cancelText = cancelText,
-                locale = locale,
-            )
-
-            SettingsFrequencyField(
-                label = fertilizingFrequencyLabel,
-                hint = leaveEmptyHint,
-                value = form.fertilizeFrequencyText,
-                onValueChange = { onFormChange(form.copy(fertilizeFrequencyText = it)) },
-            )
-            SettingsDateField(
-                label = "$fertilizingLabel · $lastTimeText",
-                value = form.lastFertilizedDate,
-                onValueChange = { onFormChange(form.copy(lastFertilizedDate = it)) },
-                placeholder = notSpecifiedText,
-                doneText = doneText,
-                cancelText = cancelText,
-                locale = locale,
-            )
-
-            SettingsFrequencyField(
-                label = repottingFrequencyLabel,
-                hint = leaveEmptyHint,
-                value = form.repotFrequencyText,
-                onValueChange = { onFormChange(form.copy(repotFrequencyText = it)) },
-            )
-            SettingsDateField(
-                label = "$repottingLabel · $lastTimeText",
-                value = form.lastRepottedDate,
-                onValueChange = { onFormChange(form.copy(lastRepottedDate = it)) },
-                placeholder = notSpecifiedText,
-                doneText = doneText,
-                cancelText = cancelText,
-                locale = locale,
-            )
-
-            SettingsFrequencyField(
-                label = pruningFrequencyLabel,
-                hint = leaveEmptyHint,
-                value = form.pruneFrequencyText,
-                onValueChange = { onFormChange(form.copy(pruneFrequencyText = it)) },
-            )
-            SettingsDateField(
-                label = "$pruningLabel · $lastTimeText",
-                value = form.lastPrunedDate,
-                onValueChange = { onFormChange(form.copy(lastPrunedDate = it)) },
-                placeholder = notSpecifiedText,
-                doneText = doneText,
-                cancelText = cancelText,
-                locale = locale,
-            )
-        }
     }
 }
 
-/** Species line of the care settings modal: current species, change and remove. */
+/** Species line of the care settings sheet: current species, change and remove. */
 @Composable
-private fun SettingsSpeciesRow(
+internal fun SettingsSpeciesRow(
     form: CareSettingsForm,
     catalog: CatalogRepository?,
     locale: String,
@@ -1402,39 +1285,9 @@ private fun SpeciesCard(info: PlantSpeciesInfo, language: String) {
     }
 }
 
-/** Поле частоты модалки (RN SettingsField: label + numeric input). */
+/** Дата в настройках ухода (RN DatePickerInput): верхняя граница — сегодня. */
 @Composable
-private fun SettingsFrequencyField(
-    label: String,
-    hint: String?,
-    value: String,
-    onValueChange: (String) -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = scheme.onSurface,
-        )
-        if (hint != null) {
-            Text(
-                text = hint,
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
-            )
-        }
-        GtInputField(
-            value = value,
-            onValueChange = onValueChange,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
-    }
-}
-
-/** Дата модалки (RN DatePickerInput): верхняя граница — сегодня. */
-@Composable
-private fun SettingsDateField(
+internal fun SettingsDateField(
     label: String,
     value: String?,
     onValueChange: (String) -> Unit,

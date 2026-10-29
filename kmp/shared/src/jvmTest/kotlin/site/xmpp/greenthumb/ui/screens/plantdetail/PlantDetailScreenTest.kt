@@ -674,26 +674,22 @@ class PlantDetailScreenTest {
             // напрямую (паттерн clickAt файла; координатный performClick по
             // строке ниже фолда попадает мимо — см. deleteButtonMatcher).
             clickAt(hasClickAction() and hasText("Care Settings"))
-            waitUntilAtLeastOneExists(hasText("Watering Frequency (days)"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Plant care"), TIMEOUT)
 
-            // Префилл из растения (RN openSettings): частоты 7/30/12/6.
-            waitUntilAtLeastOneExists(hasText("Fertilizing Frequency (days)"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Repotting Frequency (months)"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Pruning Frequency (months)"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Leave empty to disable"), TIMEOUT)
+            // Префилл из растения: удобрение включено (30 дней у растения).
+            waitUntilAtLeastOneExists(hasText("Fertilizing"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Repotting"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Pruning"), TIMEOUT)
 
-            // Очистить частоту удобрения (у растения 30) → Save в шапке модалки
-            // (клик по последнему совпавшему — узлы модалки позже в дереве).
-            onAllNodes(hasText("30"))[0].performSemanticsAction(
-                androidx.compose.ui.semantics.SemanticsActions.SetText,
-            ) { it(androidx.compose.ui.text.AnnotatedString("")) }
-            clickLast(hasClickAction() and hasText("Save"))
+            // Выключить удобрение тумблером → «Save» внизу листа.
+            clickLast(hasTestTag(CareTags.switch(CareType.Fertilize)))
+            clickLast(hasTestTag(CareTags.SAVE))
 
-            // PATCH уходит с ЯВНЫМ null (VAL-DETAIL-003), модалка закрылась.
+            // PATCH уходит с ЯВНЫМ null (VAL-DETAIL-003), лист закрылся.
             waitUntil(timeoutMillis = TIMEOUT) {
                 graph.server.lastPatchBody?.contains("\"fertilize_frequency_days\":null") == true
             }
-            waitUntilDoesNotExist(hasText("Watering Frequency (days)"), TIMEOUT)
+            waitUntilDoesNotExist(hasText("Plant care"), TIMEOUT)
 
             runOnIdle { graph.close() }
         }
@@ -709,10 +705,10 @@ class PlantDetailScreenTest {
             openPlantDetail()
 
             clickAt(hasClickAction() and hasText("Care Settings"))
-            waitUntilAtLeastOneExists(hasText("Watering Frequency (days)"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Plant care"), TIMEOUT)
 
-            clickLast(hasClickAction() and hasText("Cancel"))
-            waitUntilDoesNotExist(hasText("Watering Frequency (days)"), TIMEOUT)
+            clickLast(hasTestTag(CareTags.CLOSE))
+            waitUntilDoesNotExist(hasText("Plant care"), TIMEOUT)
             assertTrue(graph.server.lastPatchBody == null, "Cancel не шлёт PATCH")
 
             runOnIdle { graph.close() }
