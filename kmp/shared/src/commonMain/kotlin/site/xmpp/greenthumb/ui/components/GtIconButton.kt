@@ -19,11 +19,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import site.xmpp.greenthumb.ui.theme.Radii
-import site.xmpp.greenthumb.ui.theme.Spacing
+import site.xmpp.greenthumb.ui.theme.Sizes
 
 /**
  * Квадратная кнопка-иконка (переключатель вида, копирование ключа).
- * Сторона — [Spacing.xxl] + [Spacing.md] (38; в RN 34, на шкале нет).
+ * Сторона — [Sizes.touch] (48 dp, mockup v2 `.ib`; минимальная цель касания).
  * Выбранная — рамка primary и фон muted.
  */
 @Composable
@@ -43,7 +43,7 @@ fun GtIconButton(
     val shape = RoundedCornerShape(Radii.sm)
     Box(
         modifier = modifier
-            .size(Spacing.xxl + Spacing.md)
+            .size(Sizes.touch)
             .background(if (selected) scheme.surfaceVariant else scheme.surface, shape)
             .borderHairline(if (selected && enabled) scheme.primary else scheme.outline, shape)
             .clickable(

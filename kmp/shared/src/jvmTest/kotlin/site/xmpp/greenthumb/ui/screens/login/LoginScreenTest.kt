@@ -1,13 +1,18 @@
 package site.xmpp.greenthumb.ui.screens.login
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
@@ -15,6 +20,7 @@ import io.ktor.http.headersOf
 import java.util.Locale
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import site.xmpp.greenthumb.core.SUPPORT_EMAIL
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.AppSettingsKeys
@@ -33,8 +39,8 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  *
  * ПостСайнФлоу-тесты (PostSignInFlowTest) гоняют create/sign-in через полную
  * App(); здесь поверхность самого LoginScreen:
- * - choose-режим (VAL-LOGIN-001): две опции (create / ключ), приватная
- *   заметка и support-email видны;
+ * - choose-режим (VAL-LOGIN-001): две опции (create / ключ), короткая приватная
+ *   заметка, ссылка на страницу о данных и support-email (M10 VAL-LOOK-012..015);
  * - ключевое действие: «I Have a Key» переключает в режим ввода ключа
  *   («Welcome Back»), назад возвращает choose (RN setMode('login')/back).
  *
@@ -171,16 +177,140 @@ class LoginScreenTest {
                 }
             }
 
-            // Две опции (VAL-LOGIN-001) и приватная заметка с support-мылом.
+            // Две опции (VAL-LOGIN-001) и короткая приватная заметка с support-мылом.
             waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("I Have a Key"), TIMEOUT)
-            waitUntilAtLeastOneExists(
-                hasText("stores your recovery key only as a hash", substring = true),
-                TIMEOUT,
-            )
+            waitUntilAtLeastOneExists(hasText(SHORT_HINT_EN), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("More about data →") and hasClickAction(), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("If something breaks, write to:"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText(SUPPORT_EMAIL), TIMEOUT)
+            // The long M9 text is gone from the start screen.
+            onNode(hasText("stores your recovery key only as a hash", substring = true)).assertDoesNotExist()
             // Режим ввода ключа ещё не открыт.
             onNodeWithText("Welcome Back").assertDoesNotExist()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun hint_style_is_14_sp() = try {
+        rememberLocale()
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "ru") {
+                    GreenThumbTheme(darkTheme = true) {
+                        LoginScreen(session = newSession())
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText(SHORT_HINT_RU), TIMEOUT)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            onNode(hasText(SHORT_HINT_RU)).fetchSemanticsNode()
+                .config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+            kotlin.test.assertEquals(14.sp, layouts.single().layoutInput.style.fontSize)
+            kotlin.test.assertEquals(20.sp, layouts.single().layoutInput.style.lineHeight)
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun contact_shows_support_email() = try {
+        rememberLocale()
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "ru") {
+                    GreenThumbTheme(darkTheme = true) {
+                        LoginScreen(session = newSession())
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Если что-то сломалось — напишите:"), TIMEOUT)
+            onNode(hasText("greenthumbapp@proton.me") and hasClickAction()).assertExists()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun privacy_link_opens_privacy_page() = try {
+        rememberLocale()
+        val opened = mutableListOf<String>()
+        val uriHandler = object : androidx.compose.ui.platform.UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "ru") {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.ui.platform.LocalUriHandler provides uriHandler,
+                    ) {
+                        GreenThumbTheme(darkTheme = true) {
+                            LoginScreen(session = newSession())
+                        }
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Подробнее о данных →"), TIMEOUT)
+            onNode(hasText("Подробнее о данных →") and hasClickAction()).performClick()
+            waitForIdle()
+            kotlin.test.assertEquals(listOf(site.xmpp.greenthumb.core.PRIVACY_POLICY_URL), opened)
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun card_fills_width_minus_outer_padding() = try {
+        rememberLocale()
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "en") {
+                    GreenThumbTheme(darkTheme = true) {
+                        LoginScreen(session = newSession())
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasTestTag(LoginTags.CARD), TIMEOUT)
+            val root = onNodeWithTag(LoginTags.ROOT).fetchSemanticsNode().boundsInRoot
+            val card = onNodeWithTag(LoginTags.CARD).fetchSemanticsNode().boundsInRoot
+            val inset = with(density) { 16.dp.toPx() }
+            kotlin.test.assertEquals(root.left + inset, card.left, 0.5f)
+            kotlin.test.assertEquals(root.right - inset, card.right, 0.5f)
+            kotlin.test.assertEquals(root.width - 2 * inset, card.width, 0.5f)
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    /** VAL-LOOK-008: every tappable element of the three login modes is at least 48 dp. */
+    @Test
+    fun login_touch_targets_are_at_least_48_dp() = try {
+        rememberLocale()
+        for (start in LoginMode.entries) {
+            runDesktopComposeUiTest {
+                setContent {
+                    AppEnvironment(customAppLocale = "ru") {
+                        GreenThumbTheme(darkTheme = true) {
+                            LoginScreen(session = newSession(), initialMode = start)
+                        }
+                    }
+                }
+                waitUntilAtLeastOneExists(hasTestTag(LoginTags.CARD), TIMEOUT)
+                val min = with(density) { 48.dp.toPx() } - 0.5f
+                val nodes = onAllNodes(hasClickAction()).fetchSemanticsNodes()
+                kotlin.test.assertTrue(nodes.isNotEmpty(), "$start has tappable nodes")
+                for (node in nodes) {
+                    val b = node.boundsInRoot
+                    kotlin.test.assertTrue(
+                        b.width >= min && b.height >= min,
+                        "$start: ${node.config} is ${b.width}x${b.height} px",
+                    )
+                }
+            }
         }
     } finally {
         restoreLocale()
@@ -303,5 +433,11 @@ class LoginScreenTest {
         const val TIMEOUT: Long = 10_000L
 
         const val CANONICAL_KEY: String = "abcdef01-2345-6789-abcd-ef0123456789"
+
+        const val SHORT_HINT_EN: String =
+            "No ads, analytics or visit logs. Your sign-in key stays with you — the server keeps only its fingerprint, which cannot rebuild the key. Crash reports are anonymous."
+
+        const val SHORT_HINT_RU: String =
+            "Без рекламы, аналитики и журналов посещений. Ключ входа хранится у вас — сервер помнит только его отпечаток, по которому ключ не восстановить. Отчёты о сбоях анонимные."
     }
 }

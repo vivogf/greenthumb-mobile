@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +46,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.core.SUPPORT_EMAIL
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.AppVersion
 import site.xmpp.greenthumb.core.platform.Clipboard
@@ -152,11 +154,9 @@ import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
 import site.xmpp.greenthumb.ui.res.session_keyNotStored
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
-
-/** Адрес поддержки — тот же, что у choose-режима логина (RN lib/constants.ts). */
-private const val SUPPORT_EMAIL: String = "greenthumb.taunt861@passmail.net"
 
 /**
  * Высота списка пикера времени: RN maxHeight: '70%' экрана (RN-окно ~390dp
@@ -863,11 +863,13 @@ public fun ProfileScreen(
                     color = scheme.tertiary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
+                        .heightIn(min = Sizes.touch)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             role = Role.Button,
-                        ) { OpenUrl.open("mailto:$SUPPORT_EMAIL") },
+                        ) { OpenUrl.open("mailto:$SUPPORT_EMAIL") }
+                        .wrapContentHeight(Alignment.CenterVertically),
                 )
             }
         }

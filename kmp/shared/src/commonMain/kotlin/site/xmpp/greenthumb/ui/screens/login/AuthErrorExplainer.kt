@@ -1,5 +1,6 @@
 package site.xmpp.greenthumb.ui.screens.login
 
+import site.xmpp.greenthumb.core.SUPPORT_EMAIL
 import site.xmpp.greenthumb.core.network.ApiError
 
 /**
@@ -23,6 +24,9 @@ import site.xmpp.greenthumb.core.network.ApiError
  * решает композиция), тест фиксирует сам маппинг ([AuthErrorMappingTest]).
  * Фолбэк для не-[ApiError] исключений — на вызывающем (RN `error?.message ||
  * t('common.error')`).
+ *
+ * The texts name no contact address; the login screen shows [SUPPORT_EMAIL] next to them, and
+ * SupportContactTest checks that any address added to these texts is that one.
  */
 internal fun explainAuthError(
     error: ApiError,
@@ -36,10 +40,3 @@ internal fun explainAuthError(
     error is ApiError.Network || error is ApiError.Timeout -> networkErrorText
     else -> serviceUnavailableText
 }
-
-/**
- * Адрес поддержки — из RN `lib/constants.ts:24` (SUPPORT_EMAIL): приватная
- * заметка choose-режима (`privacy.loginHint` + mailto-ссылка, RN
- * login.tsx:382-406). Литерал константы, не секрет (публичен в RN-репо).
- */
-internal const val SUPPORT_EMAIL: String = "greenthumb.taunt861@passmail.net"

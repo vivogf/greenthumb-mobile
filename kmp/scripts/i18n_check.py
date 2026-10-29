@@ -300,6 +300,9 @@ KMP_ONLY_KEYS = {
     "plantDetails.photoSheetTitle",
     "plantDetails.photoNew",
     "plantDetails.photoGallery",
+    # Start-screen privacy link and contact line (M10 D§1 item 2).
+    "privacy.moreLink",
+    "privacy.contactLead",
 }
 
 # RN keys whose KMP text is deliberately rewritten (privacy wording of the KMP

@@ -144,6 +144,7 @@ import site.xmpp.greenthumb.ui.res.plant_watered
 import site.xmpp.greenthumb.ui.res.plant_waterToday
 import site.xmpp.greenthumb.ui.theme.Motion
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
@@ -953,6 +954,7 @@ private fun BulkActionButton(
     val shape = RoundedCornerShape(Radii.md)
     Row(
         modifier = modifier
+            .heightIn(min = Sizes.touch)
             .background(if (enabled) container else scheme.surfaceVariant, shape)
             .clickable(
                 enabled = enabled,

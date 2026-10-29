@@ -24,7 +24,7 @@ public const val HANDOFF_FILE_NAME: String = "gt-handoff.json"
  * ```
  *
  * recovery_key — единственный невосстановимый креденшл приложения
- * (docs/privacy.html: провайдер ключ не восстанавливает). Настройки —
+ * (страница о данных в docs/: провайдер ключ не восстанавливает). Настройки —
  * значения из RN AsyncStorage: напрямую его не читать (на Android это
  * SQLite RKStorage), настройки приезжают только через handoff.
  *

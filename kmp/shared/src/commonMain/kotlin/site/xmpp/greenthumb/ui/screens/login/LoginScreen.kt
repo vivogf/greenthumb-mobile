@@ -8,14 +8,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.systemGesturesPadding
+import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,11 +37,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.core.PRIVACY_POLICY_URL
+import site.xmpp.greenthumb.core.SUPPORT_EMAIL
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
@@ -45,6 +56,7 @@ import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
+import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtKeyMark
@@ -79,8 +91,12 @@ import site.xmpp.greenthumb.ui.res.login_signingIn
 import site.xmpp.greenthumb.ui.res.login_subtitle
 import site.xmpp.greenthumb.ui.res.login_title
 import site.xmpp.greenthumb.ui.res.login_welcomeBack
+import site.xmpp.greenthumb.ui.res.privacy_contactLead
 import site.xmpp.greenthumb.ui.res.privacy_loginHint
+import site.xmpp.greenthumb.ui.res.privacy_moreLink
+import site.xmpp.greenthumb.ui.theme.GtType
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
@@ -89,8 +105,8 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * `app/(auth)/login.tsx` (542 строки, прочитана целиком).
  *
  * РЕЖИМЫ (в графе `auth/login`; RN login.tsx:157, 245, 462):
- * - choose — стартовые две опции: создать аккаунт / войти по ключу + приватная
- *   заметка с support-email (RN login.tsx:163-243);
+ * - choose — стартовые две опции: создать аккаунт / войти по ключу + короткая
+ *   приватная заметка, ссылка на страницу о данных и support-email (M10 mockup v2);
  * - create — имя ОПЦИОНАЛЬНО + create-anonymous (RN :245-346); успех → шлюз
  *   показа ключа (RN setMode('show-key'), login.tsx:97-101 — в KMP-оболочке
  *   M7 шлюз = окно после входа [site.xmpp.greenthumb.ui.nav.PostSignInHost],
@@ -164,6 +180,7 @@ public fun LoginScreen(
 @Composable
 private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val uriHandler = LocalUriHandler.current
     LoginCard {
         // Логотип + заголовок + подзаголовок (RN column center, gap 12).
         Column(
@@ -208,38 +225,50 @@ private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
             )
         }
 
-        // Приватная заметка + support email (RN login.tsx:382-406: lock 16 +
-        // hint 12pt + email-ссылка primary underline; hitSlop → padding).
+        // Short privacy note (owner mockup v2): text, link to the privacy page, contact line.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs + Spacing.xxs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             Box(modifier = Modifier.padding(top = Spacing.xxs).size(Spacing.xl)) {
                 GtLockMark(tint = scheme.onSurfaceVariant, modifier = Modifier.fillMaxSize())
             }
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            Column {
                 Text(
                     text = stringResource(Res.string.privacy_loginHint),
+                    style = GtType.loginHint,
+                    color = scheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(Res.string.privacy_moreLink),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = scheme.tertiary,
+                    modifier = Modifier
+                        .testTag(LoginTags.PRIVACY_LINK)
+                        .heightIn(min = Sizes.touch)
+                        .clickable(role = Role.Button) { uriHandler.openUri(PRIVACY_POLICY_URL) }
+                        .wrapContentHeight(Alignment.CenterVertically),
+                )
+                Text(
+                    text = stringResource(Res.string.privacy_contactLead),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
                 Text(
                     text = SUPPORT_EMAIL,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = GtType.loginHint,
                     color = scheme.tertiary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Button,
-                        ) { OpenUrl.open("mailto:$SUPPORT_EMAIL") },
+                        .testTag(LoginTags.SUPPORT_EMAIL)
+                        .heightIn(min = Sizes.touch)
+                        .clickable(role = Role.Button) { OpenUrl.open("mailto:$SUPPORT_EMAIL") }
+                        .wrapContentHeight(Alignment.CenterVertically),
                 )
             }
         }
     }
 }
-
 // ---------------------------------------------------------------------------
 // Режим create (RN login.tsx:245-346)
 // ---------------------------------------------------------------------------
@@ -373,12 +402,13 @@ private fun CreateMode(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = Sizes.touch)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     role = Role.Button,
                 ) { onBack() }
-                .padding(vertical = Spacing.xxs),
+                .wrapContentHeight(Alignment.CenterVertically),
         )
     }
 
@@ -536,12 +566,13 @@ private fun LoginKeyMode(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = Sizes.touch)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     role = Role.Button,
                 ) { onBack() }
-                .padding(vertical = Spacing.xxs),
+                .wrapContentHeight(Alignment.CenterVertically),
         )
     }
 
@@ -560,11 +591,18 @@ private fun LoginKeyMode(
 // Общие части (RN login.tsx:112-161)
 // ---------------------------------------------------------------------------
 
+/** Test tags of the login screen. */
+internal object LoginTags {
+    const val ROOT = "login_root"
+    const val CARD = "login_card"
+    const val PRIVACY_LINK = "login_privacy_link"
+    const val SUPPORT_EMAIL = "login_support_email"
+}
+
 /**
- * Карточка экрана: RN cardStyle (radius 16 = Radii.xl, padding 24 = Spacing.xxl,
- * gap 20 = Spacing.xl) на фоне с центрированием (RN Container: SafeAreaView +
- * ScrollView flexGrow/center + padding 20). Скролл вертикальный — на узких
- * экранах карточка скроллится, RN вёл себя так же.
+ * Карточка экрана (mockup v2): 16 dp от краёв экрана, radius [Radii.card], padding 24,
+ * gap 20, по центру вертикального скролла (на узких экранах карточка скроллится).
+ * Боковые жестовые инсеты не учитываются: карта стоит ровно в 16 dp от края.
  */
 @Composable
 private fun LoginCard(content: @Composable () -> Unit) {
@@ -573,25 +611,26 @@ private fun LoginCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(scheme.background)
+            .testTag(LoginTags.ROOT)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .systemGesturesPadding()
+            .windowInsetsPadding(WindowInsets.systemGestures.only(WindowInsetsSides.Vertical))
             .verticalScroll(rememberScrollState())
-            .padding(Spacing.xl),
+            .padding(horizontal = Sizes.screenPadding, vertical = Spacing.xl),
         verticalArrangement = Arrangement.Center,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(scheme.surface, RoundedCornerShape(Radii.xl))
-                .borderHairline(greenThumbExtendedColors().cardBorder, RoundedCornerShape(Radii.xl))
+                .testTag(LoginTags.CARD)
+                .background(scheme.surface, RoundedCornerShape(Radii.card))
+                .borderHairline(greenThumbExtendedColors().cardBorder, RoundedCornerShape(Radii.card))
                 .padding(Spacing.xxl),
             verticalArrangement = Arrangement.spacedBy(Spacing.xl),
             content = { content() },
         )
     }
 }
-
 /** Amber-предупреждение create: иконка + заголовок + склеенный текст (RN login.tsx:287-306). */
 @Composable
 internal fun WarningBox(
@@ -632,13 +671,18 @@ internal fun BackButton(onBack: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
+            .size(Sizes.touch)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 role = Role.Button,
-            ) { onBack() }
-            .padding(Spacing.xs),
+            ) { onBack() },
+        contentAlignment = Alignment.Center,
     ) {
-        GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.xl))
+        GtChevronMark(
+            tint = scheme.onSurfaceVariant,
+            modifier = Modifier.size(Spacing.xl),
+            direction = GtChevronDirection.Left,
+        )
     }
 }
