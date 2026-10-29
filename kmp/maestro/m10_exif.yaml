@@ -1,0 +1,129 @@
+# M10 item 12 (feature m10-exif-guard, VAL-LOOK-017): a gallery photo with GPS reaches the server without
+# EXIF. The caller pushes the GPS fixture as the newest gallery item, then runs the stages in order.
+#   login     sign in with a throwaway key. The key is a placeholder: run only through render-smoke.sh
+#             (GT_FLOW=m10_exif.yaml GT_STEP=login GT_KEY_FILE=…)
+#   cover     Add Plant "ExifFern" with the newest gallery photo as its cover (no species recognition)
+#   timeline  plant detail of "ExifFern": add the same gallery photo as a timeline photo with caption
+#             "Exif check"
+# The caller then downloads both stored photos and checks them with exiftool.
+appId: com.greenthumbplantcare.debug
+name: M10 EXIF guard (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'login'}
+    commands:
+      - launchApp:
+          clearState: true
+      - repeat:
+          times: 15
+          while:
+            notVisible: "Welcome Back|С возвращением"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Skip|Пропустить"
+                commands:
+                  - tapOn: "Skip|Пропустить"
+            - runFlow:
+                when:
+                  visible: "Enter recovery key|Ввести ключ"
+                commands:
+                  - tapOn: "Enter recovery key|Ввести ключ"
+            - runFlow:
+                when:
+                  visible: "I Have a Key|У меня есть ключ"
+                commands:
+                  - tapOn: "I Have a Key|У меня есть ключ"
+      - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      - inputText: ${GT_RECOVERY_KEY}
+      - hideKeyboard
+      - tapOn: "Sign In|Войти"
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+      - takeScreenshot: exif-login
+
+- runFlow:
+    when:
+      true: ${STEP != 'login'}
+    commands:
+      - stopApp
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'cover'}
+    commands:
+      - tapOn: "Add a new plant|Add Plant|Добавить новое растение|Добавить растение"
+      - extendedWaitUntil:
+          visible: "Add photo|Добавить фото"
+          timeout: 10000
+      - tapOn: "Add photo|Добавить фото"
+      - tapOn: "Gallery|Галерея"
+      - extendedWaitUntil:
+          visible: "Photo taken on.*"
+          timeout: 10000
+      - tapOn:
+          text: "Photo taken on.*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Done|Готово"
+          timeout: 10000
+      - tapOn: "Done|Готово"
+      - tapOn: "e.g., Monstera Deliciosa|например, Монстера деликатесная"
+      - inputText: "ExifFern"
+      - hideKeyboard
+      # The "7" in the frequency field is a placeholder; the form needs a typed value.
+      - tapOn: "7"
+      - inputText: "7"
+      - hideKeyboard
+      - takeScreenshot: exif-cover-form
+      - scrollUntilVisible:
+          element: "Add Plant|Добавить растение"
+          direction: DOWN
+      - tapOn: "Add Plant|Добавить растение"
+      - extendedWaitUntil:
+          visible: "Open plant card ExifFern|Открыть карточку растения ExifFern"
+          timeout: 40000
+      - takeScreenshot: exif-cover-added
+
+- runFlow:
+    when:
+      true: ${STEP == 'timeline'}
+    commands:
+      - tapOn: "Open plant card ExifFern|Открыть карточку растения ExifFern"
+      - scrollUntilVisible:
+          element:
+            text: "Add photo|Добавить фото"
+          direction: DOWN
+      - tapOn: "Add photo|Добавить фото"
+      - tapOn: "Gallery|Галерея"
+      - extendedWaitUntil:
+          visible: "Photo taken on.*"
+          timeout: 10000
+      - tapOn:
+          text: "Photo taken on.*"
+          index: 0
+      - extendedWaitUntil:
+          visible: "Done|Готово"
+          timeout: 10000
+      - tapOn: "Done|Готово"
+      - extendedWaitUntil:
+          visible: "New photo|Новое фото"
+          timeout: 10000
+      - tapOn: "Caption \\(optional\\)|Подпись \\(необязательно\\)"
+      - inputText: "Exif check"
+      - hideKeyboard
+      - tapOn: "Save photo|Сохранить фото"
+      - extendedWaitUntil:
+          notVisible: "New photo|Новое фото"
+          timeout: 40000
+      - scrollUntilVisible:
+          element:
+            text: "Exif check"
+          direction: DOWN
+      - takeScreenshot: exif-timeline-added

@@ -35,7 +35,7 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import coil3.compose.AsyncImage
 import site.xmpp.greenthumb.core.platform.CropRect
-import site.xmpp.greenthumb.core.platform.photoDataUri
+import site.xmpp.greenthumb.core.platform.localPreviewDataUri
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
@@ -65,7 +65,7 @@ internal fun GtImageCropScreen(
     onConfirm: (CropRect) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val dataUri = remember(bytes) { photoDataUri(bytes) }
+    val dataUri = remember(bytes) { localPreviewDataUri(bytes) }
 
     // Размер картинки (px) из пейнтера Coil; сторона вьюпорта (px) из layout.
     var intrinsic by remember(bytes) { mutableStateOf<Size?>(null) }

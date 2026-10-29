@@ -218,6 +218,16 @@ expect fun resizeJpeg(bytes: ByteArray, maxSide: Int = 800, quality: Double = 0.
 /** Список файлов [path] для файлового диалога: без скрытых, каталоги первыми. */
 expect fun listDirectory(path: String): List<PickDirEntry>
 
-/** data-URI для `photo_url` (контракт бэкенда, Stage 8 п.3 — без изменений). */
+/**
+ * data-URI для `photo_url` (контракт бэкенда, Stage 8 п.3). Every photo sent to the server goes through
+ * here, so APP1 (EXIF with GPS, XMP) is stripped again even if a caller skipped [resizeJpeg]/[cropSquareJpeg].
+ */
 fun photoDataUri(bytes: ByteArray): String =
+    "data:image/jpeg;base64," + Base64.encode(JpegSegments.stripExifApp1(bytes))
+
+/**
+ * On-screen preview of a picked, not yet re-encoded photo. It keeps EXIF so the image loader applies the
+ * orientation the crop rectangle is measured in; never send this to the network.
+ */
+internal fun localPreviewDataUri(bytes: ByteArray): String =
     "data:image/jpeg;base64," + Base64.encode(bytes)
