@@ -68,8 +68,8 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  * полная поверхность App() (механика AddPlantScreenTest). Ключевые утверждения:
  *
  * - VAL-DETAIL-001: шапка рисует имя/локацию/метки назад-камера; тап по имени
- *   → поле → правка → blur (тап по соседнему кликабельному) → PATCH /api/
- *   plants/:id с телом {"name": ...} — тело фиксируется MockEngine;
+ *   → окно «Name and place» → правка → ✓ → PATCH /api/plants/:id с телом
+ *   {"name": ...} — тело фиксируется MockEngine;
  * - VAL-DETAIL-004: подтверждение → DELETE уходит, карточка исчезает из Room
  *   мгновенно (на дашборде после popBackStack её уже нет — RN onMutate);
  *   HTTP 500 → алерт ошибки НАД графом (экран уже ушёл — RN onError
@@ -525,19 +525,22 @@ class PlantDetailScreenTest {
             waitUntilAtLeastOneExists(hasSubText("Care Settings"), TIMEOUT)
             waitUntilAtLeastOneExists(hasSubText("Loves humidity"), TIMEOUT)
 
-            // Инлайн-редактирование: тап по имени → editable → ввод → Done
-            // (RN onSubmitEditing; blur — RN onBlur) → PATCH {"name": ...}.
-            clickAt(hasClickAction() and hasSubText("Ficus"))
-            waitUntilAtLeastOneExists(isEditable(), TIMEOUT)
-            val editable = onAllNodes(isEditable())
+            // Name and place sheet (M10 items 5-6): tap the name → sheet → edit → Done on the keyboard
+            // saves nothing; only ✓ sends PATCH {"name": ...}.
+            clickAt(hasClickAction() and hasTestTag("plantDetail_name"))
+            waitUntilAtLeastOneExists(hasTestTag(NamePlaceTags.NAME) and isEditable(), TIMEOUT)
+            val editable = onAllNodes(hasTestTag(NamePlaceTags.NAME) and isEditable(), useUnmergedTree = true)
             assertTrue(editable.fetchSemanticsNodes().isNotEmpty(), "поле имени появилось")
             editable[0].performTextInput(" Green")
-            // RN onSubmitEditing: Done в поле → PATCH. Тело: "Ficus Green".
             editable[0].performImeAction()
+            waitForIdle()
+            assertTrue(graph.server.lastPatchBody == null, "Done in the name field saves nothing")
+            clickAt(hasClickAction() and hasContentDescription("Save"))
 
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastPatchBody != null }
             val body = graph.server.lastPatchBody.orEmpty()
             assertTrue(body.contains("\"name\":\"GreenFicus\"") || body.contains("\"name\":\"Ficus Green\""), "PATCH с новым именем: $body")
+            assertTrue(!body.contains("location"), "unchanged place is not sent: $body")
             assertTrue(graph.server.lastPatchPath == "/api/plants/det-1", "путь PATCH: ${graph.server.lastPatchPath}")
 
             // Оптимистичное имя уже в шапке (Room отдал до ответа).

@@ -1,0 +1,242 @@
+# Name and place sheet, variant A (feature m10-name-place; VAL-CARD-004..007).
+# Keyless: the app is already signed in (photos-signin.yaml through render-smoke.sh) to a throwaway account
+# with one plant «Np Fern» (no photo, empty location). STEP selects one stage; between stages the caller
+# reads GET /api/plants with curl and dumps the screen with uiautomator.
+#   cancel   ✕ and system Back drop a changed name and place (header keeps «Np Fern», no place line)
+#   blank    empty name: ✓ and «Save» are disabled (sheet left open for a dump)
+#   save     name «Np Kitchen Fern» + chip Kitchen, ✓ → header shows both; a blank name disables ✓
+#   relaunch force-stop and relaunch: the saved values are still there
+#   custom   «Other…» + «Подоконник у мамы», ✓; reopen shows «Other…» selected with the text
+#   clear    clear the custom text, ✓ → no place line
+#   ru       after switching the app to Russian: the sheet in ru with «Своё…» preselected for a custom place
+# No hideKeyboard after typing in the sheet: when no soft keyboard is drawn (elt_test), Maestro presses Back,
+# and Back cancels the sheet. Screenshots: SHOT_PREFIX-<case>.png.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb name and place (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'cancel'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "My Plants"
+          timeout: 30000
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Np Fern"
+          timeout: 10000
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - assertVisible: "Living room"
+      - assertVisible: "Kitchen"
+      - assertVisible: "Bedroom"
+      - assertVisible: "Balcony"
+      - assertVisible: "Bathroom"
+      - assertVisible: "Office"
+      - assertVisible: "Other…"
+      - takeScreenshot: ${SHOT_PREFIX}-sheet-en
+      - tapOn:
+          text: "Np Fern"
+          below: "Name"
+      - eraseText: 20
+      - inputText: "Np Changed"
+      - hideKeyboard
+      - tapOn: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-cancel-before
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 10000
+      - assertVisible: "Np Fern"
+      - assertNotVisible: "Np Changed"
+      - assertNotVisible: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-cancel-x
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - tapOn:
+          text: "Np Fern"
+          below: "Name"
+      - eraseText: 20
+      - inputText: "Np Back"
+      - hideKeyboard
+      - tapOn: "Bedroom"
+      - back
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 10000
+      - assertVisible: "Np Fern"
+      - assertNotVisible: "Np Back"
+      - assertNotVisible: "Bedroom"
+      - takeScreenshot: ${SHOT_PREFIX}-cancel-back
+
+# blank leaves the sheet open with an empty name, so the caller can dump the disabled ✓; press Back after it.
+- runFlow:
+    when:
+      true: ${STEP == 'blank'}
+    commands:
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - tapOn:
+          text: "Np Fern"
+          below: "Name"
+      - eraseText: 20
+      - hideKeyboard
+      - assertVisible:
+          text: "Save"
+          enabled: false
+
+- runFlow:
+    when:
+      true: ${STEP == 'save'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Np Fern"
+          timeout: 10000
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - tapOn:
+          text: "Np Fern"
+          below: "Name"
+      - eraseText: 20
+      - assertVisible:
+          text: "Save"
+          enabled: false
+      - takeScreenshot: ${SHOT_PREFIX}-blank-disabled
+      - inputText: "Np Kitchen Fern"
+      - hideKeyboard
+      - tapOn: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-save-before
+      - tapOn:
+          text: "Save"
+          index: 0
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 10000
+      - assertVisible: "Np Kitchen Fern"
+      - assertVisible: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-save-after
+
+- runFlow:
+    when:
+      true: ${STEP == 'relaunch'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "My Plants"
+          timeout: 30000
+      - tapOn: "Np Kitchen Fern"
+      - extendedWaitUntil:
+          visible: "Water.*"
+          timeout: 10000
+      - assertVisible: "Np Kitchen Fern"
+      - assertVisible: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-relaunch
+
+- runFlow:
+    when:
+      true: ${STEP == 'custom'}
+    commands:
+      - tapOn: "Np Kitchen Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - assertVisible:
+          checked: true
+          containsDescendants:
+            - text: "Kitchen"
+      - tapOn: "Other…"
+      - inputText: "Подоконник у мамы"
+      - takeScreenshot: ${SHOT_PREFIX}-custom-typed
+      - tapOn:
+          text: "Save"
+          index: 0
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 10000
+      - assertVisible: "Подоконник у мамы"
+      - takeScreenshot: ${SHOT_PREFIX}-custom-saved
+      - tapOn: "Np Kitchen Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - assertVisible:
+          checked: true
+          containsDescendants:
+            - text: "Other…"
+      - assertVisible: "Подоконник у мамы"
+      - takeScreenshot: ${SHOT_PREFIX}-custom-reopen
+
+- runFlow:
+    when:
+      true: ${STEP == 'clear'}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "Name and place"
+          commands:
+            - tapOn: "Np Kitchen Fern"
+            - extendedWaitUntil:
+                visible: "Name and place"
+                timeout: 10000
+      - tapOn: ".*мамы.*"
+      # eraseText counts UTF-16 units unevenly on Cyrillic; erase well past the 17 characters.
+      - eraseText: 80
+      - assertNotVisible: ".*мамы.*"
+      - assertNotVisible:
+          checked: true
+          containsDescendants:
+            - text: "Kitchen"
+      - takeScreenshot: ${SHOT_PREFIX}-clear-before
+      - tapOn:
+          text: "Save"
+          index: 0
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 10000
+      - assertNotVisible: ".*мамы.*"
+      - assertVisible: "Np Kitchen Fern"
+      - takeScreenshot: ${SHOT_PREFIX}-clear-after
+
+- runFlow:
+    when:
+      true: ${STEP == 'ru'}
+    commands:
+      - tapOn: "Np Kitchen Fern"
+      # From the plant list the first tap opens the card; the second opens the sheet.
+      - runFlow:
+          when:
+            notVisible: "Название и место"
+          commands:
+            - extendedWaitUntil:
+                visible: "Полить.*"
+                timeout: 10000
+            - tapOn: "Np Kitchen Fern"
+      - extendedWaitUntil:
+          visible: "Название и место"
+          timeout: 10000
+      - assertVisible: "Гостиная"
+      - assertVisible: "Кухня"
+      - assertVisible: "Спальня"
+      - assertVisible: "Балкон"
+      - assertVisible: "Ванная"
+      - assertVisible: "Офис"
+      - assertVisible:
+          checked: true
+          containsDescendants:
+            - text: "Своё…"
+      - takeScreenshot: ${SHOT_PREFIX}-sheet-ru
+      - tapOn: "Отмена"
+      - extendedWaitUntil:
+          notVisible: "Название и место"
+          timeout: 10000

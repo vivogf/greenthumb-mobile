@@ -306,6 +306,18 @@ KMP_ONLY_KEYS = {
     # Watering line «Полить через N дней», variant B (M10 D§1 item 4); plurals are in KMP_ONLY_PLURALS.
     "plantDetails.waterToday",
     "plantDetails.lastWateredLine",
+    # «Название и место» sheet, variant A (M10 D§1 items 5-6).
+    "plantDetails.namePlaceTitle",
+    "plantDetails.nameLabel",
+    "plantDetails.placeLabel",
+    "plantDetails.placeLiving",
+    "plantDetails.placeKitchen",
+    "plantDetails.placeBedroom",
+    "plantDetails.placeBalcony",
+    "plantDetails.placeBathroom",
+    "plantDetails.placeOffice",
+    "plantDetails.placeCustom",
+    "plantDetails.placeCustomHint",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of

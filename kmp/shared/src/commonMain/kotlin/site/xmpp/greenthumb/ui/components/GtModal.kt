@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import site.xmpp.greenthumb.ui.theme.Radii
@@ -30,6 +31,9 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * cardBorder, радиус [Radii.xl]. Тап по подложке — [onDismissRequest].
  * Тап по карточке не закрывает.
  */
+/** The scrim calls the same `onDismissRequest` as the system Back press, so tests can drive the dismiss path. */
+internal const val GT_MODAL_SCRIM_TAG = "gt_modal_scrim"
+
 /** Full-width edge-to-edge dialog window whose content receives system-bar and keyboard insets (see [GtModal]). */
 internal expect fun gtModalDialogProperties(): DialogProperties
 
@@ -51,6 +55,7 @@ internal fun GtModal(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag(GT_MODAL_SCRIM_TAG)
                 .background(MaterialTheme.colorScheme.scrim)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

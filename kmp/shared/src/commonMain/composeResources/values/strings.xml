@@ -152,6 +152,17 @@
     <string name="plantDetails_back">Back</string>
     <string name="plantDetails_changePhoto">Change Photo</string>
     <string name="plantDetails_photoSheetTitle">Plant photo</string>
+    <string name="plantDetails_namePlaceTitle">Name and place</string>
+    <string name="plantDetails_nameLabel">Name</string>
+    <string name="plantDetails_placeLabel">Where it stands</string>
+    <string name="plantDetails_placeLiving">Living room</string>
+    <string name="plantDetails_placeKitchen">Kitchen</string>
+    <string name="plantDetails_placeBedroom">Bedroom</string>
+    <string name="plantDetails_placeBalcony">Balcony</string>
+    <string name="plantDetails_placeBathroom">Bathroom</string>
+    <string name="plantDetails_placeOffice">Office</string>
+    <string name="plantDetails_placeCustom">Other…</string>
+    <string name="plantDetails_placeCustomHint">For example: kids' room sill</string>
     <string name="plantDetails_photoNew">Take a new photo</string>
     <string name="plantDetails_photoGallery">Choose from gallery</string>
     <string name="plantDetails_plantNotFound">Plant not found</string>

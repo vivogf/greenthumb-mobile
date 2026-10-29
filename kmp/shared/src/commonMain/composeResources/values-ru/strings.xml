@@ -160,6 +160,17 @@
     <string name="plantDetails_back">Назад</string>
     <string name="plantDetails_changePhoto">Изменить фото</string>
     <string name="plantDetails_photoSheetTitle">Фото растения</string>
+    <string name="plantDetails_namePlaceTitle">Название и место</string>
+    <string name="plantDetails_nameLabel">Название</string>
+    <string name="plantDetails_placeLabel">Где стоит</string>
+    <string name="plantDetails_placeLiving">Гостиная</string>
+    <string name="plantDetails_placeKitchen">Кухня</string>
+    <string name="plantDetails_placeBedroom">Спальня</string>
+    <string name="plantDetails_placeBalcony">Балкон</string>
+    <string name="plantDetails_placeBathroom">Ванная</string>
+    <string name="plantDetails_placeOffice">Офис</string>
+    <string name="plantDetails_placeCustom">Своё…</string>
+    <string name="plantDetails_placeCustomHint">Например: подоконник в детской</string>
     <string name="plantDetails_photoNew">Сделать новое фото</string>
     <string name="plantDetails_photoGallery">Выбрать из галереи</string>
     <string name="plantDetails_plantNotFound">Растение не найдено</string>

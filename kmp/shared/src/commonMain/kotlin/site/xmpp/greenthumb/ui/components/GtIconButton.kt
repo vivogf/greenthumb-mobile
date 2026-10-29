@@ -33,6 +33,8 @@ fun GtIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     selected: Boolean = false,
+    /** False for a plain action (✕, ✓): no selected state, so TalkBack does not read "not checked". */
+    selectable: Boolean = true,
     onPressedChange: (Boolean) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
@@ -54,7 +56,7 @@ fun GtIconButton(
             )
             .semantics {
                 this.contentDescription = contentDescription
-                this.selected = selected
+                if (selectable) this.selected = selected
             },
         contentAlignment = Alignment.Center,
     ) {

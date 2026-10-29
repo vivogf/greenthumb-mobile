@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -37,9 +36,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -50,7 +46,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.CancellationException
@@ -100,7 +95,6 @@ import site.xmpp.greenthumb.ui.components.GtSheetRow
 import site.xmpp.greenthumb.ui.components.GtSheetRowRole
 import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.GtSpeciesMark
-import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWaterButton
 import site.xmpp.greenthumb.ui.components.GtWaterDueLine
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
@@ -144,6 +138,13 @@ import site.xmpp.greenthumb.ui.res.plantDetails_lastWateredLine
 import site.xmpp.greenthumb.ui.res.plantDetails_leaveEmpty
 import site.xmpp.greenthumb.ui.res.plantDetails_noNotes
 import site.xmpp.greenthumb.ui.res.plantDetails_notSpecified
+import site.xmpp.greenthumb.ui.res.plantDetails_namePlaceTitle
+import site.xmpp.greenthumb.ui.res.plantDetails_placeBalcony
+import site.xmpp.greenthumb.ui.res.plantDetails_placeBathroom
+import site.xmpp.greenthumb.ui.res.plantDetails_placeBedroom
+import site.xmpp.greenthumb.ui.res.plantDetails_placeKitchen
+import site.xmpp.greenthumb.ui.res.plantDetails_placeLiving
+import site.xmpp.greenthumb.ui.res.plantDetails_placeOffice
 import site.xmpp.greenthumb.ui.res.plantDetails_notes
 import site.xmpp.greenthumb.ui.res.plantDetails_notesPlaceholder
 import site.xmpp.greenthumb.ui.res.plantDetails_plantNotFound
@@ -207,8 +208,8 @@ public class PlantDeleteErrorState {
  * `app/plant/[id].tsx` (1178 строк, прочитана целиком).
  *
  * Секции 1:1: фото-шапка (высота = 0.75 ширины экрана, градиент-затемнение,
- * назад/камера), инлайн-редактирование имени (тап → поле → сохранение по
- * потере фокуса, как onBlur RN), карточка статуса полива с кнопкой «Полить»
+ * назад/камера), имя и место — окно «Название и место» по тапу на имя
+ * (✕/Back отменяют, ✓ сохраняет оба поля одним PATCH; M10 items 5-6), карточка статуса полива с кнопкой «Полить»
  * (частицы — M10), карточки продвинутого ухода 2×N (только настроенные
  * частоты; тап = дата сегодня), строка настроек ухода, заметки (инлайн
  * save/cancel), удаление с подтверждением.
@@ -337,6 +338,15 @@ public fun PlantDetailScreen(
     val repottingFrequencyLabel = stringResource(Res.string.plantDetails_repottingFrequency)
     val pruningFrequencyLabel = stringResource(Res.string.plantDetails_pruningFrequency)
     val doneText = stringResource(Res.string.common_done)
+    val namePlaceTitle = stringResource(Res.string.plantDetails_namePlaceTitle)
+    val placeLabels = listOf(
+        stringResource(Res.string.plantDetails_placeLiving),
+        stringResource(Res.string.plantDetails_placeKitchen),
+        stringResource(Res.string.plantDetails_placeBedroom),
+        stringResource(Res.string.plantDetails_placeBalcony),
+        stringResource(Res.string.plantDetails_placeBathroom),
+        stringResource(Res.string.plantDetails_placeOffice),
+    )
 
     // Scope удаления: переживает уход экрана (RN onMutate → router.replace,
     // мутация доезжает и с алертом ошибки — уже над дашбордом). Отдельный
@@ -344,8 +354,8 @@ public fun PlantDetailScreen(
     val deleteScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
 
     // Локальное состояние RN (имя, заметки, модалки, алерт).
-    var editingName by remember { mutableStateOf(false) }
-    var editedName by remember { mutableStateOf("") }
+    // Open «Название и место» sheet; null when closed. Nothing is saved until its ✓.
+    var namePlaceForm by remember { mutableStateOf<NamePlaceForm?>(null) }
     var editingNotes by remember { mutableStateOf(false) }
     var editedNotes by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
@@ -547,45 +557,33 @@ public fun PlantDetailScreen(
                                     .padding(bottom = Spacing.lg),
                                 verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
                             ) {
-                                if (editingName) {
-                                    NameEditField(
-                                        value = editedName,
-                                        onValueChange = { editedName = it },
-                                        onSave = {
-                                            editingName = false
-                                            val trimmed = editedName.trim()
-                                            if (trimmed.isNotEmpty() && trimmed != plant.name) {
-                                                update(PatchPlantDto(name = Patch.Value(trimmed)))
-                                            }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("plantDetail_name")
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            role = Role.Button,
+                                            onClickLabel = namePlaceTitle,
+                                        ) {
+                                            focusManager.clearFocus()
+                                            namePlaceForm = NamePlaceForm.of(plant.name, plant.location, placeLabels)
                                         },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                ) {
+                                    Text(
+                                        text = plant.name,
+                                        style = MaterialTheme.typography.headlineSmall
+                                            .copy(fontWeight = FontWeight.Bold),
+                                        color = headerInk,
+                                        modifier = Modifier.weight(1f),
                                     )
-                                } else {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable(
-                                                interactionSource = remember { MutableInteractionSource() },
-                                                indication = null,
-                                                role = Role.Button,
-                                            ) {
-                                                editedName = plant.name
-                                                editingName = true
-                                            },
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                    ) {
-                                        Text(
-                                            text = plant.name,
-                                            style = MaterialTheme.typography.headlineSmall
-                                                .copy(fontWeight = FontWeight.Bold),
-                                            color = headerInk,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        GtPencilMark(
-                                            tint = headerPencil,
-                                            modifier = Modifier.size(Spacing.lg),
-                                        )
-                                    }
+                                    GtPencilMark(
+                                        tint = headerPencil,
+                                        modifier = Modifier.size(Spacing.xl),
+                                    )
                                 }
                                 if (plant.location.isNotBlank()) Row(
                                     modifier = Modifier.testTag("plantDetail_location"),
@@ -927,6 +925,23 @@ public fun PlantDetailScreen(
                 )
             }
 
+            val openNamePlace = namePlaceForm
+            if (openNamePlace != null) {
+                PlantNamePlaceSheet(
+                    form = openNamePlace,
+                    onFormChange = { namePlaceForm = it },
+                    onCancel = {
+                        namePlaceForm = null
+                        focusManager.clearFocus()
+                    },
+                    onSave = {
+                        namePlaceForm = null
+                        focusManager.clearFocus()
+                        openNamePlace.toPatch()?.let(::update)
+                    },
+                )
+            }
+
             // ── Модалка смены фото (RN bottom sheet) ──
             if (showPhotoSheet) {
                 val closePhotoSheet = {
@@ -1018,35 +1033,6 @@ private fun NotFoundScreen(
             )
         }
     }
-}
-
-/** Поле имени в шапке: сохранение по потере фокуса (RN onBlur) или Done (RN onSubmitEditing). */
-@Composable
-private fun NameEditField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSave: () -> Unit,
-) {
-    val requester = remember { FocusRequester() }
-    var wasFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { requester.requestFocus() }
-    GtTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = "",
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onSave() }),
-        modifier = Modifier
-            .fillMaxWidth()
-            .focusRequester(requester)
-            .onFocusChanged { focus ->
-                if (focus.isFocused) {
-                    wasFocused = true
-                } else if (wasFocused) {
-                    onSave()
-                }
-            },
-    )
 }
 
 /** Круглая кнопка шапки, 38×38 (RN header buttons); [fill] — rgba(0,0,0,0.4) над фото. */
