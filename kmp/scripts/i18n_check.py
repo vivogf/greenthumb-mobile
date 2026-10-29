@@ -278,7 +278,34 @@ KMP_ONLY_KEYS = {
     "achievement.first_note.description",
     "achievement.first_photo.title",
     "achievement.first_photo.description",
+    # Two-slot key rotation and session recovery (commit fdb1472): the KMP app keeps
+    # the recovery key only in its own secure storage; the Expo app has no such flow.
+    "profile.currentKeyLabel",
+    "profile.newKeyLabel",
+    "profile.keyChangeNotStored",
+    "profile.keyChangeRetry",
+    "profile.keyChangeSuperseded",
+    "profile.keyChangeUnfinished",
+    "profile.regenerateNoKey",
+    "profile.regenerateUncertain",
+    "profile.signOutAnyway",
+    "profile.signOutSaveKeyFirst",
+    "session.keyChangeFailed",
+    "session.keyChangeFinished",
+    "session.keyNotStored",
+    "session.retryBody",
+    "session.retryButton",
+    "session.retryOtherKey",
 }
+
+# RN keys whose KMP text is deliberately rewritten (privacy wording of the KMP
+# release: crash reports exist, server logs do not). The key must still exist in
+# both KMP locales; only the text comparison with the Expo locale is skipped,
+# because the Expo locale files belong to the Expo app and are not edited here.
+KMP_REWRITTEN_TEXT_KEYS = frozenset({
+    "privacy.loginHint",
+    "privacy.aboutBody",
+})
 
 # RN держит эти ключи-строки как KMP <plurals> (не <string>): плюрализации
 # success/pending-баннера массового полива в RN нет — t('dashboard.plantsWatered')
@@ -544,7 +571,10 @@ def main():
             problems.append(f"{lang}: нет <plurals name=\"{n}\">")
         for n in extra_p:
             problems.append(f"{lang}: лишний <plurals name=\"{n}\">")
+        rewritten = {to_res_name(k) for k in KMP_REWRITTEN_TEXT_KEYS}
         for n, txt in exp_strings.items():
+            if n in rewritten:
+                continue
             if n in got_strings and got_strings[n] != txt:
                 problems.append(
                     f"{lang}: текст {n} не совпадает:\n  RN:  {txt!r}\n  XML: {got_strings[n]!r}"

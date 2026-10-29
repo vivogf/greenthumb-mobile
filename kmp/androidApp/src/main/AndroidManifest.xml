@@ -79,7 +79,7 @@
              adjustResize: клавиатура сжимает окно, а не сдвигает его — иначе
              скролл деталки не знает о клавиатуре, и кнопка «Add note» с
              сообщением «нужна сеть» остаются под ней.
-             screenOrientation portrait: 2.0.0 ships phone-portrait only (the
+             screenOrientation portrait: 0.8.0 ships phone-portrait only (the
              layouts are not built for landscape). Android 16 ignores this on
              sw600dp+ screens for apps targeting 36; the property below opts
              this activity out for now. The opt-out stops working once

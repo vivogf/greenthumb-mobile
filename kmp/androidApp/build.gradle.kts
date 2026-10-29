@@ -54,7 +54,7 @@ android {
         // Выше всех активных треков Expo (store versionCode 5) — Stage 1 п.8 плана
         // миграции: KMP-сборка всегда ставится обновлением поверх установленной базы.
         versionCode = 7
-        versionName = "2.0.0"
+        versionName = "0.8.0"
         manifestPlaceholders["appLabel"] = "GreenThumb"
     }
 
