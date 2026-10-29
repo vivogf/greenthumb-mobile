@@ -64,6 +64,9 @@ import site.xmpp.greenthumb.ui.components.GtGalleryMark
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
+import site.xmpp.greenthumb.ui.components.GtSheetRow
+import site.xmpp.greenthumb.ui.components.GtSheetRowRole
+import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.PhotoPickerController
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.formatPickerDate
@@ -230,24 +233,21 @@ internal fun PlantTimelineSection(
 
     if (sourceSheet) {
         GtModal(onDismissRequest = { sourceSheet = false }) {
-            Text(
-                text = stringResource(Res.string.timeline_addPhoto),
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg),
-                style = MaterialTheme.typography.labelMedium,
-                color = scheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            SourceRow(stringResource(Res.string.common_camera), { GtCameraMark(it) }) {
+            GtSheetTitle(stringResource(Res.string.timeline_addPhoto))
+            GtSheetRow(label = stringResource(Res.string.common_camera), icon = { GtCameraMark(it) }, onClick = {
                 sourceSheet = false
                 picker.launch(scope, PickSource.Camera)
-            }
-            SourceRow(stringResource(Res.string.common_gallery), { GtGalleryMark(it) }) {
+            })
+            GtSheetRow(label = stringResource(Res.string.common_gallery), icon = { GtGalleryMark(it) }, onClick = {
                 sourceSheet = false
                 picker.launch(scope, PickSource.Gallery)
-            }
-            SourceRow(stringResource(Res.string.plantDetails_cancel), null, destructive = true) {
-                sourceSheet = false
-            }
+            })
+            GtSheetRow(
+                label = stringResource(Res.string.plantDetails_cancel),
+                icon = null,
+                role = GtSheetRowRole.Cancel,
+                onClick = { sourceSheet = false },
+            )
         }
     }
 
@@ -311,31 +311,6 @@ private fun TimelineTile(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-    }
-}
-
-@Composable
-private fun SourceRow(
-    label: String,
-    icon: (@Composable (Color) -> Unit)?,
-    destructive: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.xl, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        icon?.invoke(scheme.secondary)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (destructive) scheme.error else scheme.onSurface,
-        )
     }
 }
 

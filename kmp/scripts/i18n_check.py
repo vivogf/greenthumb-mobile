@@ -296,6 +296,10 @@ KMP_ONLY_KEYS = {
     "session.retryBody",
     "session.retryButton",
     "session.retryOtherKey",
+    # plantDetails.photo* — «Фото растения» sheet on plant detail (M10 D§1 item 8).
+    "plantDetails.photoSheetTitle",
+    "plantDetails.photoNew",
+    "plantDetails.photoGallery",
 }
 
 # RN keys whose KMP text is deliberately rewritten (privacy wording of the KMP

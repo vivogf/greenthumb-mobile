@@ -1,0 +1,173 @@
+# M10 item 8 (feature m10-sheets, VAL-LOOK-011, VAL-LOOK-018; header-photo tap of VAL-CARD-017).
+# STEP selects one stage. Each sheet stage ends with the sheet OPEN, so the caller can run
+# `adb shell uiautomator dump` and `screencap` on it (label x, row heights, «Отмена» colour).
+#   login       sign in with a throwaway key and switch the app to Russian. The key is a placeholder:
+#               run only through render-smoke.sh (GT_FLOW=m10_sheets.yaml GT_STEP=login GT_KEY_FILE=…).
+#               The caller seeds plants "Sheet Fern" (location ""), "Null Fern" (no location) and
+#               "Place Fern" (location "Kitchen").
+#   detail      plant detail of "Sheet Fern": the header photo tap opens «Фото растения»; cancel;
+#               the camera icon opens it again (left open)
+#   timeline    the add-photo sheet of the photo timeline (left open)
+#   addplant    Add Plant: the photo box sheet (left open)
+#   addbox      Add Plant without a photo, no sheet (photo box label check)
+#   place       plant detail of PLANT (env) without a sheet (location row check)
+#   lang        Profile → language → LANG (env, «English» or «Русский»)
+#   theme       Profile → «Тема» → THEME (env, «Тёмная» or «Светлая»); the «Отмена» colour check runs dark
+appId: com.greenthumbplantcare.debug
+name: M10 sheets (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'login'}
+    commands:
+      - launchApp:
+          clearState: true
+      - repeat:
+          times: 15
+          while:
+            notVisible: "Welcome Back|С возвращением"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Skip|Пропустить"
+                commands:
+                  - tapOn: "Skip|Пропустить"
+            - runFlow:
+                when:
+                  visible: "Enter recovery key|Ввести ключ"
+                commands:
+                  - tapOn: "Enter recovery key|Ввести ключ"
+            - runFlow:
+                when:
+                  visible: "I Have a Key|У меня есть ключ"
+                commands:
+                  - tapOn: "I Have a Key|У меня есть ключ"
+      - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      - inputText: ${GT_RECOVERY_KEY}
+      - hideKeyboard
+      - tapOn: "Sign In|Войти"
+      - extendedWaitUntil:
+          visible: "Sheet Fern"
+          timeout: 30000
+      - tapOn: "Profile|Профиль"
+      - scrollUntilVisible:
+          element: "Language|Язык"
+      - tapOn: "Language|Язык"
+      - tapOn: "Русский"
+      - extendedWaitUntil:
+          visible: "Язык"
+          timeout: 10000
+      - tapOn: "Растения"
+      - extendedWaitUntil:
+          visible: "Sheet Fern"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP != 'login'}
+    commands:
+      - stopApp
+      - launchApp
+      - extendedWaitUntil:
+          visible: "Sheet Fern"
+          timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'detail' || STEP == 'timeline'}
+    commands:
+      - tapOn: "Sheet Fern"
+      - extendedWaitUntil:
+          visible: "Настройки ухода"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'detail'}
+    commands:
+      - tapOn:
+          text: "Фото растения"
+      - extendedWaitUntil:
+          visible: "Сделать новое фото"
+          timeout: 5000
+      - assertVisible: "Выбрать из галереи"
+      - assertVisible: "Отмена"
+      - takeScreenshot: detail-sheet-from-photo
+      - tapOn: "Отмена"
+      - assertNotVisible: "Сделать новое фото"
+      - tapOn: "Изменить фото растения"
+      - extendedWaitUntil:
+          visible: "Сделать новое фото"
+          timeout: 5000
+      - takeScreenshot: detail-sheet-from-camera
+
+- runFlow:
+    when:
+      true: ${STEP == 'timeline'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Добавить фото"
+          direction: DOWN
+      - tapOn: "Добавить фото"
+      - extendedWaitUntil:
+          visible: "Галерея"
+          timeout: 5000
+      - assertVisible: "Камера"
+      - assertVisible: "Отмена"
+      - takeScreenshot: timeline-sheet
+
+- runFlow:
+    when:
+      true: ${STEP == 'addplant' || STEP == 'addbox'}
+    commands:
+      - tapOn: "Добавить новое растение|Add a new plant"
+      - extendedWaitUntil:
+          visible: "Добавить фото|Add photo"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'addplant'}
+    commands:
+      - tapOn: "Добавить фото"
+      - extendedWaitUntil:
+          visible: "Галерея"
+          timeout: 5000
+      - assertVisible: "Камера"
+      - assertVisible: "Отмена"
+      - takeScreenshot: addplant-sheet
+
+- runFlow:
+    when:
+      true: ${STEP == 'lang'}
+    commands:
+      - tapOn: "Профиль|Profile"
+      - scrollUntilVisible:
+          element: "Язык|Language"
+      - tapOn: "Язык|Language"
+      - tapOn: ${LANG}
+      - waitForAnimationToEnd
+      - tapOn: "Растения|Plants"
+
+- runFlow:
+    when:
+      true: ${STEP == 'theme'}
+    commands:
+      - tapOn: "Профиль"
+      - scrollUntilVisible:
+          element: "Тема"
+      - tapOn: "Тема"
+      - tapOn: ${THEME}
+      - waitForAnimationToEnd
+      - tapOn: "Растения"
+
+- runFlow:
+    when:
+      true: ${STEP == 'place'}
+    commands:
+      - tapOn: ${PLANT}
+      - extendedWaitUntil:
+          visible: "Настройки ухода"
+          timeout: 10000
+      - takeScreenshot: place-${PLANT}

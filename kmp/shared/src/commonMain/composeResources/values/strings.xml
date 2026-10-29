@@ -149,6 +149,9 @@
     <string name="addPlant_sectionPruning">✂️ Pruning</string>
     <string name="plantDetails_back">Back</string>
     <string name="plantDetails_changePhoto">Change Photo</string>
+    <string name="plantDetails_photoSheetTitle">Plant photo</string>
+    <string name="plantDetails_photoNew">Take a new photo</string>
+    <string name="plantDetails_photoGallery">Choose from gallery</string>
     <string name="plantDetails_plantNotFound">Plant not found</string>
     <string name="plantDetails_goHome">Go Home</string>
     <string name="plantDetails_everyDay">Every %1$d day</string>

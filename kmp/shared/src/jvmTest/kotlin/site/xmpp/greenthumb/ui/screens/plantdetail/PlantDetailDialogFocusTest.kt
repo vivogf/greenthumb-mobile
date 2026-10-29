@@ -151,9 +151,9 @@ class PlantDetailDialogFocusTest {
 
             // Change-photo sheet, cancelled.
             onNode(hasClickAction() and hasContentDescription("Change plant photo")).performClick()
-            waitUnmerged(hasText("Change Photo"))
+            waitUnmerged(hasText("Plant photo"))
             clickLast("Cancel")
-            waitUnmerged(hasText("Change Photo"), present = false)
+            waitUnmerged(hasText("Plant photo"), present = false)
             onNode(noteInput).assertIsNotFocused()
             assertNothingFocused("no field keeps focus after the change-photo sheet")
 

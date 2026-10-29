@@ -157,6 +157,9 @@
     <string name="addPlant_sectionPruning">✂️ Обрезка</string>
     <string name="plantDetails_back">Назад</string>
     <string name="plantDetails_changePhoto">Изменить фото</string>
+    <string name="plantDetails_photoSheetTitle">Фото растения</string>
+    <string name="plantDetails_photoNew">Сделать новое фото</string>
+    <string name="plantDetails_photoGallery">Выбрать из галереи</string>
     <string name="plantDetails_plantNotFound">Растение не найдено</string>
     <string name="plantDetails_goHome">На главную</string>
     <string name="plantDetails_everyDay">Каждый %1$d день</string>

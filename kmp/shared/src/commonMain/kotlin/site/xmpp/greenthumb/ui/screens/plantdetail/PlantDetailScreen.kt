@@ -97,6 +97,9 @@ import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
+import site.xmpp.greenthumb.ui.components.GtSheetRow
+import site.xmpp.greenthumb.ui.components.GtSheetRowRole
+import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.GtSpeciesMark
 import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWaterButton
@@ -113,11 +116,9 @@ import site.xmpp.greenthumb.ui.res.diagnosis_entry
 import site.xmpp.greenthumb.ui.res.diagnosis_entryDescription
 import site.xmpp.greenthumb.ui.res.a11y_deletePlant
 import site.xmpp.greenthumb.ui.res.a11y_waterPlant
-import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
 import site.xmpp.greenthumb.ui.res.common_error
-import site.xmpp.greenthumb.ui.res.common_gallery
 import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_delete
 import site.xmpp.greenthumb.ui.res.plant_overdue
@@ -125,7 +126,9 @@ import site.xmpp.greenthumb.ui.res.plantDetails_advancedCare
 import site.xmpp.greenthumb.ui.res.plantDetails_careNotSet
 import site.xmpp.greenthumb.ui.res.plantDetails_careSettings
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
-import site.xmpp.greenthumb.ui.res.plantDetails_changePhoto
+import site.xmpp.greenthumb.ui.res.plantDetails_photoGallery
+import site.xmpp.greenthumb.ui.res.plantDetails_photoNew
+import site.xmpp.greenthumb.ui.res.plantDetails_photoSheetTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_daysAgo
 import site.xmpp.greenthumb.ui.res.plantDetails_delete
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteDescription
@@ -320,9 +323,9 @@ public fun PlantDetailScreen(
     val notSpecifiedText = stringResource(Res.string.plantDetails_notSpecified)
     val leaveEmptyHint = stringResource(Res.string.plantDetails_leaveEmpty)
     val lastTimeText = stringResource(Res.string.plantDetails_lastTime)
-    val changePhotoTitle = stringResource(Res.string.plantDetails_changePhoto)
-    val cameraText = stringResource(Res.string.common_camera)
-    val galleryText = stringResource(Res.string.common_gallery)
+    val photoSheetTitle = stringResource(Res.string.plantDetails_photoSheetTitle)
+    val photoNewText = stringResource(Res.string.plantDetails_photoNew)
+    val photoGalleryText = stringResource(Res.string.plantDetails_photoGallery)
     val waterFrequencyLabel = stringResource(Res.string.plantDetails_wateringFrequency)
     val fertilizingLabel = stringResource(Res.string.plantDetails_fertilizing)
     val repottingLabel = stringResource(Res.string.plantDetails_repotting)
@@ -486,6 +489,7 @@ public fun PlantDetailScreen(
                             modifier = Modifier.fillMaxSize(),
                         )
                         // Затемнение (LinearGradient RN: 0.35 black → transparent → 0.7 black).
+                        // The gradient layer takes the photo tap; back, camera and name sit above it and keep theirs.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -495,7 +499,13 @@ public fun PlantDetailScreen(
                                         0.5f to Color.Transparent,
                                         1f to Color.Black.copy(alpha = 0.7f),
                                     ),
-                                ),
+                                )
+                                .testTag("plantDetail_headerPhoto")
+                                .clickable(role = Role.Image, onClickLabel = photoSheetTitle) {
+                                    focusManager.clearFocus()
+                                    showPhotoSheet = true
+                                }
+                                .semantics { contentDescription = photoSheetTitle },
                         )
 
                         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -572,7 +582,8 @@ public fun PlantDetailScreen(
                                         )
                                     }
                                 }
-                                Row(
+                                if (plant.location.isNotBlank()) Row(
+                                    modifier = Modifier.testTag("plantDetail_location"),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
                                 ) {
@@ -937,35 +948,27 @@ public fun PlantDetailScreen(
                     focusManager.clearFocus()
                 }
                 GtModal(onDismissRequest = closePhotoSheet) {
-                    Text(
-                        text = changePhotoTitle,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.lg),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    PhotoSheetRow(
-                        label = cameraText,
+                    GtSheetTitle(photoSheetTitle)
+                    GtSheetRow(
+                        label = photoNewText,
                         icon = { GtCameraMark(it) },
                         onClick = {
                             closePhotoSheet()
                             photoPicker.launch(scope, PickSource.Camera)
                         },
                     )
-                    PhotoSheetRow(
-                        label = galleryText,
+                    GtSheetRow(
+                        label = photoGalleryText,
                         icon = { GtGalleryMark(it) },
                         onClick = {
                             closePhotoSheet()
                             photoPicker.launch(scope, PickSource.Gallery)
                         },
                     )
-                    PhotoSheetRow(
+                    GtSheetRow(
                         label = cancelText,
                         icon = null,
-                        destructive = true,
+                        role = GtSheetRowRole.Cancel,
                         onClick = closePhotoSheet,
                     )
                 }
@@ -1205,32 +1208,6 @@ private fun SettingsRow(
             }
         }
         GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.md))
-    }
-}
-
-/** Строка модалки смены фото (RN bottom sheet rows). */
-@Composable
-private fun PhotoSheetRow(
-    label: String,
-    icon: (@Composable (Color) -> Unit)?,
-    onClick: () -> Unit,
-    destructive: Boolean = false,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickableNoIndication(onClick)
-            .padding(horizontal = Spacing.xl, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        icon?.invoke(scheme.secondary)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (destructive) scheme.error else scheme.onSurface,
-        )
     }
 }
 

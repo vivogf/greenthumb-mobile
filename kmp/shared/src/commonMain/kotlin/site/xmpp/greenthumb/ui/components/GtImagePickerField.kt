@@ -5,11 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -64,10 +65,12 @@ fun GtImagePickerField(
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Radii.lg)
     val dashColor = scheme.onSurfaceVariant.copy(alpha = 0.7f)
+    val boxSize = Spacing.xxl * 4 + Spacing.lg
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(Spacing.xxl * 4 + Spacing.lg)
+                // Without a photo the box widens to keep «Добавить фото» on one line (large font scale).
+                .then(if (hasImage) Modifier.size(boxSize) else Modifier.height(boxSize).widthIn(min = boxSize))
                 .background(scheme.surfaceVariant, shape)
                 .then(
                     if (hasImage) {
@@ -104,6 +107,7 @@ fun GtImagePickerField(
                 }
             } else {
                 Column(
+                    modifier = Modifier.padding(horizontal = Spacing.sm),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
                 ) {
@@ -115,6 +119,7 @@ fun GtImagePickerField(
                         text = label,
                         style = MaterialTheme.typography.labelLarge,
                         color = scheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }
@@ -122,31 +127,27 @@ fun GtImagePickerField(
     }
     if (open) {
         GtModal(onDismissRequest = { open = false }) {
-            Text(
-                text = sourceTitle,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.xl, bottom = Spacing.xs),
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onSurface,
-            )
-            SourceRow(cameraLabel, scheme.tertiary) {
+            GtSheetTitle(sourceTitle)
+            GtSheetRow(label = cameraLabel, icon = { GtCameraMark(it) }, onClick = {
                 open = false
                 onPickRequested(GtImageSource.Camera)
-            }
-            SourceRow(galleryLabel, scheme.tertiary) {
+            })
+            GtSheetRow(label = galleryLabel, icon = { GtGalleryMark(it) }, onClick = {
                 open = false
                 onPickRequested(GtImageSource.Gallery)
-            }
+            })
             if (hasImage) {
-                SourceRow(removeLabel, scheme.error) {
-                    open = false
-                    onRemove()
-                }
+                GtSheetRow(
+                    label = removeLabel,
+                    icon = { GtTrashMark(it) },
+                    role = GtSheetRowRole.Destructive,
+                    onClick = {
+                        open = false
+                        onRemove()
+                    },
+                )
             }
-            SourceRow(cancelLabel, scheme.onSurfaceVariant) {
-                open = false
-            }
+            GtSheetRow(label = cancelLabel, icon = null, role = GtSheetRowRole.Cancel, onClick = { open = false })
         }
     }
 }
@@ -162,22 +163,4 @@ private fun Modifier.dashedBorder(color: Color, radius: Dp): Modifier = drawBehi
         cornerRadius = CornerRadius(radius.toPx()),
         style = Stroke(width = strokeWidth, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
     )
-}
-
-@Composable
-private fun SourceRow(label: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(horizontal = Spacing.xl, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = color,
-        )
-    }
 }
