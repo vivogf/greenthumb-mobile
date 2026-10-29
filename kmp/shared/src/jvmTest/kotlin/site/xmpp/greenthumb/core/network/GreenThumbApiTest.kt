@@ -76,6 +76,18 @@ class GreenThumbApiTest {
     }
 
     @Test
+    fun `me and loginRecovery decode a user without recovery_key`() = runTest {
+        val captured = Captured()
+        val (api, client) = apiFor(
+            captured,
+            response = """{"user":{"id":1,"name":null,"notification_time":"09:00","created_at":"2026-09-20T10:00:00.000Z"}}""",
+        )
+        assertEquals<String?>(null, api.me().recoveryKey)
+        assertEquals<String?>(null, api.loginRecovery("key").recoveryKey)
+        client.close()
+    }
+
+    @Test
     fun `createAnonymous posts optional name`() = runTest {
         val captured = Captured()
         val (api, client) = apiFor(
@@ -114,11 +126,30 @@ class GreenThumbApiTest {
     @Test
     fun `regenerateRecoveryKey posts with no body`() = runTest {
         val captured = Captured()
-        val (api, client) = apiFor(captured, response = """{"user":{"id":3,"name":null,"recovery_key":"new","created_at":"2026-09-20T10:00:00.000Z"}}""")
-        val user = api.regenerateRecoveryKey()
+        val (api, client) = apiFor(
+            captured,
+            response = """{"user":{"id":3,"name":null,"created_at":"2026-09-20T10:00:00.000Z"},"pending_recovery_key":"new"}""",
+        )
+        val regenerated = api.regenerateRecoveryKey()
         assertEquals("POST", captured.method)
         assertEquals(null, captured.body)
-        assertEquals("new", user.recoveryKey)
+        assertEquals("new", regenerated.pendingRecoveryKey)
+        assertEquals(null, regenerated.user.recoveryKey, "the new key is not in user.recovery_key")
+        client.close()
+    }
+
+    @Test
+    fun `confirmRecoveryKey posts the pending key`() = runTest {
+        val captured = Captured()
+        val (api, client) = apiFor(
+            captured,
+            response = """{"user":{"id":3,"name":null,"created_at":"2026-09-20T10:00:00.000Z"},"status":"committed"}""",
+        )
+        val confirmed = api.confirmRecoveryKey("new")
+        assertEquals("POST", captured.method)
+        assertEquals("https://greenthumb.xmpp.site/api/auth/confirm-recovery-key", captured.url)
+        assertEquals("""{"recoveryKey":"new"}""", captured.body)
+        assertEquals("committed", confirmed.status)
         client.close()
     }
 

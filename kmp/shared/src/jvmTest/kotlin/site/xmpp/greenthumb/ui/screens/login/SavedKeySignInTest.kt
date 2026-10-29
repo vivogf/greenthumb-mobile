@@ -121,6 +121,20 @@ class SavedKeySignInTest {
         }
         val outcome = signInWithSavedKey(FakeVault(getResult = VaultGetResult.Found("not-a-uuid")), session)
         assertEquals(SavedKeyOutcome.StaleKey, outcome)
+        assertTrue(calls.isEmpty(), "a malformed saved key never reaches the server")
+    }
+
+    @Test
+    fun saved_key_is_canonicalized_before_sending_and_storing() = runBlocking {
+        val calls = mutableListOf<RecordedCall>()
+        val session = vaultSession(calls, loginRecoveryResponder())
+        val vault = FakeVault(getResult = VaultGetResult.Found(" {" + VAULT_TEST_KEY.uppercase() + "} "))
+
+        val outcome = signInWithSavedKey(vault, session)
+
+        assertEquals(SavedKeyOutcome.SignedIn, outcome)
+        assertEquals("""{"recoveryKey":"$VAULT_TEST_KEY"}""", calls.single().body)
+        assertEquals(VAULT_TEST_KEY, session.storedRecoveryKey())
     }
 
     @Test

@@ -353,7 +353,7 @@ class SessionManagerKeyNotFoundTest {
         val manager = newManager(server = server, isUpdateInstall = true)
 
         try {
-            manager.signInWithRecoveryKey("bad-key")
+            manager.signInWithRecoveryKey("old-key")
             throw AssertionError("ожидался Unauthorized")
         } catch (expected: Throwable) {
             // ожидаемо: signInWithRecoveryKey бросает Unauthorized (ApiError)
@@ -381,7 +381,7 @@ class SessionManagerKeyNotFoundTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state, "5xx — НЕ «ключ не найден»")
+        assertEquals(SessionState.RetryNeeded, state, "5xx — НЕ «ключ не найден»")
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ хранится (VAL-LOGIN-004)")
     }
 
@@ -394,7 +394,7 @@ class SessionManagerKeyNotFoundTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state, "сетевой провал — НЕ «ключ не найден»")
+        assertEquals(SessionState.RetryNeeded, state, "сетевой провал — НЕ «ключ не найден»")
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY))
     }
 
@@ -430,7 +430,7 @@ class SessionManagerKeyNotFoundTest {
         server.loginStatus = HttpStatusCode.Unauthorized
         secure.map[SecureStoreKeys.RECOVERY_KEY] = "old-key"
         try {
-            newManager(server = server, isUpdateInstall = true).signInWithRecoveryKey("bad-key")
+            newManager(server = server, isUpdateInstall = true).signInWithRecoveryKey("old-key")
             throw AssertionError("ожидался Unauthorized")
         } catch (expected: site.xmpp.greenthumb.core.network.ApiError.Unauthorized) {
         }

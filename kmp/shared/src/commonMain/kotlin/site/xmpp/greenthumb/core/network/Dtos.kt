@@ -71,8 +71,12 @@ data class UserDto(
     /** `auto`/`north`/`south`/`off`; absent on older servers → auto (`seasonModeOf`). */
     @SerialName("season_mode")
     val seasonMode: String? = null,
+    /**
+     * Sent by create-anonymous and regenerate-recovery-key; me and login-recovery may omit it.
+     * Screens read the key from [site.xmpp.greenthumb.core.storage.SessionManager.recoveryKey].
+     */
     @SerialName("recovery_key")
-    val recoveryKey: String,
+    val recoveryKey: String? = null,
     @SerialName("created_at")
     val createdAt: String,
 )
@@ -173,6 +177,24 @@ data class PatchPlantDto(
 /** `{ user: ... }` — ответ auth-эндпоинтов. */
 @Serializable
 data class UserEnvelope(val user: UserDto)
+
+/**
+ * `POST /api/auth/regenerate-recovery-key` → `{ user, pending_recovery_key }`. The new key is
+ * pending: the current key keeps working until `confirm-recovery-key` commits it.
+ */
+@Serializable
+data class RegeneratedRecoveryKey(
+    val user: UserDto,
+    @SerialName("pending_recovery_key")
+    val pendingRecoveryKey: String? = null,
+)
+
+/** `POST /api/auth/confirm-recovery-key` → 200 `{ user, status: "committed" | "already_current" }`. */
+@Serializable
+data class ConfirmedRecoveryKey(
+    val user: UserDto,
+    val status: String? = null,
+)
 
 /** `{ success: true, count: N }` — ответ вод-эндпоинтов. */
 @Serializable

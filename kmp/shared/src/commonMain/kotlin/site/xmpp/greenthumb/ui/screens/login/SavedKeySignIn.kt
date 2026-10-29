@@ -37,7 +37,8 @@ public sealed interface SavedKeyOutcome {
 public suspend fun signInWithSavedKey(vault: RecoveryKeyVault, session: SessionManager): SavedKeyOutcome {
     if (!vault.isSupported) return SavedKeyOutcome.Unsupported
     val key = when (val picked = vault.get()) {
-        is VaultGetResult.Found -> picked.recoveryKey
+        // Same form as a typed key; a malformed entry never reaches the server.
+        is VaultGetResult.Found -> canonicalRecoveryKey(picked.recoveryKey) ?: return SavedKeyOutcome.StaleKey
         VaultGetResult.Cancelled -> return SavedKeyOutcome.Cancelled
         VaultGetResult.NoCredential -> return SavedKeyOutcome.NoCredential
         VaultGetResult.Unsupported -> return SavedKeyOutcome.Unsupported

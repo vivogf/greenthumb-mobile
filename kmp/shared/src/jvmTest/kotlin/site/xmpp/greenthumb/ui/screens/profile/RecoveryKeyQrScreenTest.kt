@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -179,15 +181,26 @@ class RecoveryKeyQrScreenTest {
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
+        /** Live cookie session whose `/api/auth/me` carries no `recovery_key`. */
+        var meSignedInWithoutKey = false
+
         private fun userJson(): String =
             """{"user":{"id":83,"name":"kmp-val-delacc","recovery_key":"key-delacc-83",""" +
+                """"notification_time":"09:00","created_at":"2026-10-01T10:00:00.000Z"}}"""
+
+        private fun userJsonWithoutKey(): String =
+            """{"user":{"id":83,"name":"kmp-val-delacc",""" +
                 """"notification_time":"09:00","created_at":"2026-10-01T10:00:00.000Z"}}"""
 
         val handler: MockRequestHandler = { request ->
             when (request.url.encodedPath) {
                 "/api/auth/me" -> {
                     meCount++
-                    respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                    if (meSignedInWithoutKey) {
+                        respond(userJsonWithoutKey(), HttpStatusCode.OK, JSON_HEADERS)
+                    } else {
+                        respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                    }
                 }
                 "/api/plants" -> {
                     plantsCount++
@@ -349,6 +362,97 @@ class RecoveryKeyQrScreenTest {
             clickByLabel("Показать ключ QR-кодом")
             waitUntilAtLeastOneExists(hasText("QR-код ключа восстановления"), TIMEOUT)
             waitUntilAtLeastOneExists(hasContentDescription("QR-код с вашим ключом восстановления"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun keyQr_serverOmitsKey_rendersFromStoredKey() {
+        val graph = newHarness()
+        graph.settings.presetEnglish()
+        graph.server.meSignedInWithoutKey = true
+        runBlocking { graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "stored-qr-key-83") }
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, PushTokens()) }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+
+            clickByLabel("Show key as QR code")
+            waitUntilAtLeastOneExists(hasText("Recovery key QR code"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasTestTag("keyQr_code"), TIMEOUT)
+            assertEquals(0, onAllNodes(hasText("Key not found")).fetchSemanticsNodes().size)
+            assertEquals(0, onAllNodes(hasSubText("stored-qr-key-83")).fetchSemanticsNodes().size, "key is not shown as text")
+            val image = onNode(hasTestTag("keyQr_code")).captureToImage()
+            val pixels = IntArray(image.width * image.height)
+            image.readPixels(pixels)
+            val bitmap = com.google.zxing.BinaryBitmap(
+                com.google.zxing.common.HybridBinarizer(com.google.zxing.RGBLuminanceSource(image.width, image.height, pixels)),
+            )
+            val decoded = com.google.zxing.qrcode.QRCodeReader()
+                .decode(bitmap, mapOf(com.google.zxing.DecodeHintType.TRY_HARDER to true)).text
+            assertEquals("stored-qr-key-83", decoded, "the QR encodes the stored key")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun keyQr_unfinishedKeyChange_showsBothKeysWithNote() {
+        val graph = newHarness()
+        graph.settings.presetEnglish()
+        graph.server.meSignedInWithoutKey = true
+        runBlocking {
+            graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "stored-qr-key-83")
+            // A change whose confirm never finished (this fake answers confirm with 404).
+            graph.secure.set(SecureStoreKeys.RECOVERY_KEY_PENDING, "pending-qr-key-84")
+        }
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, PushTokens()) }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+
+            clickByLabel("Show key as QR code")
+            waitUntilAtLeastOneExists(hasText("Recovery key QR code"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("key change is not finished"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasTestTag("keyQr_code"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasTestTag("keyQr_newCode"), TIMEOUT)
+            fun decode(tag: String): String {
+                val image = onNode(hasTestTag(tag)).captureToImage()
+                val pixels = IntArray(image.width * image.height)
+                image.readPixels(pixels)
+                val bitmap = com.google.zxing.BinaryBitmap(
+                    com.google.zxing.common.HybridBinarizer(com.google.zxing.RGBLuminanceSource(image.width, image.height, pixels)),
+                )
+                return com.google.zxing.qrcode.QRCodeReader()
+                    .decode(bitmap, mapOf(com.google.zxing.DecodeHintType.TRY_HARDER to true)).text
+            }
+            // The server has not proven the new key: both are shown, the current one first.
+            assertEquals("stored-qr-key-83", decode("keyQr_code"), "the current key")
+            assertEquals("pending-qr-key-84", decode("keyQr_newCode"), "the new key")
+            assertEquals("stored-qr-key-83", secureKey(graph), "the old key stays")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun keyQr_keyMissingFromStorage_showsKeyNotFound() {
+        val graph = newHarness()
+        graph.settings.presetEnglish()
+        graph.server.meSignedInWithoutKey = true
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, PushTokens()) }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+
+            clickByLabel("Show key as QR code")
+            waitUntilAtLeastOneExists(hasText("Recovery key QR code"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Key not found"), TIMEOUT)
+            assertEquals(0, onAllNodes(hasTestTag("keyQr_code")).fetchSemanticsNodes().size, "no QR without a key")
 
             runOnIdle { graph.close() }
         }

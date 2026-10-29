@@ -30,4 +30,10 @@ public expect class SecureStore(appContext: Any) : SecureKeyValueStore {
 public object SecureStoreKeys {
     /** Recovery key: auto-login на последующих запусках (RECOVERY_KEY_STORE_KEY в RN). */
     public const val RECOVERY_KEY: String = "greenthumb_recovery_key"
+
+    /**
+     * A new key from regenerate-recovery-key that the server has not confirmed yet. Same
+     * backup-excluded store as [RECOVERY_KEY]; cleared wherever that key is cleared.
+     */
+    public const val RECOVERY_KEY_PENDING: String = "greenthumb_recovery_key_pending"
 }

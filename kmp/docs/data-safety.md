@@ -59,7 +59,7 @@ web browsing, app interactions, in-app search history, installed apps, other act
 | Crash reports and diagnostics (Crashlytics) | Crash logs + Diagnostics |
 | Firebase installation ID (Crashlytics, Remote Config, FCM) | Device or other IDs |
 | Saving the key to the device's password manager (optional; Google Password Manager, or on Android 14+ another password manager the user selected; stored by that provider) | User IDs (user-initiated transfer; not sharing) |
-| Server logs (IP address, ~15 days; error logs ~8 weeks) | Not declared: IP addresses kept only in operational security logs and not used to derive location. Revisit if Play guidance changes |
+| Server logs | None kept: pm2 output goes to /dev/null, nginx `access_log off` and `error_log /dev/null`. Cron jobs log only status codes. Nothing to declare |
 
 ## Notes for the form
 

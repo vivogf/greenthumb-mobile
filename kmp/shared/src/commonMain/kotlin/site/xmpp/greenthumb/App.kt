@@ -14,6 +14,7 @@ import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.AppForeground
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
 import site.xmpp.greenthumb.core.platform.AppVersion
+import site.xmpp.greenthumb.core.platform.Clipboard
 import site.xmpp.greenthumb.core.platform.Connectivity
 import site.xmpp.greenthumb.core.platform.KillSwitchVerdict
 import site.xmpp.greenthumb.core.platform.OpenUrl
@@ -21,6 +22,7 @@ import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.platform.RemoteKillSwitch
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
+import site.xmpp.greenthumb.core.storage.CurrentRecoveryKey
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
@@ -31,6 +33,7 @@ import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.nav.GtHandoffImportFailedScreen
 import site.xmpp.greenthumb.ui.nav.GtKeyNotFoundScreen
+import site.xmpp.greenthumb.ui.nav.GtSignInRetryScreen
 import site.xmpp.greenthumb.ui.nav.GtSplash
 import site.xmpp.greenthumb.ui.nav.GtUpdateRequiredScreen
 import site.xmpp.greenthumb.ui.nav.NavRoutes
@@ -42,6 +45,15 @@ import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
+import site.xmpp.greenthumb.ui.components.GtAlertButton
+import site.xmpp.greenthumb.ui.components.GtAlertDialog
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.handoffModal_copy
+import site.xmpp.greenthumb.ui.res.profile_recoveryKey
+import site.xmpp.greenthumb.ui.res.session_keyChangeFailed
+import site.xmpp.greenthumb.ui.res.session_keyChangeFinished
+import site.xmpp.greenthumb.ui.res.session_keyNotStored
+import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.ui.theme.resolveDarkTheme
 
 /**
@@ -167,6 +179,8 @@ fun App(
     var keyNotFoundToLoginMode by remember { mutableStateOf(false) }
     var keyNotFoundToCreateMode by remember { mutableStateOf(false) }
     var keyNotFoundLoginNotice by remember { mutableStateOf<SavedKeyOutcome?>(null) }
+    // "Use a different key" on the retry screen (SessionState.RetryNeeded) opens key entry.
+    var retryToLoginMode by remember { mutableStateOf(false) }
     // Потеря сессии (выход/явный 401) закрывает окно и сбрасывает поверхность:
     // ключ нового входа (если пользователь войдёт снова) обязан быть свежим —
     // stale-ключ старого аккаунта не показывается. RN-паритет: после потери
@@ -228,6 +242,7 @@ fun App(
                 keyNotFoundToLoginMode = false
                 keyNotFoundToCreateMode = false
                 keyNotFoundLoginNotice = null
+                retryToLoginMode = false
             }
             // Окно после входа активно, только пока пользователь действительно
             // вошёл и маршрутизация ведёт на вкладки (RN: user && mode ==
@@ -252,11 +267,17 @@ fun App(
                 val effectiveRoute =
                     if (route == StartRoute.KeyNotFound && (keyNotFoundToLoginMode || keyNotFoundToCreateMode)) {
                         StartRoute.Login
+                    } else if (route == StartRoute.RetrySignIn && retryToLoginMode) {
+                        StartRoute.Login
                     } else {
                         route
                     }
                 when (effectiveRoute) {
                     StartRoute.Loading -> GtSplash()
+                    StartRoute.RetrySignIn -> GtSignInRetryScreen(
+                        onRetry = { session.retryStartup() },
+                        onOtherKey = { retryToLoginMode = true },
+                    )
                     is StartRoute.HandoffImportFailed ->
                         GtHandoffImportFailedScreen(recoveryKey = effectiveRoute.recoveryKey)
                     StartRoute.KeyNotFound ->
@@ -328,16 +349,83 @@ fun App(
                         plants = plants,
                         settings = settings,
                         initialLoginMode = when {
-                            keyNotFoundToLoginMode -> LoginMode.Login
+                            keyNotFoundToLoginMode || retryToLoginMode -> LoginMode.Login
                             keyNotFoundToCreateMode -> LoginMode.Create
                             else -> LoginMode.Choose
                         },
                         initialLoginNotice = keyNotFoundLoginNotice,
                         onAccountCreated = { recoveryKey ->
-                            postSignIn = PostSignInSurface.ShowKey(recoveryKey)
+                            val current = session.recoveryKey.value
+                            postSignIn = PostSignInSurface.ShowKey(
+                                recoveryKey,
+                                keyNotStored = current is CurrentRecoveryKey.Present && !current.savedOnDevice,
+                            )
                         },
                     )
                 }
+            }
+            // A sign-in (typed or saved key) whose key the phone could not store: warn at once,
+            // not only inside Profile, so the user saves it before the app is closed.
+            val keyNotStoredNotice by session.keyNotStoredNotice.collectAsState()
+            val currentKey by session.recoveryKey.collectAsState()
+            val unstoredKey = (currentKey as? CurrentRecoveryKey.Present)?.takeIf { !it.savedOnDevice }?.key
+            if (keyNotStoredNotice && state is SessionState.SignedIn && unstoredKey != null) {
+                GtAlertDialog(
+                    title = stringResource(Res.string.profile_recoveryKey),
+                    message = stringResource(Res.string.session_keyNotStored) + "\n\n" + unstoredKey,
+                    buttons = listOf(
+                        GtAlertButton(
+                            text = stringResource(Res.string.handoffModal_copy),
+                            onClick = {
+                                Clipboard.copy(unstoredKey)
+                                session.dismissKeyNotStoredNotice()
+                            },
+                        ),
+                        GtAlertButton(text = "OK", onClick = { session.dismissKeyNotStoredNotice() }),
+                    ),
+                    onDismissRequest = { session.dismissKeyNotStoredNotice() },
+                )
+            }
+            // A sign-in finished a key change in the background: the key the user saved is dead.
+            val keyChangeFinishedNotice by session.keyChangeFinishedNotice.collectAsState()
+            val finishedKey = (currentKey as? CurrentRecoveryKey.Present)?.key
+            if (keyChangeFinishedNotice && !keyNotStoredNotice && state is SessionState.SignedIn && finishedKey != null) {
+                GtAlertDialog(
+                    title = stringResource(Res.string.profile_recoveryKey),
+                    message = stringResource(Res.string.session_keyChangeFinished) + "\n\n" + finishedKey,
+                    buttons = listOf(
+                        GtAlertButton(
+                            text = stringResource(Res.string.handoffModal_copy),
+                            onClick = {
+                                Clipboard.copy(finishedKey)
+                                session.dismissKeyChangeFinishedNotice()
+                            },
+                        ),
+                        GtAlertButton(text = "OK", onClick = { session.dismissKeyChangeFinishedNotice() }),
+                    ),
+                    onDismissRequest = { session.dismissKeyChangeFinishedNotice() },
+                )
+            }
+            // The server proved a new key dead without a tap: the key on screen is the one to keep.
+            val keyChangeFailedNotice by session.keyChangeFailedNotice.collectAsState()
+            if (keyChangeFailedNotice && !keyNotStoredNotice && !keyChangeFinishedNotice &&
+                state is SessionState.SignedIn && finishedKey != null
+            ) {
+                GtAlertDialog(
+                    title = stringResource(Res.string.profile_recoveryKey),
+                    message = stringResource(Res.string.session_keyChangeFailed) + "\n\n" + finishedKey,
+                    buttons = listOf(
+                        GtAlertButton(
+                            text = stringResource(Res.string.handoffModal_copy),
+                            onClick = {
+                                Clipboard.copy(finishedKey)
+                                session.dismissKeyChangeFailedNotice()
+                            },
+                        ),
+                        GtAlertButton(text = "OK", onClick = { session.dismissKeyChangeFailedNotice() }),
+                    ),
+                    onDismissRequest = { session.dismissKeyChangeFailedNotice() },
+                )
             }
         }
     }

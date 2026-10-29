@@ -3,7 +3,6 @@ package site.xmpp.greenthumb
 import io.ktor.client.engine.HttpClientEngineFactory
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
-import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.FcmPushSubscriptions
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PlatformEngine
@@ -18,6 +17,7 @@ import site.xmpp.greenthumb.core.storage.LegacyHandoff
 import site.xmpp.greenthumb.core.storage.SecureStore
 import site.xmpp.greenthumb.core.storage.SecureStoreKeys
 import site.xmpp.greenthumb.core.storage.SessionManager
+import site.xmpp.greenthumb.core.storage.SessionManagerRecovery
 import site.xmpp.greenthumb.core.storage.isUpdateInstall
 
 /**
@@ -44,7 +44,7 @@ public class SessionGraph private constructor(
 ) {
     public val accountSession: AccountSession = AccountSession()
 
-    public val client: ApiClient = ApiClient(engine, Recovery(), accountSession)
+    public val client: ApiClient = ApiClient(engine, SessionManagerRecovery { manager }, accountSession)
 
     public val api: GreenThumbApi = GreenThumbApi(client)
 
@@ -116,16 +116,6 @@ public class SessionGraph private constructor(
                 deleteUserDatabase = deleteUserDatabase,
             )
             return graph
-        }
-    }
-
-    /** Шов M2→M3 (Stage 2 п.7): ключ из SecureStore; второй 401 → onAuthError. */
-    private inner class Recovery : SessionRecoveryProvider {
-        override suspend fun getRecoveryKey(): String? =
-            secure.get(SecureStoreKeys.RECOVERY_KEY)
-
-        override suspend fun onSessionReset() {
-            manager.onAuthError(ApiError.Unauthorized)
         }
     }
 }

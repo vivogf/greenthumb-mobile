@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import java.util.Locale
+import io.ktor.http.HttpStatusCode
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -27,6 +28,7 @@ import site.xmpp.greenthumb.core.platform.RecoveryKeyVault
 import site.xmpp.greenthumb.core.platform.VaultGetResult
 import site.xmpp.greenthumb.core.platform.VaultSaveResult
 import site.xmpp.greenthumb.core.storage.SessionManager
+import site.xmpp.greenthumb.core.storage.CurrentRecoveryKey
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
@@ -304,7 +306,7 @@ class RecoveryKeyVaultUiTest {
         waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText("Generate New Key")).fetchSemanticsNodes().size >= 3 }
         onAllNodesWithTextLast("Generate New Key").performClick()
         waitUntil(timeoutMillis = TIMEOUT) {
-            (session.state.value as? SessionState.SignedIn)?.user?.recoveryKey == VAULT_TEST_NEW_KEY
+            (session.recoveryKey.value as? CurrentRecoveryKey.Present)?.key == VAULT_TEST_NEW_KEY
         }
         waitUntilAtLeastOneExists(hasText("Key regenerated"), TIMEOUT)
         onNodeWithText("OK").performClick()
@@ -316,6 +318,28 @@ class RecoveryKeyVaultUiTest {
         waitUntilAtLeastOneExists(hasText(MSG_SAVED), TIMEOUT)
         assertEquals(listOf("GreenThumb #$VAULT_TEST_USER_ID"), vault.savedIds)
         assertEquals(listOf(VAULT_TEST_NEW_KEY), vault.savedKeys)
+    }
+
+    @Test
+    fun profile_offers_no_save_while_the_key_change_is_unproven() = runDesktopComposeUiTest {
+        val calls = mutableListOf<RecordedCall>()
+        val session = vaultSession(calls, loginRecoveryResponder(confirmStatus = HttpStatusCode.ServiceUnavailable))
+        runBlocking { session.signInWithRecoveryKey(VAULT_TEST_KEY) }
+        val vault = FakeVault(saveResult = VaultSaveResult.Saved)
+        show(vault) {
+            ProfileScreen(session = session, settings = VaultFakeSettings(), push = PushTokens(), pushLanguage = { "en" })
+        }
+        waitUntilAtLeastOneExists(hasTestTag(TAG_SAVE), TIMEOUT)
+        onNodeWithText("Generate New Key").performClick()
+        waitForIdle()
+        waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText("Generate New Key")).fetchSemanticsNodes().size >= 3 }
+        onAllNodesWithTextLast("Generate New Key").performClick()
+        waitUntil(timeoutMillis = TIMEOUT) { calls.any { it.path == "/api/auth/confirm-recovery-key" } }
+        waitUntilAtLeastOneExists(hasText("Finish key change"), TIMEOUT)
+        // The server has not proven the new key: it must not replace the old one under the same id.
+        onNodeWithTag(TAG_SAVE).assertDoesNotExist()
+        onNodeWithText(BTN_SAVE_NEW).assertDoesNotExist()
+        assertTrue(vault.savedKeys.isEmpty())
     }
 
     private fun ComposeUiTest.onAllNodesWithTextLast(text: String) =

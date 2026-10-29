@@ -55,6 +55,9 @@ import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.platform.effectiveAppLanguage
 import site.xmpp.greenthumb.core.storage.AppLanguage
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
+import site.xmpp.greenthumb.core.storage.KeyRotation
+import site.xmpp.greenthumb.core.storage.MissingRecoveryKeyException
+import site.xmpp.greenthumb.core.storage.SignOutCheck
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.core.storage.ThemePreference
@@ -116,8 +119,18 @@ import site.xmpp.greenthumb.ui.res.profile_notificationsEnabled
 import site.xmpp.greenthumb.ui.res.profile_notificationsEnabledHint
 import site.xmpp.greenthumb.ui.res.profile_notificationsHint
 import site.xmpp.greenthumb.ui.res.profile_pushPermissionDenied
+import site.xmpp.greenthumb.ui.res.profile_keyChangeNotStored
+import site.xmpp.greenthumb.ui.res.profile_keyChangeRetry
+import site.xmpp.greenthumb.ui.res.profile_keyChangeSuperseded
+import site.xmpp.greenthumb.ui.res.profile_keyChangeUnfinished
+import site.xmpp.greenthumb.ui.res.profile_currentKeyLabel
+import site.xmpp.greenthumb.ui.res.profile_newKeyLabel
 import site.xmpp.greenthumb.ui.res.profile_recoveryKey
+import site.xmpp.greenthumb.ui.res.profile_signOutAnyway
+import site.xmpp.greenthumb.ui.res.profile_signOutSaveKeyFirst
 import site.xmpp.greenthumb.ui.res.profile_recoveryKeyHint
+import site.xmpp.greenthumb.ui.res.profile_regenerateNoKey
+import site.xmpp.greenthumb.ui.res.profile_regenerateUncertain
 import site.xmpp.greenthumb.ui.res.profile_regenerateWarning
 import site.xmpp.greenthumb.ui.res.profile_settingsSaved
 import site.xmpp.greenthumb.ui.res.profile_show
@@ -135,6 +148,8 @@ import site.xmpp.greenthumb.ui.res.profile_themeDark
 import site.xmpp.greenthumb.ui.res.profile_themeLight
 import site.xmpp.greenthumb.ui.res.profile_title
 import site.xmpp.greenthumb.ui.res.progress_entry
+import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
+import site.xmpp.greenthumb.ui.res.session_keyNotStored
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -217,10 +232,17 @@ public fun ProfileScreen(
     // PATCH/регенерации обновляет и подписи экрана, и cached_user.
     val sessionState by session.state.collectAsState()
     val user = (sessionState as? SessionState.SignedIn)?.user
+    // The key comes from secure storage: the server may leave `recovery_key` out.
+    val storedKey = rememberStoredRecoveryKey(session)
+    // A new key waits for the server's confirm: Profile shows "not finished" with a retry.
+    val keyChangePending by session.keyChangePending.collectAsState()
+    // The new key of an unfinished change, not yet proven by the server: shown next to the key.
+    val unconfirmedKey by session.unconfirmedRecoveryKey.collectAsState()
 
     // Локальные состояния RN profile.tsx (порядок как у RN).
     var keyVisible by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
+    var newKeyCopied by remember { mutableStateOf(false) }
     var regenerating by remember { mutableStateOf(false) }
     var signingOut by remember { mutableStateOf(false) }
     var pushEnabled by remember { mutableStateOf(false) }
@@ -233,6 +255,10 @@ public fun ProfileScreen(
     var showThemePicker by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showSignOutConfirm by remember { mutableStateOf(false) }
+    // An unfinished key change at sign-out: the key to save before "Sign out anyway".
+    var saveKeyBeforeSignOut by remember { mutableStateOf<SignOutCheck.SaveKeyFirst?>(null) }
+    // A key change in flight lost its answer at sign-out (R2-5).
+    var signOutUncertain by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf<SuccessEvent?>(null) }
     val vaultSaver = rememberVaultSaver()
@@ -274,15 +300,41 @@ public fun ProfileScreen(
     val cancelText = stringResource(Res.string.common_cancel)
     val generateTitle = stringResource(Res.string.profile_generateNewKey)
     val regenerateWarning = stringResource(Res.string.profile_regenerateWarning)
+    val regenerateNoKeyText = stringResource(Res.string.profile_regenerateNoKey)
+    val regenerateUncertainText = stringResource(Res.string.profile_regenerateUncertain)
+    val keyChangeSupersededText = stringResource(Res.string.profile_keyChangeSuperseded)
     val signOutTitle = stringResource(Res.string.profile_signOutConfirm)
     val signOutWarning = stringResource(Res.string.profile_signOutWarning)
     val signOutText = stringResource(Res.string.profile_signOut)
+    val signOutAnywayText = stringResource(Res.string.profile_signOutAnyway)
+    val signOutSaveKeyFirstText = stringResource(Res.string.profile_signOutSaveKeyFirst)
+    val currentKeyLabel = stringResource(Res.string.profile_currentKeyLabel)
+    val newKeyLabel = stringResource(Res.string.profile_newKeyLabel)
     val savingLabel = stringResource(Res.string.profile_saving)
 
     // Время уведомления: RN notification_time ?? '09:00', целые часы.
     val notificationTime = user?.notificationTime ?: "09:00"
     val currentHour = notificationTime.take(2).toIntOrNull()?.coerceIn(0, 23) ?: 0
     val currentTimeLabel = hourLabel(currentHour)
+
+    // Outcome of a key change (regenerate or "Finish key change").
+    fun applyKeyChange(result: KeyRotation) {
+        when (result) {
+            is KeyRotation.Done -> {
+                keyVisible = true
+                keyIsNew = true
+                vaultSaver.resetConfirmation()
+                // RN notificationAsync(Success) (profile.tsx:174).
+                Haptics.success()
+                success = SuccessEvent.KeyRegenerated
+            }
+            // The new key is on screen with the not-stored warning; the old key still works.
+            KeyRotation.NotStored -> keyVisible = true
+            // keyChangePending shows the retry.
+            KeyRotation.Unfinished, KeyRotation.NothingPending, KeyRotation.Abandoned -> Unit
+            KeyRotation.Superseded -> errorText = keyChangeSupersededText
+        }
+    }
 
     // ------------------------------------------------------------------
     // Секции
@@ -554,7 +606,64 @@ public fun ProfileScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                 )
-                if (keyVisible && user != null) {
+                if (user != null && storedKey is StoredRecoveryKey.Present && !storedKey.savedOnDevice) {
+                    Text(
+                        text = stringResource(Res.string.session_keyNotStored),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.error,
+                    )
+                }
+                if (user != null && unconfirmedKey != null && !keyChangePending) {
+                    // NotStored: the new key is only in memory; the old key still works.
+                    Text(
+                        text = stringResource(Res.string.profile_keyChangeNotStored),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.error,
+                    )
+                }
+                if (user != null && keyChangePending) {
+                    Text(
+                        text = stringResource(Res.string.profile_keyChangeUnfinished),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.error,
+                    )
+                    Text(
+                        text = stringResource(Res.string.profile_keyChangeRetry),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.primary,
+                        modifier = Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                role = Role.Button,
+                                enabled = !regenerating,
+                            ) {
+                                if (!regenerating) {
+                                    scope.launch {
+                                        regenerating = true
+                                        try {
+                                            applyKeyChange(session.finishKeyChange())
+                                        } catch (cancellation: CancellationException) {
+                                            throw cancellation
+                                        } catch (e: ApiError) {
+                                            errorText = e.message
+                                        } finally {
+                                            regenerating = false
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(vertical = Spacing.xxs),
+                    )
+                }
+                if (keyVisible && user != null && storedKey == StoredRecoveryKey.Missing) {
+                    Text(
+                        text = stringResource(Res.string.session_keyNotFoundTitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.error,
+                    )
+                }
+                if (keyVisible && user != null && storedKey is StoredRecoveryKey.Present) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -565,14 +674,14 @@ public fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = user.recoveryKey,
+                            text = storedKey.key,
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                             color = scheme.onSurface,
                             modifier = Modifier.weight(1f),
                         )
                         GtIconButton(
                             onClick = {
-                                Clipboard.copy(user.recoveryKey)
+                                Clipboard.copy(storedKey.key)
                                 // RN impactAsync(Light) в handleCopyKey (profile.tsx:156).
                                 Haptics.light()
                                 copied = true
@@ -585,6 +694,48 @@ public fun ProfileScreen(
                         ) {
                             if (copied) {
                                 GtCheckMark(tint = GreenThumbColors.success, modifier = Modifier.size(Spacing.lg))
+                            } else {
+                                GtCopyMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.lg))
+                            }
+                        }
+                    }
+                }
+                val newKey = unconfirmedKey
+                if (keyVisible && user != null && newKey != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(scheme.surfaceVariant, RoundedCornerShape(Radii.md))
+                            .borderHairline(scheme.outline, RoundedCornerShape(Radii.md))
+                            .padding(Spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "$newKeyLabel $newKey",
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = scheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        // Same copy path as the current key (Android marks the clip sensitive).
+                        GtIconButton(
+                            onClick = {
+                                Clipboard.copy(newKey)
+                                Haptics.light()
+                                newKeyCopied = true
+                                scope.launch {
+                                    delay(2000)
+                                    newKeyCopied = false
+                                }
+                            },
+                            contentDescription = stringResource(Res.string.handoffModal_copy),
+                            modifier = Modifier.testTag("profile_copyNewKey"),
+                        ) {
+                            if (newKeyCopied) {
+                                GtCheckMark(
+                                    tint = GreenThumbColors.success,
+                                    modifier = Modifier.size(Spacing.lg).testTag("profile_newKeyCopied"),
+                                )
                             } else {
                                 GtCopyMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.lg))
                             }
@@ -631,12 +782,16 @@ public fun ProfileScreen(
                             color = scheme.primary,
                         )
                     }
-                    SaveKeyToPasswordManager(
-                        saver = vaultSaver,
-                        userId = user.id,
-                        recoveryKey = user.recoveryKey,
-                        isNewKey = keyIsNew,
-                    )
+                    // No offer while a change is unproven: a password-manager entry must not trade a
+                    // working key for one the server may not accept.
+                    if (storedKey is StoredRecoveryKey.Present && storedKey.confirmed && !keyChangePending && unconfirmedKey == null) {
+                        SaveKeyToPasswordManager(
+                            saver = vaultSaver,
+                            userId = user.id,
+                            recoveryKey = storedKey.key,
+                            isNewKey = keyIsNew,
+                        )
+                    }
                 }
             }
         }
@@ -959,17 +1114,20 @@ public fun ProfileScreen(
                         scope.launch {
                             regenerating = true
                             try {
-                                session.regenerateRecoveryKey()
-                                keyVisible = true
-                                keyIsNew = true
-                                vaultSaver.resetConfirmation()
-                                // RN notificationAsync(Success) (profile.tsx:174).
-                                Haptics.success()
-                                success = SuccessEvent.KeyRegenerated
+                                applyKeyChange(session.regenerateRecoveryKey())
                             } catch (cancellation: CancellationException) {
                                 throw cancellation
+                            } catch (e: MissingRecoveryKeyException) {
+                                // Nothing changed on the phone; the session is alive, so retry now.
+                                errorText = regenerateNoKeyText
                             } catch (e: ApiError) {
-                                errorText = e.message
+                                // A lost answer may hide a committed new key: regenerate again
+                                // while the session cookie still works.
+                                errorText = if (e is ApiError.Network || e is ApiError.Timeout) {
+                                    regenerateUncertainText
+                                } else {
+                                    e.message
+                                }
                             } finally {
                                 regenerating = false
                             }
@@ -992,11 +1150,67 @@ public fun ProfileScreen(
                     style = GtAlertButtonStyle.Destructive,
                     onClick = {
                         signingOut = true
-                        scope.launch { session.signOut() }
+                        scope.launch {
+                            // An unfinished key change first: finish it, or ask to save the key.
+                            when (val check = session.prepareSignOut()) {
+                                SignOutCheck.Clear -> session.signOut()
+                                is SignOutCheck.Finished -> {
+                                    signingOut = false
+                                    applyKeyChange(KeyRotation.Done(check.user))
+                                }
+                                is SignOutCheck.SaveKeyFirst -> {
+                                    signingOut = false
+                                    saveKeyBeforeSignOut = check
+                                }
+                                SignOutCheck.Uncertain -> {
+                                    signingOut = false
+                                    signOutUncertain = true
+                                }
+                            }
+                        }
                     },
                 ),
             ),
             onDismissRequest = { showSignOutConfirm = false },
+        )
+    }
+
+    if (signOutUncertain) {
+        GtAlertDialog(
+            title = signOutTitle,
+            message = regenerateUncertainText,
+            buttons = listOf(
+                GtAlertButton(text = cancelText, style = GtAlertButtonStyle.Cancel),
+                GtAlertButton(
+                    text = signOutAnywayText,
+                    style = GtAlertButtonStyle.Destructive,
+                    onClick = {
+                        signingOut = true
+                        scope.launch { session.signOut() }
+                    },
+                ),
+            ),
+            onDismissRequest = { signOutUncertain = false },
+        )
+    }
+
+    saveKeyBeforeSignOut?.let { check ->
+        GtAlertDialog(
+            title = signOutTitle,
+            message = signOutSaveKeyFirstText + "\n\n" + currentKeyLabel + " " + check.key +
+                (check.newKey?.let { "\n" + newKeyLabel + " " + it } ?: ""),
+            buttons = listOf(
+                GtAlertButton(text = cancelText, style = GtAlertButtonStyle.Cancel),
+                GtAlertButton(
+                    text = signOutAnywayText,
+                    style = GtAlertButtonStyle.Destructive,
+                    onClick = {
+                        signingOut = true
+                        scope.launch { session.signOut() }
+                    },
+                ),
+            ),
+            onDismissRequest = { saveKeyBeforeSignOut = null },
         )
     }
 

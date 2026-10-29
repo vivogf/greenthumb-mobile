@@ -22,6 +22,14 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.session_handoffImportFailed
+import site.xmpp.greenthumb.ui.res.session_retryBody
+import site.xmpp.greenthumb.ui.res.session_retryButton
+import site.xmpp.greenthumb.ui.res.session_retryOtherKey
+import site.xmpp.greenthumb.ui.components.PrimaryButton
+import site.xmpp.greenthumb.ui.components.SecondaryButton
+import site.xmpp.greenthumb.ui.components.gtButtonWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.ui.screens.login.KeyNotFoundSurface
@@ -105,6 +113,35 @@ public fun GtHandoffImportFailedScreen(recoveryKey: String) {
             text = stringResource(Res.string.session_handoffImportFailed, recoveryKey),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/**
+ * Sign-in did not finish for a transient reason and a recovery key is on this phone
+ * ([site.xmpp.greenthumb.core.storage.SessionState.RetryNeeded]). [onRetry] runs the start
+ * sequence again with the stored key; [onOtherKey] opens key entry. A 401 on another key does
+ * not erase the stored one.
+ */
+@Composable
+public fun GtSignInRetryScreen(onRetry: () -> Unit, onOtherKey: () -> Unit) {
+    SessionSurface {
+        Text(
+            text = stringResource(Res.string.session_retryBody),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        PrimaryButton(
+            text = stringResource(Res.string.session_retryButton),
+            onClick = onRetry,
+            modifier = Modifier.gtButtonWidth(),
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        SecondaryButton(
+            text = stringResource(Res.string.session_retryOtherKey),
+            onClick = onOtherKey,
+            modifier = Modifier.gtButtonWidth(),
         )
     }
 }

@@ -23,6 +23,26 @@ interface SessionRecoveryProvider {
 
     /** Второй 401: стереть ключ / уведомить UI («экран входа»). */
     suspend fun onSessionReset()
+
+    /**
+     * Re-login with the key succeeded, but the retried request still got 401. The key works, so
+     * it stays: only the session ends.
+     */
+    suspend fun onSessionLost() {}
+
+    /**
+     * Every key this phone holds for the account, in the order to try them: the confirmed key
+     * first, then a pending one. The client moves to the next key only on a 401.
+     */
+    suspend fun getRecoveryKeys(): List<String> = listOfNotNull(getRecoveryKey())
+
+    /** login-recovery accepted [key] (a pending key is now the account's key). */
+    suspend fun onReloginSucceeded(key: String) {}
+
+    /** login-recovery answered 401 for every key in [keys]. */
+    suspend fun onRecoveryKeysRejected(keys: List<String>) {
+        onSessionReset()
+    }
 }
 
 /** Дефолт: восстановления нет (ключа нет, сброса нет). Заглушка до M3. */

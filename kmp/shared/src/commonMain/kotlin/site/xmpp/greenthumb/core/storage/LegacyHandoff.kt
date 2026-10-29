@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import site.xmpp.greenthumb.ui.screens.login.canonicalRecoveryKey
 
 /**
  * Имя handoff-файла Stage 0 (RN lib/storage.ts HANDOFF_FILE_NAME, значение
@@ -66,7 +67,9 @@ public data class HandoffPayload(
             if (recoveryKey.isNullOrBlank()) return null
 
             return HandoffPayload(
-                recoveryKey = recoveryKey,
+                // The canonical form the app sends and stores. Text that is not a UUID is kept
+                // as is: it is the only copy, and the server answers it with 400, not 401.
+                recoveryKey = canonicalRecoveryKey(recoveryKey) ?: recoveryKey,
                 language = AppLanguage.fromWire(root.stringOrAbsent(KEY_LANGUAGE)),
                 theme = ThemePreference.fromWire(root.stringOrAbsent(KEY_THEME)),
                 layoutMode = LayoutMode.fromWire(root.stringOrAbsent(KEY_LAYOUT_MODE)),

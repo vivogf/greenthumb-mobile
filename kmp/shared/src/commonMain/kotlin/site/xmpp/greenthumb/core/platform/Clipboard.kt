@@ -6,7 +6,7 @@ package site.xmpp.greenthumb.core.platform
  * `expo-clipboard` в `app/(auth)/login.tsx:copyKey`).
  *
  * Поставщик строки — recovery key: копирование на show-key (RN copyKey) и
- * позже на экране профиля. Отказ/сбой не блокирует флоу: экран показывает
+ * на экране профиля. Android marks the clip sensitive (hidden in clipboard previews). Отказ/сбой не блокирует флоу: экран показывает
  * «скопировано» по успеху (RN setCopied(true) — тоже без обработки отказа).
  *
  * androidMain — ClipboardManager (системный сервис); jvmMain —

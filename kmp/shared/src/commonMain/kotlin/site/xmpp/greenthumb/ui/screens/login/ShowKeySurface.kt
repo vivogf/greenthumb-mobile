@@ -47,6 +47,7 @@ import site.xmpp.greenthumb.ui.res.login_keySaved
 import site.xmpp.greenthumb.ui.res.login_saveKeyNow
 import site.xmpp.greenthumb.ui.res.login_saveKeyWarningTitle
 import site.xmpp.greenthumb.ui.res.login_yourRecoveryKey
+import site.xmpp.greenthumb.ui.res.session_keyNotStored
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -83,6 +84,8 @@ public fun ShowKeySurface(
     recoveryKey: String,
     userId: String,
     onContinue: () -> Unit,
+    /** The phone could not store the key: this screen holds the only copy. */
+    keyNotStored: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val vaultSaver = rememberVaultSaver()
@@ -146,6 +149,13 @@ public fun ShowKeySurface(
                 body = buildSaveKeyWarningMessage(),
                 titleColor = scheme.error,
             )
+            if (keyNotStored) {
+                Text(
+                    text = stringResource(Res.string.session_keyNotStored),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.error,
+                )
+            }
 
             // Ключ + кнопка-иконка копирования (RN login.tsx:395-435: muted
             // фон mono 13pt, копия 44×44 radius 10; copied → checkmark green).

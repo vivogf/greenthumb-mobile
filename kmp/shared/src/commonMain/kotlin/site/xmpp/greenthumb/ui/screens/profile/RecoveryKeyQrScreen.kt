@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,8 +31,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.SecureWindow
+import site.xmpp.greenthumb.core.storage.CurrentRecoveryKey
 import site.xmpp.greenthumb.core.storage.SessionManager
-import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtQrCode
 import site.xmpp.greenthumb.ui.res.Res
@@ -40,6 +41,10 @@ import site.xmpp.greenthumb.ui.res.keyQr_hint
 import site.xmpp.greenthumb.ui.res.keyQr_imageDescription
 import site.xmpp.greenthumb.ui.res.keyQr_screenshotsBlocked
 import site.xmpp.greenthumb.ui.res.keyQr_title
+import site.xmpp.greenthumb.ui.res.profile_keyChangeNotStored
+import site.xmpp.greenthumb.ui.res.profile_keyChangeUnfinished
+import site.xmpp.greenthumb.ui.res.profile_newKeyLabel
+import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -54,8 +59,10 @@ public fun RecoveryKeyQrScreen(
 ) {
     SecureWindow()
     val scheme = MaterialTheme.colorScheme
-    val sessionState by session.state.collectAsState()
-    val recoveryKey = (sessionState as? SessionState.SignedIn)?.user?.recoveryKey
+    val storedKey = rememberStoredRecoveryKey(session)
+    // Same rule as Profile: during an unfinished change the QR holds the new key, with the note.
+    val keyChangePending by session.keyChangePending.collectAsState()
+    val unconfirmedKey by session.unconfirmedRecoveryKey.collectAsState()
     val backLabel = stringResource(Res.string.a11y_back)
 
     Column(
@@ -93,16 +100,58 @@ public fun RecoveryKeyQrScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurfaceVariant,
         )
+        if (unconfirmedKey != null && !keyChangePending) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = stringResource(Res.string.profile_keyChangeNotStored),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.error,
+            )
+        }
+        if (keyChangePending) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = stringResource(Res.string.profile_keyChangeUnfinished),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.error,
+            )
+        }
         Spacer(modifier = Modifier.height(Spacing.xl))
-        if (recoveryKey != null) {
-            GtQrCode(
-                text = recoveryKey,
+        when (storedKey) {
+            is StoredRecoveryKey.Present -> GtQrCode(
+                text = storedKey.key,
                 contentDescription = stringResource(Res.string.keyQr_imageDescription),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .widthIn(max = Spacing.xxl * 12)
                     .fillMaxWidth()
                     .testTag("keyQr_code"),
+            )
+            StoredRecoveryKey.Missing -> Text(
+                text = stringResource(Res.string.session_keyNotFoundTitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.error,
+            )
+            StoredRecoveryKey.Loading -> Unit
+        }
+        // Unproven new key: a second QR, labelled, under the current one.
+        val newKey = unconfirmedKey
+        if (newKey != null) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Text(
+                text = stringResource(Res.string.profile_newKeyLabel),
+                style = MaterialTheme.typography.titleSmall,
+                color = scheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            GtQrCode(
+                text = newKey,
+                contentDescription = stringResource(Res.string.keyQr_imageDescription),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .widthIn(max = Spacing.xxl * 12)
+                    .fillMaxWidth()
+                    .testTag("keyQr_newCode"),
             )
         }
         Spacer(modifier = Modifier.height(Spacing.lg))
@@ -111,5 +160,34 @@ public fun RecoveryKeyQrScreen(
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant,
         )
+    }
+}
+
+/** The current account's recovery key, as [SessionManager.recoveryKey] holds it. */
+internal sealed interface StoredRecoveryKey {
+    data object Loading : StoredRecoveryKey
+
+    data object Missing : StoredRecoveryKey
+
+    /** [savedOnDevice] false: the phone could not store the key; the user must save it now. */
+    class Present(val key: String, val savedOnDevice: Boolean = true, val confirmed: Boolean = true) : StoredRecoveryKey {
+        override fun toString(): String = "Present(key=<redacted>, savedOnDevice=$savedOnDevice, confirmed=$confirmed)"
+    }
+}
+
+/**
+ * The key from [SessionManager.recoveryKey], not from the server's user: the server may leave
+ * `recovery_key` out. A StateFlow has no stale frame, so a rotated key shows at once.
+ */
+@Composable
+internal fun rememberStoredRecoveryKey(session: SessionManager): StoredRecoveryKey {
+    val current by session.recoveryKey.collectAsState()
+    LaunchedEffect(session, current) {
+        if (current == CurrentRecoveryKey.Unknown) session.loadRecoveryKey()
+    }
+    return when (val key = current) {
+        CurrentRecoveryKey.Unknown -> StoredRecoveryKey.Loading
+        CurrentRecoveryKey.Missing -> StoredRecoveryKey.Missing
+        is CurrentRecoveryKey.Present -> StoredRecoveryKey.Present(key.key, key.savedOnDevice, key.confirmed)
     }
 }

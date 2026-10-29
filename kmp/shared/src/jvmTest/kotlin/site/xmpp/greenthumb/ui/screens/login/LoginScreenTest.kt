@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import io.ktor.client.engine.mock.MockEngine
@@ -115,6 +116,45 @@ class LoginScreenTest {
         return SessionManager(FakeSecureStore(), FakeSettings(), NoHandoff(), api)
     }
 
+    /** Answers create-anonymous and login-recovery; records what reached the wire. */
+    private class RecordingServer {
+        /** `recovery_key` of the create-anonymous response; null leaves the field out. */
+        var createRecoveryKey: String? = null
+        val loginBodies = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+        @Volatile
+        var createCount = 0
+
+        val handler: io.ktor.client.engine.mock.MockRequestHandler = { request ->
+            val headers = headersOf("Content-Type", "application/json")
+            when (request.url.encodedPath) {
+                "/api/auth/create-anonymous" -> {
+                    createCount++
+                    val keyField = createRecoveryKey?.let { "\"recovery_key\":\"$it\"," } ?: ""
+                    respond("""{"user":{"id":91,$keyField"created_at":"2026-10-01T10:00:00.000Z"}}""", HttpStatusCode.OK, headers)
+                }
+                "/api/auth/login-recovery" -> {
+                    loginBodies += (request.body as io.ktor.http.content.TextContent).text
+                    respond("""{"user":{"id":91,"created_at":"2026-10-01T10:00:00.000Z"}}""", HttpStatusCode.OK, headers)
+                }
+                else -> respond("{}", HttpStatusCode.NotFound, headers)
+            }
+        }
+    }
+
+    private fun recordingSession(server: RecordingServer, secure: FakeSecureStore): SessionManager {
+        val api = GreenThumbApi(
+            site.xmpp.greenthumb.core.network.ApiClient(
+                MockEngine(server.handler),
+                object : site.xmpp.greenthumb.core.network.SessionRecoveryProvider {
+                    override suspend fun getRecoveryKey(): String? = null
+                    override suspend fun onSessionReset() = Unit
+                },
+            ),
+        )
+        return SessionManager(secure, FakeSettings(), NoHandoff(), api)
+    }
+
     private fun rememberLocale() {
         if (originalLocale == null) originalLocale = Locale.getDefault()
     }
@@ -135,7 +175,7 @@ class LoginScreenTest {
             waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("I Have a Key"), TIMEOUT)
             waitUntilAtLeastOneExists(
-                hasText("don't collect logs", substring = true),
+                hasText("email, or server logs", substring = true),
                 TIMEOUT,
             )
             waitUntilAtLeastOneExists(hasText(SUPPORT_EMAIL), TIMEOUT)
@@ -173,7 +213,95 @@ class LoginScreenTest {
         restoreLocale()
     }
 
+    @Test
+    fun create_response_without_key_is_an_error_not_another_accounts_key() = try {
+        rememberLocale()
+        for (missing in listOf(null, "")) {
+            val server = RecordingServer().apply { createRecoveryKey = missing }
+            val secure = FakeSecureStore().apply {
+                map[site.xmpp.greenthumb.core.storage.SecureStoreKeys.RECOVERY_KEY] = "previous-account-key"
+            }
+            val session = recordingSession(server, secure)
+            val shownKeys = mutableListOf<String>()
+            runDesktopComposeUiTest {
+                setContent {
+                    AppEnvironment(customAppLocale = "en") {
+                        GreenThumbTheme(darkTheme = false) {
+                            LoginScreen(session = session, onAccountCreated = { shownKeys += it }, initialMode = LoginMode.Create)
+                        }
+                    }
+                }
+                waitUntilAtLeastOneExists(hasText("Create Account"), TIMEOUT)
+                onNode(androidx.compose.ui.test.hasClickAction() and hasText("Create Account")).performClick()
+                waitUntil(timeoutMillis = TIMEOUT) { server.createCount == 1 }
+                waitUntilAtLeastOneExists(hasText("Service is temporarily unavailable", substring = true), TIMEOUT)
+                kotlin.test.assertEquals(emptyList(), shownKeys, "no key is shown for key=$missing")
+                kotlin.test.assertFalse(
+                    session.state.value is site.xmpp.greenthumb.core.storage.SessionState.SignedIn,
+                    "the keyless account does not open",
+                )
+            }
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun typed_key_is_canonicalized_before_sending_and_storing() = try {
+        rememberLocale()
+        val server = RecordingServer()
+        val secure = FakeSecureStore()
+        val session = recordingSession(server, secure)
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "en") {
+                    GreenThumbTheme(darkTheme = false) {
+                        LoginScreen(session = session, initialMode = LoginMode.Login)
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            onNode(hasSetTextAction()).performTextInput("  {ABCD-EF01-2345-6789-ABCD-EF01-2345-6789}  ")
+            onNodeWithText("Sign In").performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { server.loginBodies.size == 1 }
+            kotlin.test.assertEquals("""{"recoveryKey":"$CANONICAL_KEY"}""", server.loginBodies.single())
+            waitUntil(timeoutMillis = TIMEOUT) {
+                kotlinx.coroutines.runBlocking { secure.get(site.xmpp.greenthumb.core.storage.SecureStoreKeys.RECOVERY_KEY) } ==
+                    CANONICAL_KEY
+            }
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
+    fun malformed_typed_key_is_not_sent() = try {
+        rememberLocale()
+        val server = RecordingServer()
+        val session = recordingSession(server, FakeSecureStore())
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "en") {
+                    GreenThumbTheme(darkTheme = false) {
+                        LoginScreen(session = session, initialMode = LoginMode.Login)
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            // A hyphen after three hex digits: Postgres rejects it, so must we.
+            onNode(hasSetTextAction()).performTextInput("abc-def01-2345-6789-abcd-ef0123456789")
+            onNodeWithText("Sign In").performClick()
+            waitUntilAtLeastOneExists(hasText("Invalid recovery key"), TIMEOUT)
+            waitForIdle()
+            kotlin.test.assertEquals(emptyList(), server.loginBodies.toList(), "nothing reached the server")
+        }
+    } finally {
+        restoreLocale()
+    }
+
     private companion object {
         const val TIMEOUT: Long = 10_000L
+
+        const val CANONICAL_KEY: String = "abcdef01-2345-6789-abcd-ef0123456789"
     }
 }

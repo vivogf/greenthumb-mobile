@@ -135,6 +135,8 @@ internal fun vaultSession(
 /** Login-recovery accepts only [acceptedKey]; any other key gets the server's 401 body. */
 internal fun loginRecoveryResponder(
     acceptedKey: String = VAULT_TEST_KEY,
+    /** Fixed confirm-recovery-key answer (e.g. 503); OK = committed. */
+    confirmStatus: HttpStatusCode = HttpStatusCode.OK,
 ): suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData = { request ->
     val json = headersOf("Content-Type", "application/json")
     when (request.url.encodedPath) {
@@ -144,8 +146,19 @@ internal fun loginRecoveryResponder(
             } else {
                 respond("""{"error":"Invalid recovery key"}""", HttpStatusCode.Unauthorized, json)
             }
+        // Two-phase key change: the new key arrives only as `pending_recovery_key`.
         "/api/auth/regenerate-recovery-key" ->
-            respond(userJson(key = VAULT_TEST_NEW_KEY), HttpStatusCode.OK, json)
+            respond(
+                userJson(key = acceptedKey).removeSuffix("}") + ""","pending_recovery_key":"$VAULT_TEST_NEW_KEY"}""",
+                HttpStatusCode.OK,
+                json,
+            )
+        "/api/auth/confirm-recovery-key" ->
+            if (confirmStatus == HttpStatusCode.OK) {
+                respond(userJson(key = VAULT_TEST_NEW_KEY).removeSuffix("}") + ""","status":"committed"}""", HttpStatusCode.OK, json)
+            } else {
+                respond("{}", confirmStatus, json)
+            }
         else -> respond("{}", HttpStatusCode.NotFound, json)
     }
 }

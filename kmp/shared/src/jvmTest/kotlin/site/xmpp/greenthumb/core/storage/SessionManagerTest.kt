@@ -61,9 +61,12 @@ class SessionManagerTest {
 
         override suspend fun get(key: String): String? = map[key]
 
+        /** Writes to these slots fail; others succeed. */
+        val failSetKeys = mutableSetOf<String>()
+
         override suspend fun set(key: String, value: String): Boolean {
             setCount++
-            if (failSet) return false
+            if (failSet || key in failSetKeys) return false
             map[key] = if (rewriteOnSet) "$value-corrupted" else value
             return true
         }
@@ -190,9 +193,19 @@ class SessionManagerTest {
         var failLoginTransport = false
         var failDeleteAccountTransport = false
 
+        /** Server that no longer returns `recovery_key` in auth responses. */
+        var omitRecoveryKey = false
+
+        /** `recovery_key` of the create-anonymous response; null leaves the field out. */
+        var createRecoveryKey: String? = "key-55"
+
         /** JSON-тело auth-эндпоинтов фикстуры (id числом, ключ «key-<id>»). */
         private fun userJson(): String =
-            """{"user":{"id":55,"name":"kmp-val","recovery_key":"key-55","created_at":"2026-09-21T10:00:00.000Z"}}"""
+            if (omitRecoveryKey) {
+                """{"user":{"id":55,"name":"kmp-val","created_at":"2026-09-21T10:00:00.000Z"}}"""
+            } else {
+                """{"user":{"id":55,"name":"kmp-val","recovery_key":"key-55","created_at":"2026-09-21T10:00:00.000Z"}}"""
+            }
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
@@ -215,8 +228,30 @@ class SessionManagerTest {
                 }
                 "/api/auth/create-anonymous" -> {
                     createBody = (request.body as? TextContent)?.text
-                    respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
+                    val keyField = createRecoveryKey?.let { "\"recovery_key\":\"$it\"," } ?: ""
+                    respond(
+                        """{"user":{"id":55,"name":"kmp-val",$keyField"created_at":"2026-09-21T10:00:00.000Z"}}""",
+                        HttpStatusCode.OK,
+                        JSON_HEADERS,
+                    )
                 }
+                // Two-phase key change: the new key is pending, the user still carries the current one.
+                "/api/auth/regenerate-recovery-key" -> respond(
+                    """{"user":{"id":55,"name":"kmp-val","recovery_key":"key-55","created_at":"2026-09-21T10:00:00.000Z"},""" +
+                        """"pending_recovery_key":"key-55-new"}""",
+                    HttpStatusCode.OK,
+                    JSON_HEADERS,
+                )
+                "/api/auth/confirm-recovery-key" -> respond(
+                    """{"user":{"id":55,"name":"kmp-val","created_at":"2026-09-21T10:00:00.000Z"},"status":"committed"}""",
+                    HttpStatusCode.OK,
+                    JSON_HEADERS,
+                )
+                "/api/auth/update-timezone" -> respond(
+                    """{"user":{"id":55,"name":"kmp-val","timezone":"Europe/Berlin","created_at":"2026-09-21T10:00:00.000Z"}}""",
+                    HttpStatusCode.OK,
+                    JSON_HEADERS,
+                )
                 "/api/auth/logout" -> {
                     logoutCount++
                     respond("""{"success":true}""", HttpStatusCode.OK, JSON_HEADERS)
@@ -484,7 +519,7 @@ class SessionManagerTest {
         // ключом (сервер отвечает 200 + cookie) → повтор me уже 200 → вход.
         val signedIn = state as SessionState.SignedIn
         assertEquals("55", signedIn.user.id)
-        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ сервера сохранён вместо handoff-ключа")
+        assertEquals("handoff-key-42", secure.get(SecureStoreKeys.RECOVERY_KEY), "the key that worked stays; login-recovery's key is ignored")
         assertEquals(1, (manager.handoff as FileHandoff).clearCount)
         assertFalse(handoffFile.exists())
     }
@@ -503,7 +538,8 @@ class SessionManagerTest {
 
         val signedIn = assertSignedIn(state)
         assertEquals("55", signedIn.user.id)
-        assertEquals("key-55", settings.getCachedUser()!!.recoveryKey, "cached_user записан после успешного me")
+        assertEquals("55", settings.getCachedUser()!!.id, "cached_user записан после успешного me")
+        assertNull(settings.getCachedUser()!!.recoveryKey, "cached_user (unencrypted) holds no key")
         assertEquals(1, server.meCount, "recovery не запускался")
         assertEquals(0, server.loginCount)
     }
@@ -520,8 +556,9 @@ class SessionManagerTest {
         val signedIn = assertSignedIn(state)
         assertEquals("55", signedIn.user.id)
         assertEquals(1, server.loginCount, "recovery запущен ровно один раз")
-        assertEquals("key-55", settings.getCachedUser()!!.recoveryKey, "cached_user записан после recovery")
-        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ сервера обновлён в хранилище")
+        assertEquals("55", settings.getCachedUser()!!.id, "cached_user записан после recovery")
+        assertNull(settings.getCachedUser()!!.recoveryKey, "cached_user (unencrypted) holds no key")
+        assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "the key that worked stays; login-recovery's key is ignored")
     }
 
     @Test
@@ -551,7 +588,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "транзиент (429) ключ сохраняет")
         assertNull(settings.getCachedUser())
         assertEquals(1, server.meCount)
@@ -567,7 +604,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "5xx ключ сохраняет")
         assertEquals(0, server.loginCount)
     }
@@ -581,7 +618,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "сетевой провал ключ сохраняет")
         assertNull(settings.getCachedUser())
     }
@@ -598,7 +635,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "таймаут ключ сохраняет")
         assertNull(settings.getCachedUser())
     }
@@ -613,7 +650,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "транзиентный сбой recovery ключ сохраняет")
         assertNull(settings.getCachedUser())
     }
@@ -628,7 +665,7 @@ class SessionManagerTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state)
+        assertEquals(SessionState.RetryNeeded, state)
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "сетевой сбой recovery ключ сохраняет")
         assertNull(settings.getCachedUser())
     }
@@ -716,25 +753,25 @@ class SessionManagerTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun `signInWithRecoveryKey success persists server key and cached user`() = runBlocking {
+    fun `signInWithRecoveryKey success persists the typed key and cached user`() = runBlocking {
         val manager = newManager()
 
         val state = manager.signInWithRecoveryKey("typed-key")
 
         assertSignedIn(state)
-        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ из ответа сервера сохранён")
-        assertEquals("key-55", settings.getCachedUser()!!.recoveryKey, "cached_user с актуальным ключом")
+        assertEquals("typed-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "the key that worked; the response's key-55 is ignored")
+        assertNull(settings.getCachedUser()!!.recoveryKey, "cached_user (unencrypted) holds no key")
     }
 
     @Test
-    fun `signInWithRecoveryKey 401 clears stored key`() = runBlocking {
+    fun `signInWithRecoveryKey 401 on the stored key clears it`() = runBlocking {
         val server = FakeServer()
         server.loginStatus = HttpStatusCode.Unauthorized
         secure.map[SecureStoreKeys.RECOVERY_KEY] = "old-key"
         settings.storedUser = userDto("55", "old-key")
         val manager = newManager(server = server)
 
-        val error = expectApiError { manager.signInWithRecoveryKey("bad-key") }
+        val error = expectApiError { manager.signInWithRecoveryKey("old-key") }
 
         assertEquals("Unauthorized", error.message, "явный 401 на вход ключом")
         assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY), "401 чистит сохранённый ключ (VAL-LOGIN-004)")
@@ -770,6 +807,86 @@ class SessionManagerTest {
         assertEquals("stored-key", settings.getCachedUser()?.recoveryKey)
     }
 
+    // ------------------------------------------------------------------
+    // Server without recovery_key: the phone's secure storage is the only copy
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `me 200 without recovery_key signs in and keeps stored key`() = runBlocking {
+        val server = FakeServer().apply { omitRecoveryKey = true }
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        val manager = newManager(server = server)
+
+        val state = manager.initSession()
+
+        assertSignedIn(state)
+        assertNull((state as SessionState.SignedIn).user.recoveryKey, "server sent no key")
+        assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "stored key untouched")
+    }
+
+    @Test
+    fun `saved key recovery without recovery_key signs in and keeps stored key`() = runBlocking {
+        val server = FakeServer().apply {
+            omitRecoveryKey = true
+            meStatus = HttpStatusCode.Unauthorized
+        }
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        val manager = newManager(server = server)
+
+        val state = manager.initSession()
+
+        assertSignedIn(state)
+        assertEquals(1, server.loginCount, "login-recovery with the saved key")
+        assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "stored key untouched")
+    }
+
+    @Test
+    fun `signInWithRecoveryKey without recovery_key persists typed key`() = runBlocking {
+        val server = FakeServer().apply { omitRecoveryKey = true }
+        val manager = newManager(server = server)
+
+        val state = manager.signInWithRecoveryKey("typed-key")
+
+        assertSignedIn(state)
+        assertEquals("typed-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "typed key saved for auto-login and Profile")
+    }
+
+    @Test
+    fun `signInWithRecoveryKey without recovery_key replaces an older stored key`() = runBlocking {
+        val server = FakeServer().apply { omitRecoveryKey = true }
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "old-key"
+        val manager = newManager(server = server)
+
+        manager.signInWithRecoveryKey("typed-key")
+
+        assertEquals("typed-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "the key that worked is stored")
+    }
+
+    @Test
+    fun `signOut after sign-in without recovery_key clears the typed key`() = runBlocking {
+        val server = FakeServer().apply { omitRecoveryKey = true }
+        val manager = newManager(server = server)
+        manager.signInWithRecoveryKey("typed-key")
+
+        manager.signOut()
+
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+        assertNull(settings.getCachedUser())
+    }
+
+    @Test
+    fun `deleteAccount after sign-in without recovery_key clears the typed key`() = runBlocking {
+        val server = FakeServer().apply { omitRecoveryKey = true }
+        val manager = newManager(server = server)
+        manager.signInWithRecoveryKey("typed-key")
+
+        manager.deleteAccount()
+
+        assertEquals(1, server.deleteAccountCount)
+        assertNull(secure.get(SecureStoreKeys.RECOVERY_KEY))
+        assertNull(settings.getCachedUser())
+    }
+
     @Test
     fun `createAnonymous persists server key and cached user`() = runBlocking {
         val manager = newManager()
@@ -778,7 +895,54 @@ class SessionManagerTest {
 
         assertSignedIn(state)
         assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY))
-        assertEquals("key-55", settings.getCachedUser()!!.recoveryKey)
+        assertNull(settings.getCachedUser()!!.recoveryKey, "cached_user (unencrypted) holds no key")
+    }
+
+    @Test
+    fun `confirmed key whose write fails stays in the pending slot and is shown as stored`() = runBlocking {
+        val server = FakeServer()
+        val manager = newManager(server = server)
+        manager.createAnonymousAccount()
+        secure.failSetKeys += SecureStoreKeys.RECOVERY_KEY
+
+        manager.regenerateRecoveryKey()
+
+        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "the key write failed")
+        assertEquals("key-55-new", secure.get(SecureStoreKeys.RECOVERY_KEY_PENDING), "the confirmed key is still on disk")
+        val current = manager.recoveryKey.value as CurrentRecoveryKey.Present
+        assertEquals("key-55-new", current.key, "the confirmed key is shown")
+        assertTrue(current.savedOnDevice, "it is on disk: no not-stored warning")
+        assertEquals(listOf("key-55", "key-55-new"), manager.sessionRecoveryKeys(), "sign-in tries both")
+    }
+
+    @Test
+    fun `timezone sync after create does not write the key into cached user`() = runBlocking {
+        val manager = newManager()
+        manager.createAnonymousAccount()
+
+        assertTrue(manager.syncTimezone("Europe/Berlin"), "server stored the zone")
+
+        assertEquals("Europe/Berlin", settings.getCachedUser()!!.timezone)
+        assertNull(settings.getCachedUser()!!.recoveryKey, "cached_user (unencrypted) holds no key")
+    }
+
+    @Test
+    fun `createAnonymous without recovery_key is an error and opens no account`() = runBlocking {
+        for (missing in listOf(null, "")) {
+            val server = FakeServer().apply { createRecoveryKey = missing }
+            secure.map[SecureStoreKeys.RECOVERY_KEY] = "previous-account-key"
+            settings.storedUser = null
+            var ended = 0
+            val manager = newManager(server = server, onSessionEnded = { ended++ })
+
+            val error = runCatching { manager.createAnonymousAccount() }.exceptionOrNull()
+
+            assertTrue(error is MissingRecoveryKeyException, "creation error for key=$missing, got $error")
+            assertEquals(1, ended, "the keyless account's cookie is dropped")
+            assertFalse(manager.state.value is SessionState.SignedIn, "no signed-in account without a key")
+            assertNull(settings.getCachedUser(), "no cached user for a keyless account")
+            assertEquals("previous-account-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "storage untouched")
+        }
     }
 
     @Test
@@ -892,7 +1056,7 @@ class SessionManagerTest {
         val error = expectApiError { manager.deleteAccount() }
 
         assertTrue(error is ApiError.Network, "сетевой провал — Network, получено ${error::class.simpleName}")
-        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ хранится (серверный — сохранился при входе): аккаунт мог уцелеть")
+        assertEquals("typed-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ хранится (тот, которым вошли): аккаунт мог уцелеть")
         assertEquals("55", settings.getCachedUser()!!.id, "cached_user цел")
         assertTrue(manager.state.value is SessionState.SignedIn, "пользователь остался вошедшим")
         assertTrue(deletedDatabases.isEmpty(), "база пользователя не тронута")
@@ -918,7 +1082,7 @@ class SessionManagerTest {
         val error = expectApiError { manager.deleteAccount() }
 
         assertTrue(error is ApiError.Server, "5xx — Server, получено ${error::class.simpleName}")
-        assertEquals("key-55", secure.get(SecureStoreKeys.RECOVERY_KEY), "5xx ключ сохраняет (серверный — сохранился при входе)")
+        assertEquals("typed-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "5xx ключ сохраняет (тот, которым вошли)")
         assertTrue(manager.state.value is SessionState.SignedIn, "пользователь остался вошедшим")
         assertTrue(deletedDatabases.isEmpty(), "база пользователя не тронута")
     }

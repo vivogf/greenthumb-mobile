@@ -105,4 +105,11 @@ class StartRoutingTest {
         assertEquals(null, SessionState.SignedOut.sessionUserIdOrNull())
         assertEquals(null, null.sessionUserIdOrNull())
     }
+
+    @Test
+    fun transientFailureWithStoredKeyOffersRetry() {
+        // A key on this phone and a failed sign-in: retry with it, not a bare login screen.
+        assertEquals(StartRoute.RetrySignIn, resolveStartRoute(SessionState.RetryNeeded, true))
+        assertEquals(StartRoute.RetrySignIn, resolveStartRoute(SessionState.RetryNeeded, false))
+    }
 }

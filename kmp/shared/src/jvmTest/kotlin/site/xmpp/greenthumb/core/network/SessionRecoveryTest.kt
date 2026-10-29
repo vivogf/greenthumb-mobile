@@ -36,10 +36,30 @@ private const val plantsJson =
 private class FakeProvider(initialKey: String?) : SessionRecoveryProvider {
     var key: String? = initialKey
     var resetCount = 0
+    var lostCount = 0
     override suspend fun getRecoveryKey(): String? = key
     override suspend fun onSessionReset() {
         resetCount++
         key = null
+    }
+    override suspend fun onSessionLost() {
+        lostCount++
+    }
+
+    /** All held keys in order (confirmed, then pending); null = only [key]. */
+    var keys: List<String>? = null
+    val succeeded = mutableListOf<String>()
+    val rejected = mutableListOf<List<String>>()
+
+    override suspend fun getRecoveryKeys(): List<String> = keys ?: listOfNotNull(key)
+
+    override suspend fun onReloginSucceeded(key: String) {
+        succeeded += key
+    }
+
+    override suspend fun onRecoveryKeysRejected(keys: List<String>) {
+        rejected += keys
+        onSessionReset()
     }
 }
 
@@ -51,6 +71,10 @@ class SessionRecoveryTest {
         var plantsCount = 0
         var loginResponds: HttpStatusCode = HttpStatusCode.OK
 
+        /** When set, login-recovery answers 200 only for these keys and 401 for any other. */
+        var acceptedKeys: Set<String>? = null
+        val loginKeys = mutableListOf<String>()
+
         /** Следующий GET /api/plants с cookie отвечает 401 (сессия умерла снова). */
         var invalidateNextPlants = false
 
@@ -58,7 +82,13 @@ class SessionRecoveryTest {
             when (request.url.encodedPath) {
                 "/api/auth/login-recovery" -> {
                     loginRecoveryCount++
-                    if (loginResponds == HttpStatusCode.OK) {
+                    val sent = Regex("\"recoveryKey\":\"([^\"]*)\"")
+                        .find((request.body as? TextContent)?.text ?: "")?.groupValues?.get(1) ?: ""
+                    loginKeys += sent
+                    val accepted = acceptedKeys
+                    if (accepted != null && sent !in accepted) {
+                        respond("Invalid recovery key", HttpStatusCode.Unauthorized, headersOf("Content-Type", "application/json"))
+                    } else if (loginResponds == HttpStatusCode.OK) {
                         respond(
                             """{"user":{"id":7,"name":null,"recovery_key":"stale","created_at":"2026-09-20T10:00:00.000Z"}}""",
                             HttpStatusCode.OK,
@@ -162,8 +192,9 @@ class SessionRecoveryTest {
     }
 
     @Test
-    fun `retry after recovered session still 401 resets session`() = runTest {
+    fun `retry after recovered session still 401 ends the session but keeps the key`() = runTest {
         // Другая ветка второго 401: re-login успешен, но повтор исходного всё равно 401.
+        // The key just worked, so only the session ends; the key is not erased.
         val server = Server()
         server.invalidateNextPlants = true
         val engine = MockEngine(server.handler)
@@ -173,8 +204,9 @@ class SessionRecoveryTest {
         val error = assertFailsWithApiError { client.request(HttpMethod.Get, "/api/plants") }
 
         assertIs<ApiError.Unauthorized>(error)
-        assertEquals(1, provider.resetCount)
-        assertNull(provider.key)
+        assertEquals(0, provider.resetCount, "no key reset: login-recovery accepted the key")
+        assertEquals(1, provider.lostCount, "session ended")
+        assertEquals("key-1", provider.key)
         assertEquals(1, server.loginRecoveryCount, "один re-login, повтор 401 не запускает второй")
         assertEquals(3, engine.requestHistory.size, "исходный, re-login, повтор — третьей попытки нет")
         client.close()
@@ -244,7 +276,8 @@ class SessionRecoveryTest {
         val response = client.raw(HttpMethod.Get, "/api/plants")
 
         assertEquals(401, response.status.value, "raw не бросает на 401 — даже после сброса сессии")
-        assertEquals(1, provider.resetCount)
+        assertEquals(0, provider.resetCount, "the key worked: no reset")
+        assertEquals(1, provider.lostCount)
         client.close()
     }
 
@@ -382,6 +415,57 @@ class SessionRecoveryTest {
         assertIs<ApiError.Server>(error)
         assertEquals(503, error.status)
         assertEquals("key-1", provider.key, "ключ сохранён при не-401 сбое re-login")
+        assertEquals(0, provider.resetCount)
+        client.close()
+    }
+
+    // ------------------------------------------------------------------
+    // Two held keys (confirmed + pending): next key only on 401
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `401 on the confirmed key retries with the pending key`() = runTest {
+        val server = Server()
+        server.acceptedKeys = setOf("key-2")
+        val provider = FakeProvider("key-1").apply { keys = listOf("key-1", "key-2") }
+        val client = ApiClient(MockEngine(server.handler), provider)
+
+        val response = client.request(HttpMethod.Get, "/api/plants")
+
+        assertEquals(200, response.status.value)
+        assertEquals(listOf("key-1", "key-2"), server.loginKeys, "confirmed key first, then pending")
+        assertEquals(listOf("key-2"), provider.succeeded, "the manager learns which key worked")
+        assertEquals(0, provider.resetCount, "no erase while a held key works")
+        client.close()
+    }
+
+    @Test
+    fun `401 on every held key resets once with all rejected keys`() = runTest {
+        val server = Server()
+        server.acceptedKeys = emptySet()
+        val provider = FakeProvider("key-1").apply { keys = listOf("key-1", "key-2") }
+        val client = ApiClient(MockEngine(server.handler), provider)
+
+        val response = client.raw(HttpMethod.Get, "/api/plants")
+
+        assertEquals(401, response.status.value)
+        assertEquals(listOf("key-1", "key-2"), server.loginKeys)
+        assertEquals(listOf(listOf("key-1", "key-2")), provider.rejected)
+        assertEquals(1, provider.resetCount)
+        client.close()
+    }
+
+    @Test
+    fun `a non-401 failure on the confirmed key does not try the pending key`() = runTest {
+        val server = Server()
+        server.loginResponds = HttpStatusCode.ServiceUnavailable
+        val provider = FakeProvider("key-1").apply { keys = listOf("key-1", "key-2") }
+        val client = ApiClient(MockEngine(server.handler), provider)
+
+        val error = assertFailsWithApiError { client.request(HttpMethod.Get, "/api/plants") }
+
+        assertIs<ApiError.Server>(error)
+        assertEquals(listOf("key-1"), server.loginKeys, "the next key only on 401")
         assertEquals(0, provider.resetCount)
         client.close()
     }

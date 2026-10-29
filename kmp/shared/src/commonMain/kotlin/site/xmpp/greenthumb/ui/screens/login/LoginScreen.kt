@@ -40,6 +40,7 @@ import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
 import site.xmpp.greenthumb.core.platform.OpenUrl
+import site.xmpp.greenthumb.core.storage.MissingRecoveryKeyException
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
@@ -332,9 +333,14 @@ private fun CreateMode(
                         // Шлюз показа ключа (RN setMode('show-key') + гаптика
                         // Success login.tsx:81; навигацию решает граф).
                         Haptics.success()
-                        onAccountCreated(state.user.recoveryKey)
+                        // Only the server's key: storage may hold another account's key.
+                        // The manager refuses a response without one.
+                        onAccountCreated(state.user.recoveryKey ?: throw MissingRecoveryKeyException())
                     } catch (cancellation: kotlinx.coroutines.CancellationException) {
                         throw cancellation
+                    } catch (e: MissingRecoveryKeyException) {
+                        errorText = serviceUnavailableText
+                        Haptics.error()
                     } catch (e: ApiError) {
                         errorText = explainAuthError(
                             e,
@@ -465,6 +471,13 @@ private fun LoginKeyMode(
             onClick = {
                 val entered = key.trim()
                 if (entered.isEmpty() || loading) return@PrimaryButton
+                // Not a key: nothing goes to the server.
+                val canonical = canonicalRecoveryKey(entered)
+                if (canonical == null) {
+                    errorText = invalidKeyText
+                    Haptics.error()
+                    return@PrimaryButton
+                }
                 loading = true
                 errorText = null
                 scope.launch {
@@ -472,7 +485,7 @@ private fun LoginKeyMode(
                         // Успех → сессия SignedIn → граф уводит на вкладки
                         // (RN useEffect login.tsx:41-45 — автопереход);
                         // гаптика Success (RN login.tsx:95).
-                        session.signInWithRecoveryKey(entered)
+                        session.signInWithRecoveryKey(canonical)
                         Haptics.success()
                     } catch (cancellation: kotlinx.coroutines.CancellationException) {
                         throw cancellation

@@ -26,11 +26,12 @@ import site.xmpp.greenthumb.core.network.UserDto
  * - флаг «карусель интро пройдена/пропущена» (RN setHasSeenIntro);
  * - `cached_user` — сериализованный [UserDto] для офлайн-сессии (Stage 3 п.5).
  *
- * cached_user — полный [UserDto], включая plaintext `recovery_key` (ответ
- * me/login). Это не несекретный кэш и не эквивалент RN AsyncStorage: в RN
- * объект User живёт только в React state, AsyncStorage хранит язык, тему,
- * сетку и интро. Сериализацию, локальный кэш и офлайн-сессию не менять:
- * автологин читает ключ из [SecureStore], а cached_user нужен офлайн-старту.
+ * cached_user — [UserDto] без `recovery_key`: SessionManager обнуляет ключ
+ * перед записью, ключ живёт только в [SecureStore]. Файлы старых сборок ещё
+ * могут хранить plaintext-ключ в cached_user — SessionManager.startup стирает
+ * его один раз. Не эквивалент RN AsyncStorage: в RN объект User живёт только
+ * в React state, AsyncStorage хранит язык, тему, сетку и интро. Автологин
+ * читает ключ из [SecureStore], а cached_user нужен офлайн-старту.
  * На Android файл `greenthumb_settings.preferences_pb` исключён из Auto Backup,
  * cloud-backup и device-transfer вместе с SecureStore-файлом (решение
  * пользователя 2026-09-25, VAL-STOR-003). Правила чистки при выходе —
@@ -59,9 +60,9 @@ import site.xmpp.greenthumb.core.network.UserDto
  * - jvmMain: ~/.greenthumb/settings.preferences_pb (desktop-харнесс; Android
  *   backup-правила к нему не относятся);
  * - androidMain: filesDir/greenthumb_settings.preferences_pb (domain "file").
- *   Файл исключён из Auto Backup, cloud-backup и device-transfer, потому что
- *   cached_user содержит plaintext recovery_key. На устройстве файл остаётся
- *   и переживает рестарт процесса.
+ *   Файл исключён из Auto Backup, cloud-backup и device-transfer: старые
+ *   сборки писали в cached_user plaintext recovery_key, а cached_user —
+ *   данные аккаунта. На устройстве файл остаётся и переживает рестарт процесса.
  */
 public expect class AppSettings(appContext: Any) : AppPreferencesStore {
     /** Язык интерфейса или null (не задан). */
@@ -192,8 +193,9 @@ public enum class LayoutMode(public val wire: String) {
  * Платформенно-нейтральное ядро [AppSettings]: чтение/запись ключей,
  * конверсия wire-строк, cached_user-сериализация, handoff-применение.
  * Значения лежат plaintext (в отличие от SecureStore, который шифрует):
- * cached_user включает recovery_key, поэтому на Android файл исключён из
- * резервных копий, а не объявлен несекретным. Сериализацию не менять.
+ * cached_user хранится без recovery_key (его обнуляет SessionManager); на
+ * Android файл всё равно исключён из резервных копий (данные аккаунта,
+ * следы ключа из старых сборок). Сериализацию не менять.
  *
  * Actual'ы переопределяют только [createDataStore] (путь к файлу —
  * единственная платформенная разница):

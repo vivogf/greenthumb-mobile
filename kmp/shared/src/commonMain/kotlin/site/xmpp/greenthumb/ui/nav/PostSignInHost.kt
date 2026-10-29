@@ -22,7 +22,11 @@ import site.xmpp.greenthumb.ui.screens.login.ShowKeySurface
  */
 public sealed class PostSignInSurface {
     /** Шлюз «ключ показан один раз» (RN mode='show-key', VAL-LOGIN-002-подавление). */
-    public data class ShowKey(public val recoveryKey: String) : PostSignInSurface()
+    public data class ShowKey(
+        public val recoveryKey: String,
+        /** The phone could not store the key ([site.xmpp.greenthumb.core.storage.CurrentRecoveryKey.Present.savedOnDevice]). */
+        public val keyNotStored: Boolean = false,
+    ) : PostSignInSurface()
 
     /** Pre-permission промпт (RN `router.replace('/(auth)/enable-notifications')`). */
     public data object Enable : PostSignInSurface()
@@ -55,6 +59,7 @@ public fun PostSignInHost(
                     recoveryKey = s.recoveryKey,
                     userId = userId,
                     onContinue = { current = PostSignInSurface.Enable },
+                    keyNotStored = s.keyNotStored,
                 )
             PostSignInSurface.Enable ->
                 EnableNotificationsScreen(

@@ -34,6 +34,9 @@ public sealed class StartRoute {
      * RN-матрицы; экран ошибки с ключом для копирования, вне графа.
      */
     public data class HandoffImportFailed(public val recoveryKey: String) : StartRoute()
+
+    /** Sign-in failed for a transient reason with a key on this phone: offer to try again. */
+    public data object RetrySignIn : StartRoute()
 }
 
 /**
@@ -64,6 +67,8 @@ public fun resolveStartRoute(state: SessionState?, introSeen: Boolean?): StartRo
         // KMP-состояния Stage 3 — свои поверхности вне RN-матрицы.
         SessionState.KeyNotFound -> StartRoute.KeyNotFound
         is SessionState.HandoffImportFailed -> StartRoute.HandoffImportFailed(state.recoveryKey)
+        // A stored key and a transient failure: retry with it, whatever the intro flag.
+        SessionState.RetryNeeded -> StartRoute.RetrySignIn
         // 3. Нет пользователя: интро решает между welcome и login.
         SessionState.SignedOut -> if (introSeen) StartRoute.Login else StartRoute.Welcome
     }

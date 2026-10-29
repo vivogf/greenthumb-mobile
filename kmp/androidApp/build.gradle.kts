@@ -84,8 +84,7 @@ android {
         // uploadCrashlyticsMappingFile<Variant> (firebase-android-sdk #8545,
         // фикс AGP — с 9.3.3; пин 9.3.1 не бампаем, обход — официальная
         // рекомендация из #8545).
-        // nativeSymbolUploadEnabled — символы нативных библиотек
-        // (libsqliteJni.so и др.), Stage 12 п.7.
+        // nativeSymbolUploadEnabled = false: своего нативного кода нет, M9 шаг 4.
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -96,7 +95,7 @@ android {
             signingConfig = signingConfigs.findByName("release")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = true
-                nativeSymbolUploadEnabled = true
+                nativeSymbolUploadEnabled = false
             }
         }
     }

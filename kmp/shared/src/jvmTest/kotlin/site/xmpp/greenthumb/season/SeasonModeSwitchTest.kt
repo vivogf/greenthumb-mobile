@@ -64,7 +64,7 @@ class SeasonModeSwitchTest {
             assertEquals("north", currentMode(harness))
             assertEquals("north", harness.settings.cachedUserState.value?.seasonMode)
             assertEquals("""{"season_mode":"north"}""", harness.server.seasonBodies.single())
-            assertEquals("season-fixture-key", harness.settings.cachedUserState.value?.recoveryKey)
+            assertEquals(null, harness.settings.cachedUserState.value?.recoveryKey, "cached_user (unencrypted) holds no key")
         }
     }
 

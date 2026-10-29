@@ -51,9 +51,20 @@ class GreenThumbApi(private val client: ApiClient) {
     suspend fun logout(): SuccessResult =
         request<SuccessResult>(HttpMethod.Post, "/api/auth/logout")
 
-    /** POST /api/auth/regenerate-recovery-key → { user } с новым ключом */
-    suspend fun regenerateRecoveryKey(): UserDto =
-        request<UserEnvelope>(HttpMethod.Post, "/api/auth/regenerate-recovery-key").user
+    /** POST /api/auth/regenerate-recovery-key → { user, pending_recovery_key } (the key is not committed yet) */
+    suspend fun regenerateRecoveryKey(): RegeneratedRecoveryKey =
+        request<RegeneratedRecoveryKey>(HttpMethod.Post, "/api/auth/regenerate-recovery-key")
+
+    /**
+     * POST /api/auth/confirm-recovery-key { recoveryKey } → 200 { user, status }; 409 `not_pending`
+     * arrives as [ApiError.Client] with status 409.
+     */
+    suspend fun confirmRecoveryKey(recoveryKey: String): ConfirmedRecoveryKey =
+        request<ConfirmedRecoveryKey, RecoveryKeyRequest>(
+            HttpMethod.Post,
+            "/api/auth/confirm-recovery-key",
+            RecoveryKeyRequest(recoveryKey),
+        )
 
     /** PATCH /api/auth/update-timezone { timezone } → { user } */
     suspend fun updateTimezone(timezone: String): UserDto =

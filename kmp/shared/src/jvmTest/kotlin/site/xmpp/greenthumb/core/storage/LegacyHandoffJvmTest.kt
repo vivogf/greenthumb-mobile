@@ -147,6 +147,16 @@ class LegacyHandoffJvmTest {
     }
 
     @Test
+    fun recovery_key_is_canonicalized_on_import() {
+        val json = """{"v":1,"recovery_key":" {0F0E0D0C0B0A49088706050403020100} "}"""
+
+        assertEquals(
+            HandoffPayload(recoveryKey = "0f0e0d0c-0b0a-4908-8706-050403020100"),
+            HandoffPayload.parse(json),
+        )
+    }
+
+    @Test
     fun valid_document_without_optional_settings_parses_with_nulls() {
         // Мусор в настройках / их отсутствие → null: ключ всё равно
         // переносится, applyLegacyHandoffValues(null) ничего не перезапишет.

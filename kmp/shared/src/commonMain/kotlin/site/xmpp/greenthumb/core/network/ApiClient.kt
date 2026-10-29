@@ -257,43 +257,49 @@ class ApiClient(
         body: String?,
         timeoutMillis: Long?,
     ): HttpResponse? = recoveryMutex.withLock {
-        val key = recoveryProvider.getRecoveryKey() ?: return@withLock null
-        val login = try {
-            requestVia(client, HttpMethod.Post, LOGIN_RECOVERY_PATH, json.encodeToString(RecoveryKeyRequest(key)))
-        } catch (cancellation: CancellationException) {
-            throw mapTransportException(cancellation)
-        } catch (cause: Throwable) {
-            throw mapTransportException(cause)
-        }
-        when (login.status.value) {
-            in 200..299 -> {
-                val retry = retryAfterRelogin(method, path, body, timeoutMillis)
-                if (retry.status.value == 401) {
-                    // Второй 401 (вторая ветка): re-login удался, но повтор снова
-                    // 401 — сессия не ожила: сброс сессии, экран входа.
-                    recoveryProvider.onSessionReset()
+        // Every held key in order (confirmed, then pending); the next one only after a 401.
+        val keys = recoveryProvider.getRecoveryKeys()
+        if (keys.isEmpty()) return@withLock null
+        for (key in keys) {
+            val login = try {
+                requestVia(client, HttpMethod.Post, LOGIN_RECOVERY_PATH, json.encodeToString(RecoveryKeyRequest(key)))
+            } catch (cancellation: CancellationException) {
+                throw mapTransportException(cancellation)
+            } catch (cause: Throwable) {
+                throw mapTransportException(cause)
+            }
+            when (login.status.value) {
+                in 200..299 -> {
+                    // A pending key that worked is the account's key now (the manager promotes it).
+                    recoveryProvider.onReloginSucceeded(key)
+                    val retry = retryAfterRelogin(method, path, body, timeoutMillis)
+                    if (retry.status.value == 401) {
+                        // Второй 401 (вторая ветка): re-login удался, но повтор снова
+                        // 401 — сессия не ожила. The server just accepted the key, so only the
+                        // session ends; the key stays (erased only on a 401 from login-recovery).
+                        recoveryProvider.onSessionLost()
+                    }
+                    return@withLock retry
                 }
-                retry
+                401 -> continue
+                else ->
+                    // Не-401 сбой re-login (4xx/5xx): ключ НЕ трогается; наверх уходит
+                    // ошибка re-login («сервис недоступен»), НЕ исходный 401 — иначе
+                    // серверный сбой выглядел бы как «неверный ключ» (пarity-ловушка
+                    // квот Neon; только явный 401 = неверный ключ).
+                    throw ApiError.fromStatus(
+                        login.status.value,
+                        try {
+                            login.bodyAsText()
+                        } catch (_: Throwable) {
+                            ""
+                        },
+                    )
             }
-            401 -> {
-                // Второй 401: сброс сессии, экран входа; сам re-login не рекурсивен.
-                recoveryProvider.onSessionReset()
-                null
-            }
-            else ->
-                // Не-401 сбой re-login (4xx/5xx): ключ НЕ трогается; наверх уходит
-                // ошибка re-login («сервис недоступен»), НЕ исходный 401 — иначе
-                // серверный сбой выглядел бы как «неверный ключ» (пarity-ловушка
-                // квот Neon; только явный 401 = неверный ключ).
-                throw ApiError.fromStatus(
-                    login.status.value,
-                    try {
-                        login.bodyAsText()
-                    } catch (_: Throwable) {
-                        ""
-                    },
-                )
         }
+        // Второй 401 на каждый ключ: сброс сессии, экран входа; сам re-login не рекурсивен.
+        recoveryProvider.onRecoveryKeysRejected(keys)
+        null
     }
 
     /** Повтор исходного запроса после успешного re-login (уже внутри mutex). */

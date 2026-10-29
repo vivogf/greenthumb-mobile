@@ -208,7 +208,7 @@ class PostSignInFlowTest {
          * фикстурный uuid-подобный ключ, значение также ждёт show-key-шлюз
          * (createAccountToShowKey). Это фикстура MockEngine, не реальный ключ.
          */
-        internal val fixtureKey: String = listOf("gt", "fresh", "key", 71).joinToString("-")
+        internal val fixtureKey: String = listOf("00000000", "0000", "4000", "8000", "000000000071").joinToString("-")
 
         private fun userJson(): String =
             """{"user":{"id":71,"name":"kmp-val-enable","recovery_key":"$fixtureKey",""" +

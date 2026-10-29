@@ -10,11 +10,15 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
@@ -95,10 +99,28 @@ class ProfileScreenTest {
     private class FakeSecureStore : SecureKeyValueStore {
         val map = linkedMapOf<String, String>()
 
-        override suspend fun get(key: String): String? = map[key]
+        /** The store refuses every write (a broken keystore). */
+        @Volatile
+        var failSet = false
+
+        /** After the next successful write of the current key, reads wait for [readGate] (a slow keystore). */
+        @Volatile
+        var holdReadsAfterSet = false
+
+        val readGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        @Volatile
+        private var holding = false
+
+        override suspend fun get(key: String): String? {
+            if (holding) readGate.await()
+            return map[key]
+        }
 
         override suspend fun set(key: String, value: String): Boolean {
+            if (failSet) return false
             map[key] = value
+            if (holdReadsAfterSet && key == SecureStoreKeys.RECOVERY_KEY) holding = true
             return true
         }
 
@@ -239,10 +261,36 @@ class ProfileScreenTest {
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
-        private val currentKey: String get() = if (regenerateCount > 0) regeneratedKey else initialKey
+        /** The account's keys on the server (two-phase change: regenerate → pending, confirm → current). */
+        @Volatile private var current: String? = null
+        @Volatile private var pending: String? = null
+        private val currentKey: String get() = current ?: initialKey
 
-        private fun userJson(): String =
-            """{"user":{"id":81,"name":"kmp-val-profile","recovery_key":"$currentKey",""" +
+        var confirmCount = 0
+
+        /** Fixed confirm answer (e.g. 503); null = the contract. */
+        @Volatile var confirmStatus: HttpStatusCode? = null
+
+        /** Server that no longer returns `recovery_key` from me / login-recovery. */
+        var omitRecoveryKey = false
+
+        /** `/api/auth/me` answers 200 (live cookie session) instead of 401. */
+        var meSignedIn = false
+
+        var loginCount = 0
+
+        /** Regenerate answers 200 without `recovery_key`. */
+        @Volatile var regenerateOmitsKey = false
+
+        /** Regenerate fails in transport (the answer is lost). */
+        @Volatile var regenerateFailTransport = false
+
+        /** When set, `/api/auth/me` answers this status (e.g. 503 at startup). */
+        @Volatile var meStatusOverride: HttpStatusCode? = null
+
+        private fun userJson(withKey: Boolean = true): String =
+            """{"user":{"id":81,"name":"kmp-val-profile",""" +
+                (if (withKey) """"recovery_key":"$currentKey",""" else "") +
                 """"notification_time":"${patchedTime ?: "09:00"}","created_at":"2026-09-26T10:00:00.000Z"}}"""
 
         val handler: MockRequestHandler = { request ->
@@ -250,7 +298,24 @@ class ProfileScreenTest {
                 // Старт: cookie-сессии нет → 401 → SignedOut (welcome первым).
                 "/api/auth/me" -> {
                     meCount++
-                    respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                    val override = meStatusOverride
+                    if (override != null) {
+                        respond("{}", override, JSON_HEADERS)
+                    } else if (meSignedIn) {
+                        respond(userJson(withKey = !omitRecoveryKey), HttpStatusCode.OK, JSON_HEADERS)
+                    } else {
+                        respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                    }
+                }
+                "/api/auth/login-recovery" -> {
+                    loginCount++
+                    val sent = Regex("\"recoveryKey\":\"([^\"]*)\"")
+                        .find((request.body as io.ktor.http.content.TextContent).text)?.groupValues?.get(1)
+                    if (sent != null && sent == pending) {
+                        current = sent
+                        pending = null
+                    }
+                    respond(userJson(withKey = !omitRecoveryKey), HttpStatusCode.OK, JSON_HEADERS)
                 }
                 "/api/plants" -> {
                     plantsCount++
@@ -258,6 +323,8 @@ class ProfileScreenTest {
                 }
                 "/api/auth/create-anonymous" -> {
                     createCount++
+                    current = initialKey
+                    pending = null
                     respond(userJson(), HttpStatusCode.OK, JSON_HEADERS)
                 }
                 "/api/auth/update-notification-time" -> {
@@ -271,7 +338,29 @@ class ProfileScreenTest {
                 }
                 "/api/auth/regenerate-recovery-key" -> {
                     regenerateCount++
-                    respond(userJson(), regenerateStatus, JSON_HEADERS)
+                    if (regenerateFailTransport) throw IllegalStateException("Connection reset")
+                    if (regenerateStatus == HttpStatusCode.OK && !regenerateOmitsKey) pending = regeneratedKey
+                    // The new key is only in `pending_recovery_key`; the user carries no key.
+                    val user = userJson(withKey = false).removeSuffix("}")
+                    val field = if (regenerateOmitsKey) "" else ""","pending_recovery_key":"$regeneratedKey""""
+                    respond("$user$field}", regenerateStatus, JSON_HEADERS)
+                }
+                "/api/auth/confirm-recovery-key" -> {
+                    confirmCount++
+                    val sent = Regex("\"recoveryKey\":\"([^\"]*)\"")
+                        .find((request.body as io.ktor.http.content.TextContent).text)?.groupValues?.get(1)
+                    val fixed = confirmStatus
+                    val user = userJson(withKey = false).removeSuffix("}")
+                    when {
+                        fixed != null -> respond("{}", fixed, JSON_HEADERS)
+                        sent != null && sent == pending -> {
+                            current = sent
+                            pending = null
+                            respond("""$user,"status":"committed"}""", HttpStatusCode.OK, JSON_HEADERS)
+                        }
+                        sent == current -> respond("""$user,"status":"already_current"}""", HttpStatusCode.OK, JSON_HEADERS)
+                        else -> respond("""{"code":"not_pending"}""", HttpStatusCode.Conflict, JSON_HEADERS)
+                    }
                 }
                 "/api/auth/logout" -> {
                     logoutCount++
@@ -585,6 +674,337 @@ class ProfileScreenTest {
         }
     }
 
+    @Test
+    fun regenerateKey_storageWriteFails_showsNewKeyAndWarning() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        val regeneratedKey = listOf("key", "regen", 84).joinToString("-")
+        graph.server.initialKey = "key-profile-81"
+        graph.server.regeneratedKey = regeneratedKey
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+
+            graph.secure.failSet = true
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.regenerateCount == 1 }
+
+            // The pending key could not be stored: no confirm; both keys are shown with the note.
+            waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(NEW_KEY_NOT_STORED), TIMEOUT)
+            assertEquals("key-profile-81", secureKey(graph), "the old key is untouched")
+            assertEquals(0, graph.server.confirmCount, "no confirm without a stored pending key")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun createAccount_storageWriteFails_showKeyAndProfileWarn() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.secure.failSet = true
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Skip"), TIMEOUT)
+            onNodeWithText("Skip").performClick()
+            waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
+            onNodeWithText("Create New Account").performClick()
+            waitUntilAtLeastOneExists(hasText("Create Account"), TIMEOUT)
+            onNode(androidx.compose.ui.test.hasClickAction() and hasText("Create Account")).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.createCount >= 1 }
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(KEY_NOT_STORED), TIMEOUT)
+
+            onNodeWithText("I've Saved My Key", substring = true).performClick()
+            waitUntilAtLeastOneExists(hasText("Maybe later"), TIMEOUT)
+            onNodeWithText("Maybe later").performClick()
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(KEY_NOT_STORED), TIMEOUT)
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+            assertEquals(null, secureKey(graph), "the write really failed")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun regenerateKey_newKeyShownWithoutWaitingForStorageRead() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        val regeneratedKey = listOf("key", "regen", 85).joinToString("-")
+        graph.server.initialKey = "key-profile-81"
+        graph.server.regeneratedKey = regeneratedKey
+        try {
+            runDesktopComposeUiTest {
+                setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+                openProfileTab()
+                clickByLabel("Show")
+                waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+
+                // Storage reads after the new key's write hang: the screen must not depend on one.
+                graph.secure.holdReadsAfterSet = true
+                clickByLabel("Generate New Key")
+                waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+                clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+                waitUntil(timeoutMillis = TIMEOUT) { graph.server.regenerateCount == 1 }
+                // The key is on screen while storage reads still hang. The change itself reads
+                // RECOVERY_KEY back before it drops the pending key, so its OK waits for storage.
+                waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+                assertTrue(allNodes(hasSubText("key-profile-81")).isEmpty(), "the old key is gone")
+
+                graph.secure.readGate.complete(Unit)
+                waitUntilAtLeastOneExists(hasText("OK"), TIMEOUT)
+                clickByLabel("OK")
+                waitUntilDoesNotExist(hasText("OK"), TIMEOUT)
+                runOnIdle { graph.close() }
+            }
+        } finally {
+            graph.secure.readGate.complete(Unit)
+        }
+    }
+
+    @Test
+    fun regenerateKey_responseWithoutKey_showsRetryError_keepsCurrentKey() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.initialKey = "key-profile-81"
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+
+            graph.server.regenerateOmitsKey = true
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.regenerateCount == 1 }
+
+            waitUntilAtLeastOneExists(hasSubText("did not return a new key"), TIMEOUT)
+            assertTrue(allNodes(hasText("Key regenerated")).isEmpty(), "no success for a keyless answer")
+            assertEquals("key-profile-81", secureKey(graph), "storage untouched")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun regenerateKey_lostAnswer_saysKeyMayHaveChanged() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+
+            graph.server.regenerateFailTransport = true
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.regenerateCount == 1 }
+
+            waitUntilAtLeastOneExists(hasSubText("Your key may have changed"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun regenerateKey_confirmFails_showsUnfinishedState_retryFinishes() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        val regeneratedKey = listOf("key", "regen", 86).joinToString("-")
+        graph.server.initialKey = "key-profile-81"
+        graph.server.regeneratedKey = regeneratedKey
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+
+            graph.server.confirmStatus = HttpStatusCode.ServiceUnavailable
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.confirmCount == 1 }
+
+            // Not finished and not proven: both keys are on screen, K1 stays on disk.
+            waitUntilAtLeastOneExists(hasSubText(KEY_CHANGE_UNFINISHED), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+            assertTrue(allNodes(hasSubText("already works")).isEmpty(), "the new key is not called working")
+            assertEquals("key-profile-81", secureKey(graph))
+            assertEquals(regeneratedKey, graph.secure.map[SecureStoreKeys.RECOVERY_KEY_PENDING])
+
+            graph.server.confirmStatus = null
+            clickByLabel("Finish key change")
+            waitUntil(timeoutMillis = TIMEOUT) { secureKey(graph) == regeneratedKey }
+            waitUntilAtLeastOneExists(hasText("OK"), TIMEOUT)
+            clickByLabel("OK")
+            waitUntilDoesNotExist(hasSubText(KEY_CHANGE_UNFINISHED), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+            assertEquals(null, graph.secure.map[SecureStoreKeys.RECOVERY_KEY_PENDING])
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun unfinishedKeyChange_newKeyHasItsOwnCopyButton() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        val regeneratedKey = listOf("key", "regen", 88).joinToString("-")
+        graph.server.initialKey = "key-profile-81"
+        graph.server.regeneratedKey = regeneratedKey
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+            clickByLabel("Show")
+            graph.server.confirmStatus = HttpStatusCode.ServiceUnavailable
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntilAtLeastOneExists(hasSubText(KEY_CHANGE_UNFINISHED), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+
+            waitUntilAtLeastOneExists(androidx.compose.ui.test.hasTestTag("profile_copyNewKey"), TIMEOUT)
+            onNode(androidx.compose.ui.test.hasTestTag("profile_copyNewKey")).performSemanticsAction(
+                androidx.compose.ui.semantics.SemanticsActions.OnClick,
+            )
+            // The same copy path as the current key: Clipboard.copy (Android marks the clip sensitive).
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(androidx.compose.ui.test.hasTestTag("profile_newKeyCopied"), useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            val clip = runCatching {
+                java.awt.Toolkit.getDefaultToolkit().systemClipboard
+                    .getData(java.awt.datatransfer.DataFlavor.stringFlavor) as String
+            }.getOrNull()
+            if (clip != null) assertEquals(regeneratedKey, clip, "the new key is on the clipboard")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun signOut_withUnfinishedKeyChange_asksToSaveNewKey_signOutAnywayErases() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        val regeneratedKey = listOf("key", "regen", 87).joinToString("-")
+        graph.server.initialKey = "key-profile-81"
+        graph.server.regeneratedKey = regeneratedKey
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab()
+            graph.server.confirmStatus = HttpStatusCode.ServiceUnavailable
+            clickByLabel("Generate New Key")
+            waitUntilAtLeastOneExists(hasSubText("replace your current recovery key"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Generate New Key") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntilAtLeastOneExists(hasSubText(KEY_CHANGE_UNFINISHED), TIMEOUT)
+
+            clickByLabel("Sign Out")
+            waitUntilAtLeastOneExists(hasSubText("Sign out?"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Sign Out") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+
+            // The change still cannot finish: save both keys first; nothing is erased yet.
+            waitUntilAtLeastOneExists(hasText("Sign out anyway"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(regeneratedKey), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText("key-profile-81"), TIMEOUT)
+            assertEquals("key-profile-81", secureKey(graph))
+            assertEquals(regeneratedKey, graph.secure.map[SecureStoreKeys.RECOVERY_KEY_PENDING])
+            assertEquals(0, graph.server.logoutCount, "no sign-out without an explicit choice")
+
+            clickByLabel("Sign out anyway")
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.logoutCount == 1 }
+            waitUntil(timeoutMillis = TIMEOUT) { secureKey(graph) == null }
+            assertEquals(null, graph.secure.map[SecureStoreKeys.RECOVERY_KEY_PENDING])
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Start with a stored key and a transient failure: retry, not a bare login
+    // ------------------------------------------------------------------
+
+    @Test
+    fun startup_transientFailureWithStoredKey_offersRetry_thenSignsIn() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        runBlocking { graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "key-profile-81") }
+        graph.server.meStatusOverride = HttpStatusCode.ServiceUnavailable
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Try again"), TIMEOUT)
+            assertTrue(allNodes(hasText("Create New Account")).isEmpty(), "not the bare login screen")
+
+            graph.server.meStatusOverride = null
+            graph.server.meSignedIn = true
+            clickByLabel("Try again")
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            assertEquals("key-profile-81", secureKey(graph))
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun startup_transientFailureWithStoredKey_otherKeyOpensKeyEntry() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        runBlocking { graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "key-profile-81") }
+        graph.server.meStatusOverride = HttpStatusCode.ServiceUnavailable
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Use a different key"), TIMEOUT)
+            clickByLabel("Use a different key")
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            assertEquals("key-profile-81", secureKey(graph), "the stored key stays")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Sign-in whose key the phone could not store: warn right after sign-in
+    // ------------------------------------------------------------------
+
+    @Test
+    fun typedKeySignIn_storageWriteFails_warnsRightAfterSignIn() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.omitRecoveryKey = true
+        graph.secure.failSet = true
+        val key = listOf("0000abcd", "0000", "4000", "8000", "000000000081").joinToString("-")
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Skip"), TIMEOUT)
+            onNodeWithText("Skip").performClick()
+            waitUntilAtLeastOneExists(hasText("I Have a Key"), TIMEOUT)
+            onNodeWithText("I Have a Key").performClick()
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            onNode(hasSetTextAction()).performTextInput(key)
+            onNodeWithText("Sign In").performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.loginCount == 1 }
+
+            waitUntilAtLeastOneExists(hasSubText(KEY_NOT_STORED), TIMEOUT)
+            waitUntilAtLeastOneExists(hasSubText(key), TIMEOUT)
+            clickByLabel("OK")
+            waitUntilDoesNotExist(hasSubText(KEY_NOT_STORED), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
     // ------------------------------------------------------------------
     // Язык/тема (VAL-PROFILE-005, desktop-ветка; RN-паритет сохранения вкладки)
     // ------------------------------------------------------------------
@@ -717,6 +1137,66 @@ class ProfileScreenTest {
     }
 
     // ------------------------------------------------------------------
+    // Server without recovery_key: Profile and the QR screen read the key from
+    // the phone's secure storage
+    // ------------------------------------------------------------------
+
+    @Test
+    fun recoveryKey_serverOmitsKey_typedKeySignIn_profileAndQrUseStoredKey() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.omitRecoveryKey = true
+        // Typed in upper case with braces; the app stores the canonical form.
+        val canonicalKey = listOf("0000abcd", "0000", "4000", "8000", "000000000081").joinToString("-")
+        val typedKey = "{" + canonicalKey.uppercase() + "}"
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Skip"), TIMEOUT)
+            onNodeWithText("Skip").performClick()
+            waitUntilAtLeastOneExists(hasText("I Have a Key"), TIMEOUT)
+            onNodeWithText("I Have a Key").performClick()
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            onNode(hasSetTextAction()).performTextInput(typedKey)
+            onNodeWithText("Sign In").performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.loginCount == 1 }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            assertEquals(canonicalKey, secureKey(graph), "canonical typed key saved to secure storage")
+
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText(canonicalKey), TIMEOUT)
+            assertTrue(allNodes(hasText("Key not found")).isEmpty(), "no not-found state")
+
+            clickByLabel("Show key as QR code")
+            waitUntilAtLeastOneExists(hasTestTag("keyQr_code"), TIMEOUT)
+            assertTrue(allNodes(hasText("Key not found")).isEmpty(), "QR screen has the key")
+            assertEquals(canonicalKey, decodeQr(onNode(hasTestTag("keyQr_code")).captureToImage()), "QR encodes the stored key")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun recoveryKey_serverOmitsKey_nothingStored_profileShowsKeyNotFound() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.omitRecoveryKey = true
+        graph.server.meSignedIn = true
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasText("Key not found"), TIMEOUT)
+            assertEquals(null, secureKey(graph))
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Хелперы блокирующих чтений для waitUntil-предикатов
     // ------------------------------------------------------------------
 
@@ -724,11 +1204,26 @@ class ProfileScreenTest {
 
     private fun FakeSettings.getCachedUserBlocking(): UserDto? = runBlocking { getCachedUser() }
 
+    /** Decodes the QR the screen drew, so a test checks what the code really holds. */
+    private fun decodeQr(image: androidx.compose.ui.graphics.ImageBitmap): String {
+        val pixels = IntArray(image.width * image.height)
+        image.readPixels(pixels)
+        val source = com.google.zxing.RGBLuminanceSource(image.width, image.height, pixels)
+        val bitmap = com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(source))
+        val hints = mapOf(com.google.zxing.DecodeHintType.TRY_HARDER to true)
+        return com.google.zxing.qrcode.QRCodeReader().decode(bitmap, hints).text
+    }
+
     private fun secureKey(graph: Harness): String? = runBlocking {
         graph.secure.get(SecureStoreKeys.RECOVERY_KEY)
     }
 
     private companion object {
         const val TIMEOUT: Long = 10_000L
+
+        /** Part of the "phone could not store the key" warning. */
+        const val KEY_CHANGE_UNFINISHED: String = "key change is not finished"
+        const val NEW_KEY_NOT_STORED: String = "new key was not saved on this phone"
+        const val KEY_NOT_STORED: String = "store your recovery key"
     }
 }

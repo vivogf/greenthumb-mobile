@@ -313,7 +313,7 @@ class SessionManagerOfflineTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state, "сеть умерла, cached_user нет → экран входа")
+        assertEquals(SessionState.RetryNeeded, state, "сеть умерла, cached_user нет → экран входа")
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ транзиентный провал хранит")
         assertNull(settings.getCachedUser())
     }
@@ -346,7 +346,7 @@ class SessionManagerOfflineTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state, "5xx — НЕ офлайн (офлайн только Network/Timeout)")
+        assertEquals(SessionState.RetryNeeded, state, "5xx — НЕ офлайн (офлайн только Network/Timeout)")
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY), "ключ сохранён")
         assertEquals("55", settings.getCachedUser()!!.id, "cached_user сохранён для следующей попытки")
         assertEquals(0, server.loginCount)
@@ -362,7 +362,7 @@ class SessionManagerOfflineTest {
 
         val state = manager.initSession()
 
-        assertEquals(SessionState.SignedOut, state, "429 — НЕ офлайн")
+        assertEquals(SessionState.RetryNeeded, state, "429 — НЕ офлайн")
         assertEquals("stored-key", secure.get(SecureStoreKeys.RECOVERY_KEY))
         assertEquals("55", settings.getCachedUser()!!.id)
         assertEquals(0, server.loginCount)
