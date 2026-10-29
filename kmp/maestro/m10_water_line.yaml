@@ -1,0 +1,79 @@
+# Watering line, variant B, on plant detail (feature m10-water-line; VAL-CARD-001..003).
+# Keyless: the app is already signed in (photos-signin.yaml through render-smoke.sh) to a throwaway account with
+# five plants without photos, all with an empty location:
+#   «Wd A Eleven»     every 14 days, watered 3 days ago   → in 11 days
+#   «Wd B One»        every 7 days,  watered 6 days ago   → in 1 day
+#   «Wd C Today»      every 7 days,  watered 7 days ago   → today
+#   «Wd D Three»      every 7 days,  watered 10 days ago  → overdue by 3 days
+#   «Wd E TwentyOne»  every 7 days,  watered 28 days ago  → overdue by 21 days
+# The dashboard sorts by urgency, so the flow walks the list top to bottom (E, D, C, B, A).
+# Run once per app language (en and ru) and, for VAL-CARD-002, with `settings put system font_scale 1.3`
+# (record the old value first and restore it). Screenshots: SHOT_PREFIX-<case>.png.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb watering line (${SHOT_PREFIX})
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Wd E TwentyOne"
+    direction: DOWN
+- tapOn: "Wd E TwentyOne"
+- extendedWaitUntil:
+    visible: "Overdue by 21 days|Пора полить: 21 день назад"
+    timeout: 10000
+- assertVisible: "Last watered: 28 days ago · .*|Последний полив: 28 дн\\. назад · .*"
+- assertNotVisible: ".*days overdue|Просрочен.*"
+- takeScreenshot: ${SHOT_PREFIX}-overdue21
+- back
+
+- scrollUntilVisible:
+    element:
+      text: "Wd D Three"
+    direction: DOWN
+- tapOn: "Wd D Three"
+- extendedWaitUntil:
+    visible: "Overdue by 3 days|Пора полить: 3 дня назад"
+    timeout: 10000
+- takeScreenshot: ${SHOT_PREFIX}-overdue3
+- back
+
+- scrollUntilVisible:
+    element:
+      text: "Wd C Today"
+    direction: DOWN
+- tapOn: "Wd C Today"
+- extendedWaitUntil:
+    visible: "Water today|Полить сегодня"
+    timeout: 10000
+- takeScreenshot: ${SHOT_PREFIX}-today
+- back
+
+- scrollUntilVisible:
+    element:
+      text: "Wd B One"
+    direction: DOWN
+- tapOn: "Wd B One"
+- extendedWaitUntil:
+    visible: "Water in 1 day|Полить через 1 день"
+    timeout: 10000
+- assertNotVisible: ".*day left|.*days left|Осталось.*|Остался.*"
+- takeScreenshot: ${SHOT_PREFIX}-in1
+- back
+
+- scrollUntilVisible:
+    element:
+      text: "Wd A Eleven"
+    direction: DOWN
+- tapOn: "Wd A Eleven"
+- extendedWaitUntil:
+    visible: "Water in 11 days|Полить через 11 дней"
+    timeout: 10000
+- assertVisible: "Last watered: 3 days ago · .*|Последний полив: 3 дн\\. назад · .*"
+- assertNotVisible: ".*days left|Осталось.*|Остался.*"
+- takeScreenshot: ${SHOT_PREFIX}-in11
+- back

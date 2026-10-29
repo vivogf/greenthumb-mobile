@@ -2,6 +2,8 @@
 
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
@@ -33,6 +35,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -204,6 +207,8 @@ class PlantDetailScreenTest {
         var deleteStatus: HttpStatusCode = HttpStatusCode.OK
         var deleteThrows: Throwable? = null
         var lastDeletePath: String? = null
+        var lastWateredDate = "2026-09-20"
+        var waterFrequencyDays = 7
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
@@ -306,7 +311,7 @@ class PlantDetailScreenTest {
                     plantsCount++
                     respond("""[${detailFixturePlant().let { p ->
                         """{"id":"${p.id}","user_id":"73","name":"${p.name}","location":"${p.location}",""" +
-                            """"photo_url":"","water_frequency_days":7,"last_watered_date":"2026-09-20",""" +
+                            """"photo_url":"","water_frequency_days":$waterFrequencyDays,"last_watered_date":"$lastWateredDate",""" +
                             """"fertilize_frequency_days":30,"last_fertilized_date":"2026-08-01",""" +
                             """"repot_frequency_months":12,"last_repotted_date":"2026-01-10",""" +
                             """"prune_frequency_months":6,"last_pruned_date":"2026-03-15",""" +
@@ -444,7 +449,7 @@ class PlantDetailScreenTest {
     private fun androidx.compose.ui.test.ComposeUiTest.openPlantDetail() {
         clickAt(hasClickAction() and hasSubText("Ficus"))
         waitUntilAtLeastOneExists(hasSubText("Living Room"), TIMEOUT)
-        waitUntilAtLeastOneExists(hasSubText("LAST WATERED"), TIMEOUT)
+        waitUntilAtLeastOneExists(hasSubText("Last watered:"), TIMEOUT)
     }
 
     /** Кнопка удаления экрана: unmerged contentDescription «Delete plant». */
@@ -1123,6 +1128,105 @@ class PlantDetailScreenTest {
         }
     }
 
+    // ------------------------------------------------------------------
+    // VAL-CARD-002: the watering line stays on one line at 320 dp (ru, n = 11)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun waterDueIsOneLine() {
+        waterDueLineCase(frequencyDays = 14, wateredDaysAgo = 3, expected = "Полить через 11 дней", fontScale = 1f) {
+            lastBounds ->
+            // The old «Осталось …» pill is gone from the watering card; the only such texts left belong to the
+            // fertilize/repot/prune cards further down.
+            val leftovers = onAllNodes(hasText("Осталось", substring = true), useUnmergedTree = true).fetchSemanticsNodes()
+            assertTrue(leftovers.all { it.boundsInRoot.top > lastBounds.bottom }, "no «Осталось» in the watering card")
+            assertTrue(
+                onAllNodes(hasText("Последний полив: 3 дн. назад", substring = true), useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty(),
+            )
+        }
+    }
+
+    /**
+     * The longest form, «Пора полить: 21 день назад», at font scale 1.3 on a 411 dp phone (elt_test) stays whole on
+     * one line: at full size it is wider than the card, so the line steps down.
+     */
+    @Test
+    fun longestWaterDueFitsAtFontScale13() {
+        waterDueLineCase(
+            frequencyDays = 7,
+            wateredDaysAgo = 28,
+            expected = "Пора полить: 21 день назад",
+            fontScale = 1.3f,
+            widthDp = 411,
+        ) {}
+    }
+
+    private fun waterDueLineCase(
+        frequencyDays: Int,
+        wateredDaysAgo: Int,
+        expected: String,
+        fontScale: Float,
+        widthDp: Int = 320,
+        extra: androidx.compose.ui.test.ComposeUiTest.(androidx.compose.ui.geometry.Rect) -> Unit,
+    ) {
+        val graph = newHarness()
+        val today = site.xmpp.greenthumb.ui.components.pickerToday()
+        graph.server.waterFrequencyDays = frequencyDays
+        graph.server.lastWateredDate =
+            kotlinx.datetime.LocalDate.fromEpochDays(today.toEpochDays() - wateredDaysAgo).toString()
+        val repo = graph.opener.open("73")
+        runBlocking { repo.refresh() }
+        runDesktopComposeUiTest {
+            setContent {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides
+                        androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
+                        site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.ui.Modifier.width(widthDp.dp),
+                            ) {
+                                PlantDetailScreen(
+                                    userId = "73",
+                                    plantId = "det-1",
+                                    opener = graph.opener,
+                                    onBack = {},
+                                    onDeleted = {},
+                                    deleteErrorState = PlantDeleteErrorState(),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            val line = hasTestTag("plantDetail_waterDue")
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(line, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+            val node = onNode(line, useUnmergedTree = true).fetchSemanticsNode()
+            assertEquals(expected, node.config[SemanticsProperties.Text].joinToString("") { it.text })
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+            val layout = layouts.single()
+            assertEquals(1, layout.lineCount, "one line")
+            assertTrue(
+                !layout.isLineEllipsized(0) && !layout.hasVisualOverflow,
+                "no ellipsis, no overflow: width ${layout.multiParagraph.width} of ${layout.layoutInput.constraints.maxWidth}, " +
+                    "font ${layout.layoutInput.style.fontSize}, height overflow ${layout.didOverflowHeight}",
+            )
+            val lineHeight = androidx.compose.ui.unit.Density(density.density, fontScale).run {
+                site.xmpp.greenthumb.ui.theme.GtType.waterDue.run { fontSize.toPx() * lineHeight.value }
+            }
+            assertTrue(node.size.height < 2 * lineHeight, "height ${node.size.height} < 2 × $lineHeight")
+            // The bar and the last watering sit under the line.
+            val barTop = onNode(hasTestTag("plantDetail_waterProgress"), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
+            val lastBounds = onNode(hasTestTag("plantDetail_lastWatered"), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue(node.boundsInRoot.bottom <= barTop && barTop < lastBounds.top, "line, bar, last watering top to bottom")
+            extra(lastBounds)
+            runOnIdle { graph.close() }
+        }
+    }
     private companion object {
         const val TIMEOUT: Long = 10_000L
     }

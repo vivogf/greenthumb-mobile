@@ -303,7 +303,18 @@ KMP_ONLY_KEYS = {
     # Start-screen privacy link and contact line (M10 D§1 item 2).
     "privacy.moreLink",
     "privacy.contactLead",
+    # Watering line «Полить через N дней», variant B (M10 D§1 item 4); plurals are in KMP_ONLY_PLURALS.
+    "plantDetails.waterToday",
+    "plantDetails.lastWateredLine",
 }
+
+# KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of
+# REQUIRED_PLURAL_QUANTITIES.
+KMP_ONLY_PLURALS = frozenset({
+    # Watering line on plant detail (M10 D§1 item 4).
+    "plantDetails.waterIn",
+    "plantDetails.waterOverdue",
+})
 
 # RN keys whose KMP text is deliberately rewritten (privacy wording of the KMP
 # release: crash reports exist, server logs do not). The key must still exist in
@@ -573,7 +584,8 @@ def main():
         for n in extra:
             problems.append(f"{lang}: лишний <string name=\"{n}\"> (нет в RN)")
         missing_p = sorted(set(exp_plurals) - set(got_plurals))
-        extra_p = sorted(set(got_plurals) - set(exp_plurals))
+        kmp_only_p = {to_res_name(k) for k in KMP_ONLY_PLURALS}
+        extra_p = sorted(set(got_plurals) - set(exp_plurals) - kmp_only_p)
         for n in missing_p:
             problems.append(f"{lang}: нет <plurals name=\"{n}\">")
         for n in extra_p:
@@ -609,6 +621,16 @@ def main():
                     )
                 extra = [q for q in extra if q not in required]
             for q in extra:
+                problems.append(f"{lang}: {n} — лишний quantity \"{q}\"")
+        for n in sorted(kmp_only_p):
+            if n not in got_plurals:
+                problems.append(f"{lang}: нет KMP-плюрала <plurals name=\"{n}\">")
+                continue
+            got_q = set(got_plurals[n])
+            required = REQUIRED_PLURAL_QUANTITIES[lang]
+            for q in sorted(required - got_q):
+                problems.append(f"{lang}: {n} — нет quantity \"{q}\" (KMP-плюрал)")
+            for q in sorted(got_q - required):
                 problems.append(f"{lang}: {n} — лишний quantity \"{q}\"")
         # KMP-only ключи обязаны быть в обеих локалях.
         for k in KMP_ONLY_KEYS:

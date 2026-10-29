@@ -58,4 +58,7 @@ object Sizes {
     val screenPadding = Spacing.lg
     val cardPadding = Spacing.lg
     val cardGap = Spacing.sm
+
+    /** Height of the watering progress bar on plant detail. */
+    val progressBar = 8.dp
 }

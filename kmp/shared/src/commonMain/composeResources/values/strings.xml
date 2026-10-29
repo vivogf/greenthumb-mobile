@@ -187,6 +187,16 @@
     <string name="plantDetails_careSettingsDescription">Adjust the care schedule for %1$s</string>
     <string name="plantDetails_wateringFrequency">Watering Frequency (days)</string>
     <string name="plantDetails_winterMode">Winter mode: interval ×1.5</string>
+    <plurals name="plantDetails_waterIn">
+        <item quantity="one">Water in %1$d day</item>
+        <item quantity="other">Water in %1$d days</item>
+    </plurals>
+    <string name="plantDetails_waterToday">Water today</string>
+    <plurals name="plantDetails_waterOverdue">
+        <item quantity="one">Overdue by %1$d day</item>
+        <item quantity="other">Overdue by %1$d days</item>
+    </plurals>
+    <string name="plantDetails_lastWateredLine">Last watered: %1$s</string>
     <string name="plantDetails_fertilizingFrequency">Fertilizing Frequency (days)</string>
     <string name="plantDetails_repottingFrequency">Repotting Frequency (months)</string>
     <string name="plantDetails_pruningFrequency">Pruning Frequency (months)</string>

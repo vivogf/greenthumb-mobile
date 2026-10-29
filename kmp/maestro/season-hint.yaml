@@ -3,7 +3,7 @@
 # The caller sets season_mode on the server between runs; a cold start reads it with /api/auth/me.
 #   PLANT  plant name to open from the dashboard
 #   HINT   shown | hidden
-#   BADGE  regex of the expected watering badge (for example "51 days left|Осталось 51 д.*")
+#   BADGE  regex of the expected watering line (for example "Water in 51 days|Полить через 51 д.*")
 #   SHOT   screenshot name (relative)
 appId: com.greenthumbplantcare.debug
 name: GreenThumb season hint (${PLANT}, ${HINT})

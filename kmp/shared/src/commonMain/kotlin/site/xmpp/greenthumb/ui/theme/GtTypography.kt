@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
@@ -39,6 +40,16 @@ private fun TextStyle.sized(size: TextUnit, line: TextUnit, weight: FontWeight? 
 object GtType {
     /** Login privacy hint: owner exception to the 13 sp hint size (D§1 item 2). */
     val loginHint = TextStyle(fontSize = 14.sp, lineHeight = 20.sp)
+
+    /**
+     * Plant detail watering line «Полить через 11 дней» (mockup v2: 20/26, weight 650). The line height is relative
+     * so it follows the font size when the line auto-shrinks.
+     */
+    val waterDue = TextStyle(fontSize = 20.sp, lineHeight = 1.3.em, fontWeight = FontWeight.SemiBold)
+
+    /** Smallest size the watering line may shrink to so the longest form stays whole on one line. */
+    val waterDueMinSize = 14.sp
+    val waterDueStep = 0.5.sp
 }
 
 /**

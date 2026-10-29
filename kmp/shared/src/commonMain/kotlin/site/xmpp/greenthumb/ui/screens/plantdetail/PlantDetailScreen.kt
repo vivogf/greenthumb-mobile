@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -74,8 +73,7 @@ import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.SaveOutcome
-import site.xmpp.greenthumb.data.WateringStatus
-import site.xmpp.greenthumb.data.wateringStatus
+import site.xmpp.greenthumb.data.waterDue
 import site.xmpp.greenthumb.ui.components.DestructiveButton
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtAlertButton
@@ -104,6 +102,7 @@ import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.GtSpeciesMark
 import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWaterButton
+import site.xmpp.greenthumb.ui.components.GtWaterDueLine
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.formatPickerDate
@@ -141,6 +140,7 @@ import site.xmpp.greenthumb.ui.res.plantDetails_fertilizingFrequency
 import site.xmpp.greenthumb.ui.res.plantDetails_goHome
 import site.xmpp.greenthumb.ui.res.plantDetails_lastTime
 import site.xmpp.greenthumb.ui.res.plantDetails_lastWatered
+import site.xmpp.greenthumb.ui.res.plantDetails_lastWateredLine
 import site.xmpp.greenthumb.ui.res.plantDetails_leaveEmpty
 import site.xmpp.greenthumb.ui.res.plantDetails_noNotes
 import site.xmpp.greenthumb.ui.res.plantDetails_notSpecified
@@ -172,7 +172,6 @@ import site.xmpp.greenthumb.ui.screens.species.SpeciesPickerDialog
 import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
 import site.xmpp.greenthumb.ui.screens.species.speciesLightLabel
 import site.xmpp.greenthumb.catalog.CatalogRepository
-import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
@@ -312,13 +311,13 @@ public fun PlantDetailScreen(
     val notFoundText = stringResource(Res.string.plantDetails_plantNotFound)
     val goHomeText = stringResource(Res.string.plantDetails_goHome)
     val careSettingsLabel = stringResource(Res.string.plantDetails_careSettings)
-    val lastWateredLabel = stringResource(Res.string.plantDetails_lastWatered)
     val waterPlantLabel = stringResource(Res.string.plantDetails_waterPlant)
     val wateredSuccessLabel = stringResource(Res.string.plant_watered)
     val advancedCareLabel = stringResource(Res.string.plantDetails_advancedCare)
     val notesLabel = stringResource(Res.string.plantDetails_notes)
     val notesPlaceholder = stringResource(Res.string.plantDetails_notesPlaceholder)
     val noNotesText = stringResource(Res.string.plantDetails_noNotes)
+    val lastWateredLabel = stringResource(Res.string.plantDetails_lastWatered)
     val todayText = stringResource(Res.string.plantDetails_today)
     val yesterdayText = stringResource(Res.string.plantDetails_yesterday)
     val notSpecifiedText = stringResource(Res.string.plantDetails_notSpecified)
@@ -448,22 +447,8 @@ public fun PlantDetailScreen(
                 }
             }
             val countdowns = plantCareCountdowns(plant, today, season)
-            val waterDays = countdowns.water
-            val waterStatus = wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
+            val waterDueState = waterDue(plant.lastWateredDate, plant.waterFrequencyDays, today, season)
             val winterMode = season.isAdjusted(plant.lastWateredDate)
-            val extended = greenThumbExtendedColors()
-            val waterColor = when (waterStatus) {
-                WateringStatus.Overdue -> MaterialTheme.colorScheme.error
-                WateringStatus.Today -> extended.amber
-                WateringStatus.Healthy -> MaterialTheme.colorScheme.tertiary
-            }
-            val waterBadgeText = when (waterStatus) {
-                WateringStatus.Overdue ->
-                    pluralStringResource(Res.plurals.plant_overdue, -waterDays, -waterDays)
-                WateringStatus.Today -> todayText
-                WateringStatus.Healthy ->
-                    pluralStringResource(Res.plurals.plant_daysLeft, waterDays, waterDays)
-            }
             val wateredLabel = when (val label = wateredAgoLabel(plant.lastWateredDate, today)) {
                 WateredAgoLabel.Today -> todayText
                 WateredAgoLabel.Yesterday -> yesterdayText
@@ -632,35 +617,16 @@ public fun PlantDetailScreen(
                     ) {
                         // ── Статус полива ──
                         GtCard {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                                    Text(
-                                        text = lastWateredLabel.uppercase(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        text =
-                                            "$wateredLabel · ${formatPickerDate(plant.lastWateredDate, locale)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (winterMode) {
-                                        Text(
-                                            text = stringResource(Res.string.plantDetails_winterMode),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.tertiary,
-                                            modifier = Modifier.testTag("detail_winterMode"),
-                                        )
-                                    }
-                                }
-                                WaterBadge(text = waterBadgeText, color = waterColor)
-                            }
-                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            GtWaterDueLine(
+                                due = waterDueState.due,
+                                progress = waterDueState.progress,
+                                lastWateredText = stringResource(
+                                    Res.string.plantDetails_lastWateredLine,
+                                    "$wateredLabel · ${formatPickerDate(plant.lastWateredDate, locale)}",
+                                ),
+                                winterText = if (winterMode) stringResource(Res.string.plantDetails_winterMode) else null,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.lg))
                             // RN WaterButtonWithParticles fullWidth: частицы +
                             // Medium-гаптика внутри компонента (M10); isWatering —
                             // pending water-патча (RN patchMutation.isPending с
@@ -1110,21 +1076,6 @@ private fun Modifier.clickableNoIndication(onClick: () -> Unit): Modifier =
         onClick = onClick,
     )
 
-/** Пилюля статуса полива: фон = тот же цвет с альфой (RN `+ '18'`). */
-@Composable
-private fun WaterBadge(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.1f), RoundedCornerShape(Radii.xl))
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-        )
-    }
-}
 
 /** Данные карточки действия ухода. */
 private data class CareCardData(
