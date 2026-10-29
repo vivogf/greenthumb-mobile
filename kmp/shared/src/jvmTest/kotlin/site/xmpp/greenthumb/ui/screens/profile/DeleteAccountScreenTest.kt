@@ -178,13 +178,15 @@ class DeleteAccountScreenTest {
         var meCount = 0
         var plantsCount = 0
         var createCount = 0
+        var loginCount = 0
         var deleteAccountCount = 0
         var deleteAccountStatus: HttpStatusCode = HttpStatusCode.OK
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
-        private fun userJson(): String =
-            """{"user":{"id":83,"name":"kmp-val-delacc","recovery_key":"key-delacc-83",""" +
+        private fun userJson(withKey: Boolean = true): String =
+            """{"user":{"id":83,"name":"kmp-val-delacc",""" +
+                (if (withKey) """"recovery_key":"key-delacc-83",""" else "") +
                 """"notification_time":"09:00","created_at":"2026-10-01T10:00:00.000Z"}}"""
 
         val handler: MockRequestHandler = { request ->
@@ -192,6 +194,11 @@ class DeleteAccountScreenTest {
                 "/api/auth/me" -> {
                     meCount++
                     respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
+                }
+                "/api/auth/login-recovery" -> {
+                    loginCount++
+                    // Server after migration 009: the user object carries no recovery_key.
+                    respond(userJson(withKey = false), HttpStatusCode.OK, JSON_HEADERS)
                 }
                 "/api/plants" -> {
                     plantsCount++
@@ -397,6 +404,34 @@ class DeleteAccountScreenTest {
         }
     }
 
+    @Test
+    fun deleteAccount_serverOmitsKey_savedKeySignIn_deletes_cleansLocally() {
+        val graph = newHarness()
+        graph.settings.presetEnglish()
+        runBlocking {
+            graph.settings.setIntroSeen()
+            graph.secure.set(SecureStoreKeys.RECOVERY_KEY, "stored-delacc-83")
+        }
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, PushTokens()) }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            // The fake server has no cookie jar, so later 401s re-run login-recovery through the API seam.
+            assertTrue(graph.server.loginCount >= 1, "signed in with the saved key, answer without a key")
+            assertEquals("stored-delacc-83", secureKey(graph))
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+
+            clickByLabel("Delete Account")
+            waitUntilAtLeastOneExists(hasText("Delete account"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Delete my account"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.deleteAccountCount == 1 }
+            waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
+            assertNull(secureKey(graph), "recovery key removed")
+            assertNull(graph.settings.getCachedUserBlocking(), "cached_user removed")
+
+            runOnIdle { graph.close() }
+        }
+    }
     // ------------------------------------------------------------------
     // Хелперы блокирующих чтений
     // ------------------------------------------------------------------

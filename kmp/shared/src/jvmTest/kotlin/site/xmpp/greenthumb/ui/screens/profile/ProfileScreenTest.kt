@@ -279,6 +279,9 @@ class ProfileScreenTest {
 
         var loginCount = 0
 
+        /** Key sent by the last login-recovery request. */
+        @Volatile var lastLoginKey: String? = null
+
         /** Regenerate answers 200 without `recovery_key`. */
         @Volatile var regenerateOmitsKey = false
 
@@ -311,6 +314,7 @@ class ProfileScreenTest {
                     loginCount++
                     val sent = Regex("\"recoveryKey\":\"([^\"]*)\"")
                         .find((request.body as io.ktor.http.content.TextContent).text)?.groupValues?.get(1)
+                    lastLoginKey = sent
                     if (sent != null && sent == pending) {
                         current = sent
                         pending = null
@@ -1177,6 +1181,58 @@ class ProfileScreenTest {
         }
     }
 
+    @Test
+    fun recoveryKey_serverOmitsKey_savedKeyStartup_signOut_signInAgain_sameAccount() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.omitRecoveryKey = true
+        val storedKey = listOf("0000abcd", "0000", "4000", "8000", "000000000082").joinToString("-")
+        runBlocking {
+            graph.settings.setIntroSeen()
+            graph.secure.set(SecureStoreKeys.RECOVERY_KEY, storedKey)
+        }
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            // No cookie session: the app signs in with the saved key; the answer has no key.
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            // The fake server has no cookie jar, so later 401s re-run login-recovery through the API seam.
+            assertTrue(graph.server.loginCount >= 1)
+            assertEquals(storedKey, graph.server.lastLoginKey, "sign-in sent the saved key")
+            assertEquals("81", graph.settings.getCachedUserBlocking()?.id)
+            assertEquals(storedKey, secureKey(graph), "saved key kept after a key-less answer")
+
+            onNodeWithText("Profile").performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+            clickByLabel("Show")
+            waitUntilAtLeastOneExists(hasSubText(storedKey), TIMEOUT)
+            clickByLabel("Show key as QR code")
+            waitUntilAtLeastOneExists(hasTestTag("keyQr_code"), TIMEOUT)
+            assertEquals(storedKey, decodeQr(onNode(hasTestTag("keyQr_code")).captureToImage()))
+            onNode(androidx.compose.ui.test.hasContentDescription("Back") and hasClickAction()).performClick()
+            waitUntilAtLeastOneExists(hasText("My Profile"), TIMEOUT)
+
+            clickByLabel("Sign Out")
+            waitUntilAtLeastOneExists(hasSubText("Sign out?"), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Sign Out") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
+            assertEquals(1, graph.server.logoutCount)
+            kotlin.test.assertNull(secureKey(graph), "sign-out removes the key")
+            val loginsBefore = graph.server.loginCount
+            graph.server.lastLoginKey = null
+
+            onNodeWithText("I Have a Key").performClick()
+            waitUntilAtLeastOneExists(hasText("Welcome Back"), TIMEOUT)
+            onNode(hasSetTextAction()).performTextInput(storedKey)
+            onNodeWithText("Sign In").performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.loginCount > loginsBefore }
+            waitUntilAtLeastOneExists(hasText("Plants"), TIMEOUT)
+            assertEquals(storedKey, graph.server.lastLoginKey, "sign-in sent the typed key")
+            assertEquals("81", graph.settings.getCachedUserBlocking()?.id, "same account after sign-in")
+            assertEquals(storedKey, secureKey(graph), "typed key stored, not a key from the answer")
+
+            runOnIdle { graph.close() }
+        }
+    }
     @Test
     fun recoveryKey_serverOmitsKey_nothingStored_profileShowsKeyNotFound() {
         val graph = newHarness()
