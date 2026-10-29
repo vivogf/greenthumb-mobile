@@ -14,9 +14,9 @@
     <string name="enableNotifications_body">We'll send a notification when your plants need water. You can choose the time later in settings.</string>
     <string name="enableNotifications_enable">Turn on notifications</string>
     <string name="enableNotifications_later">Maybe later</string>
-    <string name="privacy_loginHint">No ads, analytics, email, or server logs. We keep only anonymous crash reports. Your name is optional. If something breaks, tell us at:</string>
+    <string name="privacy_loginHint">No ads, analytics or email. Your name is optional. The server keeps no logs about you and stores your recovery key only as a hash. The app sends anonymous crash and freeze (ANR) reports and a session event at start. Deleting your account removes your data at once; backup copies disappear as backups rotate. If something breaks, tell us at:</string>
     <string name="privacy_aboutTitle">Your data stays yours</string>
-    <string name="privacy_aboutBody">No ads, analytics, email, or server logs. GreenThumb keeps only anonymous crash reports. Your name is optional: you sign in with a recovery key you control.</string>
+    <string name="privacy_aboutBody">No ads, analytics or email. Your name is optional: you sign in with a recovery key you control, and the server stores it only as a hash. The server keeps no logs about you. GreenThumb sends anonymous crash and freeze (ANR) reports and a session event at start, not linked to your account. Deleting your account removes your data at once; backup copies disappear as backups rotate.</string>
     <string name="privacy_bugTitle">Found a bug?</string>
     <string name="privacy_bugBody">We'd love to hear about it:</string>
     <string name="privacy_sectionLabel">About &amp; Privacy</string>

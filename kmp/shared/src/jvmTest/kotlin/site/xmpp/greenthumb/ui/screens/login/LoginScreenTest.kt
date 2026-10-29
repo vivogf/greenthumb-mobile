@@ -175,7 +175,7 @@ class LoginScreenTest {
             waitUntilAtLeastOneExists(hasText("Create New Account"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("I Have a Key"), TIMEOUT)
             waitUntilAtLeastOneExists(
-                hasText("email, or server logs", substring = true),
+                hasText("stores your recovery key only as a hash", substring = true),
                 TIMEOUT,
             )
             waitUntilAtLeastOneExists(hasText(SUPPORT_EMAIL), TIMEOUT)
