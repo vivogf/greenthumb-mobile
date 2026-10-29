@@ -4,4 +4,7 @@
          у форграунд-показа (GtNotifications.kt), чтобы фоновые FCM-доставки
          выглядели так же. -->
     <color name="gt_notification_color">#FF4A9A5A</color>
+    <!-- Adaptive launcher icon background: the same dark green as the Expo
+         app icon (app.json android.adaptiveIcon.backgroundColor). -->
+    <color name="iconBackground">#1a5c2e</color>
 </resources>

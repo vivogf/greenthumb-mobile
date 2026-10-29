@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only launcher mark: a small amber dot top-right of the logo, so
+     the .debug build is told apart from the store build on the home screen.
+     Sits inside the 66dp safe zone (centre 26.9dp from icon centre, r 5.1dp),
+     clear of the drop tip. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFC107"
+        android:strokeColor="#FF1A5C2E"
+        android:strokeWidth="1.2"
+        android:pathData="M73,35m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0" />
+</vector>

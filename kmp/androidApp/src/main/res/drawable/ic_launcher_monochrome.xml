@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome layer of the adaptive launcher icon (Android 13+ themed
+     icons). The foreground bitmap is fully opaque (its gradient is baked in),
+     so it cannot serve as a mask; this is the leaf + drop logo traced from
+     ic_launcher_foreground at 1:1 position. The launcher uses only the alpha.
+     evenOdd keeps the highlight cut in the drop as a hole. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M53.30,26.50L53.75,26.46L54.25,26.88L55.62,29.25L57.28,33.00L58.30,37.00L58.61,39.25L58.60,42.25L58.10,44.75L57.25,47.16L55.92,49.50L54.59,51.25L52.35,53.50L48.00,57.17L46.75,58.40L45.28,60.25L44.00,62.65L43.50,63.14L43.24,63.00L42.95,62.25L42.63,59.50L42.65,57.00L43.17,53.50L43.76,51.25L44.49,49.25L45.94,46.00L47.74,42.75L47.90,42.00L47.50,42.07L46.75,42.71L44.00,46.26L42.18,49.50L41.15,52.00L40.27,55.00L39.91,57.25L39.93,62.25L40.42,65.00L41.18,67.75L41.83,69.25L43.77,72.75L43.25,72.79L42.25,72.23L39.75,70.10L37.78,67.75L36.07,64.75L34.99,61.75L34.41,59.25L34.20,56.00L34.52,53.25L35.25,50.50L36.28,47.75L38.45,43.75L39.62,42.00L41.67,39.25L44.41,36.00ZM61.47,35.25L61.75,35.16L62.25,35.51L66.05,40.00L68.76,43.75L70.32,46.50L71.59,49.25L72.54,52.25L73.09,55.50L73.10,58.25L72.43,61.75L71.50,64.43L70.00,67.20L68.06,69.75L65.75,71.83L63.25,73.45L60.75,74.60L57.75,75.35L55.50,75.41L53.50,75.24L51.75,74.67L49.70,73.50L48.16,72.00L47.20,70.50L46.75,69.25L46.45,67.75L46.41,66.25L47.15,63.50L48.71,61.00L50.50,59.12L54.75,55.45L57.25,52.89L58.77,51.00L60.08,48.75L61.06,46.25L61.83,42.25L61.86,39.25L61.40,36.00ZM68.50,57.56L68.25,57.79L66.83,62.00L65.75,64.00L63.50,66.88L62.08,68.25L59.88,70.00L59.64,70.50L60.00,70.61L61.55,70.25L64.00,68.94L65.75,67.47L67.09,65.75L68.11,63.75L68.78,61.25L68.83,58.75L68.75,58.02Z" />
+</vector>
