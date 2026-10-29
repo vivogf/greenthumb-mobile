@@ -178,7 +178,7 @@ fun ComponentGalleryScreen(
                     selected = iconClicks > 0,
                 ) {
                     GtCalendarMark(
-                        tint = scheme.primary,
+                        tint = scheme.secondary,
                         modifier = Modifier.size(Spacing.xl),
                     )
                 }

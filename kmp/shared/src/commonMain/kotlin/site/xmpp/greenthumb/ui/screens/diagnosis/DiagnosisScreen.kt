@@ -198,7 +198,7 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Text(
                         text = stringResource(Res.string.diagnosis_loading),
                         style = MaterialTheme.typography.bodyMedium,

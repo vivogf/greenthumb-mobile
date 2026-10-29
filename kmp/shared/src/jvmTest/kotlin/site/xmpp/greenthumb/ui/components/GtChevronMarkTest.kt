@@ -14,7 +14,10 @@ import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/** The chevron is drawn tip-down; the direction parameter rotates it. */
+/**
+ * The chevron glyph `gt_ic_chev` points right (tip at x = 16/24); Down and Up rotate it, Left uses the
+ * `gt_ic_back` glyph (tip at x = 8/24).
+ */
 @OptIn(ExperimentalTestApi::class)
 class GtChevronMarkTest {
 
@@ -25,7 +28,7 @@ class GtChevronMarkTest {
                 GtChevronMark(
                     tint = Color.Black,
                     direction = direction,
-                    modifier = Modifier.size(100.dp).testTag("chevron"),
+                    modifier = Modifier.size(96.dp).testTag("chevron"),
                 )
             }
             pixels = onNodeWithTag("chevron").captureToImage().toPixelMap()
@@ -45,31 +48,34 @@ class GtChevronMarkTest {
         return false
     }
 
+    private val tip = 16f / 24f
+    private val back = 8f / 24f
+
     @Test
-    fun down_tip_is_below_the_centre() {
-        val p = render(GtChevronDirection.Down)
-        assertTrue(p.paintedNear(0.5f, 0.62f), "tip below")
-        assertTrue(!p.paintedNear(0.5f, 0.38f), "nothing above the tip on the axis")
+    fun right_tip_is_right_of_the_centre() {
+        val p = render(GtChevronDirection.Right)
+        assertTrue(p.paintedNear(tip, 0.5f), "tip on the right")
+        assertTrue(!p.paintedNear(0.4f, 0.5f), "nothing left of the tip on the axis")
     }
 
     @Test
     fun left_tip_is_left_of_the_centre() {
         val p = render(GtChevronDirection.Left)
-        assertTrue(p.paintedNear(0.38f, 0.5f), "tip on the left")
-        assertTrue(!p.paintedNear(0.62f, 0.5f), "nothing right of the tip on the axis")
+        assertTrue(p.paintedNear(back, 0.5f), "tip on the left")
+        assertTrue(!p.paintedNear(0.6f, 0.5f), "nothing right of the tip on the axis")
     }
 
     @Test
-    fun right_tip_is_right_of_the_centre() {
-        val p = render(GtChevronDirection.Right)
-        assertTrue(p.paintedNear(0.62f, 0.5f), "tip on the right")
-        assertTrue(!p.paintedNear(0.38f, 0.5f), "nothing left of the tip on the axis")
+    fun down_tip_is_below_the_centre() {
+        val p = render(GtChevronDirection.Down)
+        assertTrue(p.paintedNear(0.5f, tip), "tip below")
+        assertTrue(!p.paintedNear(0.5f, 0.4f), "nothing above the tip on the axis")
     }
 
     @Test
     fun up_tip_is_above_the_centre() {
         val p = render(GtChevronDirection.Up)
-        assertTrue(p.paintedNear(0.5f, 0.38f), "tip above")
-        assertTrue(!p.paintedNear(0.5f, 0.62f), "nothing below the tip on the axis")
+        assertTrue(p.paintedNear(0.5f, 1f - tip), "tip above")
+        assertTrue(!p.paintedNear(0.5f, 0.6f), "nothing below the tip on the axis")
     }
 }

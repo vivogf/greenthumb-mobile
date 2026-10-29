@@ -1008,11 +1008,11 @@ internal fun BulkWaterBanner(
     ) {
         if (pending) {
             CircularProgressIndicator(
-                color = scheme.primary,
+                color = scheme.secondary,
                 modifier = Modifier.size(Spacing.lg + Spacing.xxs),
             )
         } else {
-            GtCheckMark(tint = scheme.primary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
+            GtCheckMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
         }
         val text = if (pending && pendingCount != null) {
             // Плюрализм pending-баннера (VAL-DASH-006): ru 1/21 → «растение»,
@@ -1326,7 +1326,7 @@ private fun PlantListItem(
             )
         } else {
             GtCheckMark(
-                tint = scheme.primary.copy(alpha = 0.4f),
+                tint = scheme.secondary.copy(alpha = 0.4f),
                 modifier = Modifier.size(Spacing.lg + Spacing.xxs),
             )
         }

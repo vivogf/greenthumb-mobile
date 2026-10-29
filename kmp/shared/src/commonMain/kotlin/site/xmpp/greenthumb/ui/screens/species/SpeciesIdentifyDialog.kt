@@ -107,7 +107,7 @@ public fun SpeciesIdentifyDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Text(
                         text = stringResource(Res.string.species_identifyLoading),
                         style = MaterialTheme.typography.bodyMedium,

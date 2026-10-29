@@ -58,7 +58,7 @@ public fun GtSplash() {
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
     }
 }
 

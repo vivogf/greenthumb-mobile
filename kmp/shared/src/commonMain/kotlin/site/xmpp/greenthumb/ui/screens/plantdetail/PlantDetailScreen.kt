@@ -84,10 +84,11 @@ import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtDatePickerField
+import site.xmpp.greenthumb.ui.components.GtDiagnosisMark
+import site.xmpp.greenthumb.ui.components.GtFertilizeMark
 import site.xmpp.greenthumb.ui.components.GtGearMark
 import site.xmpp.greenthumb.ui.components.GtGalleryMark
 import site.xmpp.greenthumb.ui.components.GtInputField
-import site.xmpp.greenthumb.ui.components.GtLeafMark
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.GtModalHeader
@@ -96,6 +97,7 @@ import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
+import site.xmpp.greenthumb.ui.components.GtSpeciesMark
 import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWaterButton
 import site.xmpp.greenthumb.ui.components.PhotoPickerHost
@@ -167,6 +169,7 @@ import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
 import site.xmpp.greenthumb.ui.screens.species.speciesLightLabel
 import site.xmpp.greenthumb.catalog.CatalogRepository
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
@@ -226,7 +229,7 @@ public class PlantDeleteErrorState {
  * Осознанные отличия от RN (parity-файл):
  * - react-query optimistic-кэш → Room-наблюдение (architecture.md §7);
  *   invalidate не нужен — Room рекомпонирует сам (прецедент VAL-ADDPLANT-002);
- * - Ionicons/эмодзи → Canvas-метки ([GtLeafMark]/[GtPotMark]/[GtScissorsMark]…);
+ * - Ionicons/эмодзи → метки Retro-cosmos ([GtFertilizeMark]/[GtPotMark]/[GtScissorsMark]…);
  * - WaterButtonWithParticles → [GtWaterButton] (частицы + Medium-гаптика — m10);
  * - LinearGradient → [Brush.verticalGradient] от [Color.Black]/[Color.Transparent]
  *   (литералы RN-экрана `#fff`/rgba — свойство-константа, K5 не матчит);
@@ -658,7 +661,7 @@ public fun PlantDetailScreen(
                                                 title = fertilizingLabel,
                                                 a11yLabel = fertilizeAction,
                                                 days = days,
-                                                mark = { tint -> GtLeafMark(tint = tint) },
+                                                mark = { tint -> GtFertilizeMark(tint = tint) },
                                                 onAction = {
                                                     update(
                                                         PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())),
@@ -733,7 +736,7 @@ public fun PlantDetailScreen(
                                     focusManager.clearFocus()
                                     onOpenDiagnosis()
                                 },
-                                icon = { tint -> GtLeafMark(tint = tint, modifier = Modifier.size(Spacing.xl)) },
+                                icon = { tint -> GtDiagnosisMark(tint = tint, modifier = Modifier.size(Spacing.xl)) },
                                 description = stringResource(Res.string.diagnosis_entryDescription),
                                 modifier = Modifier.testTag("plantDetail_diagnosis"),
                             )
@@ -1139,7 +1142,7 @@ private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        card.mark(scheme.onSurface)
+        card.mark(scheme.secondary)
         Text(
             text = card.title,
             style = MaterialTheme.typography.labelMedium,
@@ -1409,11 +1412,17 @@ private fun SettingsSpeciesRow(
 private fun SpeciesCard(info: PlantSpeciesInfo, language: String) {
     val scheme = MaterialTheme.colorScheme
     GtCard {
-        Text(
-            text = stringResource(Res.string.species_title),
-            style = MaterialTheme.typography.titleSmall,
-            color = scheme.onSurface,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            GtSpeciesMark(tint = scheme.secondary, modifier = Modifier.size(Sizes.iconSlot))
+            Text(
+                text = stringResource(Res.string.species_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = scheme.onSurface,
+            )
+        }
         Spacer(modifier = Modifier.height(Spacing.xs))
         when (info) {
             is PlantSpeciesInfo.Catalog -> {

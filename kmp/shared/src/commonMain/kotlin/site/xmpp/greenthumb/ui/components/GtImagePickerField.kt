@@ -108,7 +108,7 @@ fun GtImagePickerField(
                     verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
                 ) {
                     GtCameraMark(
-                        tint = scheme.primary,
+                        tint = scheme.secondary,
                         modifier = Modifier.size(Spacing.xxl * 2),
                     )
                     Text(

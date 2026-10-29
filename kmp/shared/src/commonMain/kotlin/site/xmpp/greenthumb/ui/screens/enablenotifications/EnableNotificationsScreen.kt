@@ -160,7 +160,7 @@ public fun EnableNotificationsScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     GtBellMark(
-                        tint = scheme.primary,
+                        tint = scheme.secondary,
                         modifier = Modifier.size(Spacing.xxl * 2 - Spacing.xxs),
                     )
                 }
@@ -245,7 +245,7 @@ public fun EnableNotificationsScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(
-                    color = scheme.primary,
+                    color = scheme.secondary,
                     modifier = Modifier.size(Spacing.xxl * 2 - Spacing.xxs),
                 )
             }

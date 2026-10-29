@@ -176,7 +176,7 @@ private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
                 modifier = Modifier.size(Spacing.xxl * 3).background(scheme.primaryContainer, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                GtLeafMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xxl * 2 + Spacing.xxs))
+                GtLeafMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl * 2 + Spacing.xxs))
             }
             Text(
                 text = stringResource(Res.string.login_title),
@@ -277,7 +277,7 @@ private fun CreateMode(
                     .background(scheme.primaryContainer, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                GtLeafMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
+                GtLeafMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
             }
             Text(
                 text = stringResource(Res.string.login_createTitle),
@@ -361,7 +361,7 @@ private fun CreateMode(
         )
         if (loading) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
             }
         }
 
@@ -432,7 +432,7 @@ private fun LoginKeyMode(
                     .background(scheme.primaryContainer, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                GtKeyMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
+                GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
             }
             Text(
                 text = stringResource(Res.string.login_welcomeBack),
@@ -508,7 +508,7 @@ private fun LoginKeyMode(
         )
         if (loading) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
             }
         }
 

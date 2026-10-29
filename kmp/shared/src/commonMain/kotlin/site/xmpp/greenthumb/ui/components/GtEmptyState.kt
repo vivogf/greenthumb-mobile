@@ -44,7 +44,7 @@ fun GtEmptyState(
             contentAlignment = Alignment.Center,
         ) {
             GtLeafMark(
-                tint = scheme.primary,
+                tint = scheme.secondary,
                 modifier = Modifier.size(Spacing.xxl + Spacing.lg),
             )
         }

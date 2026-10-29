@@ -42,6 +42,7 @@ import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtIconButton
 import site.xmpp.greenthumb.ui.components.GtInputField
+import site.xmpp.greenthumb.ui.components.GtJournalMark
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.formatPickerDate
@@ -67,6 +68,7 @@ import site.xmpp.greenthumb.ui.res.journal_typeRepot
 import site.xmpp.greenthumb.ui.res.journal_typeWater
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
 import site.xmpp.greenthumb.ui.res.plantDetails_delete
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /** Label of a wire event type; unknown future types get a generic label. */
@@ -181,11 +183,17 @@ internal fun PlantJournalSection(
     val scheme = MaterialTheme.colorScheme
     GtCard(modifier = modifier.fillMaxWidth().testTag("journal_section")) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(
-                text = stringResource(Res.string.journal_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                GtJournalMark(tint = scheme.secondary, modifier = Modifier.size(Sizes.iconSlot))
+                Text(
+                    text = stringResource(Res.string.journal_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurface,
+                )
+            }
             if (refreshFailed) {
                 Text(
                     text = stringResource(Res.string.dashboard_refreshFailed),

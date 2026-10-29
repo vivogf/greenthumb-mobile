@@ -527,7 +527,7 @@ public fun AddPlantScreen(
             )
             if (submitting) {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                 }
             }
         }

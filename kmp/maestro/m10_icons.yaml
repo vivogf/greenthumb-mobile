@@ -1,0 +1,43 @@
+# M10 VAL-LOOK-010: screenshots of the Retro-cosmos icons at their call sites (Dark theme).
+# Needs a signed-in app (m10_flash_login.yaml) with "Flash Fern" (location set, fertilize/repot/prune
+# frequencies set, no photo). Dashboard (tabs, «+», water drop) → plant detail (back, camera, location,
+# pencil) → care cards (fertilize/pot/scissors) → plant photo sheet → Profile.
+appId: com.greenthumbplantcare.debug
+name: M10 icons — call sites
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Flash Fern"
+    timeout: 20000
+- assertVisible: "My Plants|Мои растения"
+- takeScreenshot: icons-dashboard
+- tapOn: "Flash Fern"
+- extendedWaitUntil:
+    visible: "Change plant photo|Сменить фото растения|Изменить фото.*"
+    timeout: 10000
+- takeScreenshot: icons-detail-top
+- scrollUntilVisible:
+    element: "Advanced Care Schedule|Расширенный уход.*|Продвинутый уход.*"
+    direction: DOWN
+- scroll
+- takeScreenshot: icons-detail-care
+- scrollUntilVisible:
+    element: "Change plant photo|Сменить фото растения|Изменить фото.*"
+    direction: UP
+- tapOn: "Change plant photo|Сменить фото растения|Изменить фото.*"
+- extendedWaitUntil:
+    visible: "Gallery|Галерея"
+    timeout: 5000
+- takeScreenshot: icons-photo-sheet
+- back
+- back
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 5000
+- tapOn: "Profile|Профиль"
+- extendedWaitUntil:
+    visible: "My Profile|Мой профиль"
+    timeout: 10000
+- takeScreenshot: icons-profile
+- tapOn: "Plants|Растения"

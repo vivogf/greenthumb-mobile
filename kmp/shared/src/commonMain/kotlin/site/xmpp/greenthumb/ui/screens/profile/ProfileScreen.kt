@@ -369,7 +369,7 @@ public fun ProfileScreen(
                         .background(scheme.primaryContainer, RoundedCornerShape(percent = 50)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    GtPersonMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xxl))
+                    GtPersonMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl))
                 }
                 Column {
                     Text(
@@ -396,7 +396,7 @@ public fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                GtBellOutlineMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                GtBellOutlineMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(Res.string.profile_notifications),
@@ -411,7 +411,7 @@ public fun ProfileScreen(
                 }
                 if (pushLoading) {
                     CircularProgressIndicator(
-                        color = scheme.primary,
+                        color = scheme.secondary,
                         modifier = Modifier.size(Spacing.xl),
                     )
                 } else {
@@ -478,7 +478,7 @@ public fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                GtClockMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                GtClockMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(Res.string.profile_notificationTime),
@@ -536,7 +536,7 @@ public fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    GtSendMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    GtSendMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Text(
                         text = if (testSending) stringResource(Res.string.profile_saving)
                         else stringResource(Res.string.profile_testNotification),
@@ -550,7 +550,7 @@ public fun ProfileScreen(
         // Язык (RN SectionCard 3).
         SectionCard {
             PickerRow(
-                icon = { GtGlobeMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl)) },
+                icon = { GtGlobeMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl)) },
                 label = stringResource(Res.string.profile_language),
                 value = when (shownLanguage) {
                     AppLanguage.Ru -> stringResource(Res.string.profile_languageRussian)
@@ -563,7 +563,7 @@ public fun ProfileScreen(
         // Тема (RN SectionCard 4).
         SectionCard {
             PickerRow(
-                icon = { GtPaletteMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl)) },
+                icon = { GtPaletteMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl)) },
                 label = stringResource(Res.string.profile_theme),
                 value = when (themePreference) {
                     ThemePreference.Light -> stringResource(Res.string.profile_themeLight)
@@ -578,7 +578,7 @@ public fun ProfileScreen(
         SectionCard {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GtKeyMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
                     Text(
                         text = stringResource(Res.string.profile_recoveryKey),
@@ -812,7 +812,7 @@ public fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    GtLeafMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    GtLeafMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Text(
                         text = stringResource(Res.string.progress_entry),
                         style = MaterialTheme.typography.bodyMedium,
@@ -833,7 +833,7 @@ public fun ProfileScreen(
         SectionCard {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GtLockMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                    GtLockMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
                     Text(
                         text = stringResource(Res.string.privacy_aboutTitle),
@@ -1004,7 +1004,7 @@ public fun ProfileScreen(
                                 color = scheme.onSurface,
                             )
                             if (selected) {
-                                GtCheckMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                                GtCheckMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                             }
                         }
                     }
@@ -1379,7 +1379,7 @@ private fun OptionRow(
             modifier = Modifier.weight(1f),
         )
         if (selected) {
-            GtCheckMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+            GtCheckMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
         }
     }
 }

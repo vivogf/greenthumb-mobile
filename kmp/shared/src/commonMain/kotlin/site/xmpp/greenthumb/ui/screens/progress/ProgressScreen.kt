@@ -196,7 +196,7 @@ public fun ProgressScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CircularProgressIndicator(color = scheme.primary, modifier = Modifier.size(Spacing.xl))
+                        CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                         Text(
                             text = stringResource(Res.string.progress_loading),
                             style = MaterialTheme.typography.bodyMedium,
@@ -334,7 +334,7 @@ private fun AchievementTile(cell: AchievementCell, modifier: Modifier) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             if (cell.unlocked) {
-                GtCheckMark(tint = scheme.primary, modifier = Modifier.size(Spacing.lg))
+                GtCheckMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.lg))
             } else {
                 GtLockMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
             }

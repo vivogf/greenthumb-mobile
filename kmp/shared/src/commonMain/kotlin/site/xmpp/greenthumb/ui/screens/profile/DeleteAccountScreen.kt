@@ -161,7 +161,7 @@ public fun DeleteAccountScreen(
 
         if (deleting) {
             CircularProgressIndicator(
-                color = scheme.primary,
+                color = scheme.secondary,
                 modifier = Modifier
                     .size(Spacing.xxl)
                     .align(Alignment.CenterHorizontally),

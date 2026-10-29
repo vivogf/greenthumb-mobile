@@ -1,140 +1,178 @@
 package site.xmpp.greenthumb.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import site.xmpp.greenthumb.ui.theme.Spacing
+import androidx.compose.ui.graphics.graphicsLayer
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
+import site.xmpp.greenthumb.ui.res.Res
+import site.xmpp.greenthumb.ui.res.gt_ic_back
+import site.xmpp.greenthumb.ui.res.gt_ic_cal
+import site.xmpp.greenthumb.ui.res.gt_ic_camera
+import site.xmpp.greenthumb.ui.res.gt_ic_check
+import site.xmpp.greenthumb.ui.res.gt_ic_chev
+import site.xmpp.greenthumb.ui.res.gt_ic_close
+import site.xmpp.greenthumb.ui.res.gt_ic_diag
+import site.xmpp.greenthumb.ui.res.gt_ic_drop
+import site.xmpp.greenthumb.ui.res.gt_ic_drop_filled
+import site.xmpp.greenthumb.ui.res.gt_ic_edit
+import site.xmpp.greenthumb.ui.res.gt_ic_fert
+import site.xmpp.greenthumb.ui.res.gt_ic_journal
+import site.xmpp.greenthumb.ui.res.gt_ic_leaf
+import site.xmpp.greenthumb.ui.res.gt_ic_loc
+import site.xmpp.greenthumb.ui.res.gt_ic_lock
+import site.xmpp.greenthumb.ui.res.gt_ic_photo
+import site.xmpp.greenthumb.ui.res.gt_ic_plus
+import site.xmpp.greenthumb.ui.res.gt_ic_pot
+import site.xmpp.greenthumb.ui.res.gt_ic_scissors
+import site.xmpp.greenthumb.ui.res.gt_ic_smartcam
+import site.xmpp.greenthumb.ui.res.gt_ic_species
+import site.xmpp.greenthumb.ui.res.gt_ic_sun
 
 /**
- * Простые метки вместо Ionicons: material-icons в пинах миссии нет.
- * Толщина линии — четверть [Spacing.xxs] (тот же шаг, что рамка контрола).
- * [tint] приходит из темы, здесь цвет не собирается.
+ * Метки интерфейса в стиле Retro-cosmos (NASA-punk, D§3.4): линия 1,5 из 24, прямые концы,
+ * острые углы, без заливки. [tint] приходит из темы, здесь цвет не собирается.
+ *
+ * Метки с глифом в макете v2 рисуют векторный ресурс `gt_ic_*` (экспорт
+ * `kmp/scripts/icons/export_mockup_icons.mjs`); остальные — Canvas с той же линией ([markStroke]).
  */
+
+private const val MarkStrokeRatio = 1.5f / 24f
+
+/** Толщина линии Canvas-метки: та же доля размера, что 1,5 в 24-единичном ресурсе. */
+internal fun DrawScope.markStrokeWidth(): Float = size.minDimension * MarkStrokeRatio
+
+internal fun DrawScope.markStroke(): Stroke =
+    Stroke(width = markStrokeWidth(), cap = StrokeCap.Butt, join = StrokeJoin.Miter)
+
 @Composable
-fun GtCalendarMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        val left = size.width * 0.12f
-        val top = size.height * 0.22f
-        val body = Size(size.width - left * 2, size.height * 0.66f)
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(left, top),
-            size = body,
-            cornerRadius = CornerRadius(stroke.width * 2),
-            style = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(left, size.height * 0.42f),
-            end = Offset(size.width - left, size.height * 0.42f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.32f, size.height * 0.12f),
-            end = Offset(size.width * 0.32f, size.height * 0.32f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.68f, size.height * 0.12f),
-            end = Offset(size.width * 0.68f, size.height * 0.32f),
-            strokeWidth = stroke.width,
-        )
-    }
+private fun GtResourceMark(icon: DrawableResource, tint: Color, modifier: Modifier) {
+    Icon(painter = painterResource(icon), contentDescription = null, tint = tint, modifier = modifier)
 }
 
-/** Куда смотрит [GtChevronMark]; исходный рисунок — [Down]. */
+@Composable
+fun GtCalendarMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_cal, tint, modifier)
+
+/** Куда смотрит [GtChevronMark]. Глиф `gt_ic_chev` смотрит вправо; [degrees] — поворот от него. */
 enum class GtChevronDirection(internal val degrees: Float) {
-    Down(0f),
-    Left(90f),
-    Up(180f),
-    Right(270f),
+    Down(90f),
+    Left(180f),
+    Up(270f),
+    Right(0f),
 }
 
+/** [GtChevronDirection.Left] — отдельный глиф «Назад» (`gt_ic_back`), остальные — повёрнутый `gt_ic_chev`. */
 @Composable
 fun GtChevronMark(
     tint: Color,
     modifier: Modifier = Modifier,
     direction: GtChevronDirection = GtChevronDirection.Down,
 ) {
-    Canvas(modifier.graphicsLayer { rotationZ = direction.degrees }) {
-        val stroke = (Spacing.xxs / 4).toPx()
-        val mid = Offset(size.width * 0.5f, size.height * 0.62f)
-        drawLine(tint, Offset(size.width * 0.22f, size.height * 0.38f), mid, stroke)
-        drawLine(tint, mid, Offset(size.width * 0.78f, size.height * 0.38f), stroke)
+    if (direction == GtChevronDirection.Left) {
+        GtResourceMark(Res.drawable.gt_ic_back, tint, modifier)
+    } else {
+        GtResourceMark(Res.drawable.gt_ic_chev, tint, modifier.graphicsLayer { rotationZ = direction.degrees })
     }
 }
 
 @Composable
-fun GtCameraMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        val left = size.width * 0.1f
-        val top = size.height * 0.28f
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(left, top),
-            size = Size(size.width - left * 2, size.height * 0.56f),
-            cornerRadius = CornerRadius(stroke.width * 2),
-            style = stroke,
-        )
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.16f,
-            center = Offset(size.width * 0.5f, size.height * 0.56f),
-            style = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.32f, top),
-            end = Offset(size.width * 0.42f, size.height * 0.16f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.42f, size.height * 0.16f),
-            end = Offset(size.width * 0.62f, size.height * 0.16f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
+fun GtCameraMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_camera, tint, modifier)
 
 @Composable
-fun GtLeafMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        drawOval(
-            color = tint,
-            topLeft = Offset(size.width * 0.28f, size.height * 0.12f),
-            size = Size(size.width * 0.48f, size.height * 0.62f),
-            style = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.38f, size.height * 0.86f),
-            end = Offset(size.width * 0.62f, size.height * 0.22f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
+fun GtLeafMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_leaf, tint, modifier)
 
+/** Капля полива; [filled] — сплошная капля (кнопка полива), по умолчанию контур с бликом. */
+@Composable
+fun GtWaterDropMark(tint: Color, modifier: Modifier = Modifier, filled: Boolean = false) =
+    GtResourceMark(if (filled) Res.drawable.gt_ic_drop_filled else Res.drawable.gt_ic_drop, tint, modifier)
+
+@Composable
+fun GtLockMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_lock, tint, modifier)
+
+/** Галочка «готово». */
+@Composable
+fun GtCheckMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_check, tint, modifier)
+
+@Composable
+fun GtSunMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_sun, tint, modifier)
+
+@Composable
+fun GtPencilMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_edit, tint, modifier)
+
+@Composable
+fun GtLocationMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_loc, tint, modifier)
+
+@Composable
+fun GtPotMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_pot, tint, modifier)
+
+@Composable
+fun GtScissorsMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_scissors, tint, modifier)
+
+@Composable
+fun GtGalleryMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_photo, tint, modifier)
+
+@Composable
+fun GtCloseMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_close, tint, modifier)
+
+@Composable
+fun GtPlusMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_plus, tint, modifier)
+
+/** Подкормка (карточка ухода). */
+@Composable
+fun GtFertilizeMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_fert, tint, modifier)
+
+/** Умная камера (кнопка дашборда, заголовок умной камеры). */
+@Composable
+fun GtSmartCameraMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_smartcam, tint, modifier)
+
+/** «Что с растением?» — лист под лупой. */
+@Composable
+fun GtDiagnosisMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_diag, tint, modifier)
+
+/** Вид растения (карточка вида, «Узнать вид по фото»). */
+@Composable
+fun GtSpeciesMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_species, tint, modifier)
+
+/** Журнал растения (заголовок раздела). */
+@Composable
+fun GtJournalMark(tint: Color, modifier: Modifier = Modifier) =
+    GtResourceMark(Res.drawable.gt_ic_journal, tint, modifier)
+
+// ---------------------------------------------------------------------------
+// Canvas-метки без глифа в макете: та же линия ([markStroke]).
+// ---------------------------------------------------------------------------
 /** Метка вкладки «Профиль» — Ionicons `person` тем же простым стилем (голова + плечи). */
 @Composable
 fun GtPersonMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.18f,
@@ -153,53 +191,11 @@ fun GtPersonMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Капля полива — Ionicons `water` / `water-outline` (слайд 2 welcome, пилюли
- * статуса, кнопка полива). Острие вверху, круглое дно: касательные из острия
- * к окружности (угол между ними 60°) и дуга 240° снизу.
- * [filled] — сплошная капля, как `water` на кнопке; по умолчанию контур.
- */
-@Composable
-fun GtWaterDropMark(tint: Color, modifier: Modifier = Modifier, filled: Boolean = false) {
-    Canvas(modifier) {
-        val radius = size.minDimension * 0.29f
-        val centerX = size.width * 0.5f
-        val centerY = size.height * 0.65f
-        val tangentRad = Math.toRadians(30.0)
-        val tangentX = radius * kotlin.math.cos(tangentRad).toFloat()
-        val tangentY = radius * kotlin.math.sin(tangentRad).toFloat()
-        val drop = Path().apply {
-            moveTo(centerX, centerY - radius * 2)
-            lineTo(centerX + tangentX, centerY - tangentY)
-            arcTo(
-                rect = Rect(Offset(centerX, centerY), radius),
-                startAngleDegrees = -30f,
-                sweepAngleDegrees = 240f,
-                forceMoveTo = false,
-            )
-            close()
-        }
-        if (filled) {
-            drawPath(drop, tint)
-        } else {
-            drawPath(
-                drop,
-                tint,
-                style = Stroke(
-                    width = (Spacing.xxs / 4).toPx(),
-                    cap = StrokeCap.Round,
-                    join = StrokeJoin.Round,
-                ),
-            )
-        }
-    }
-}
-
 /** Колокольчик напоминаний — Ionicons `notifications` (слайд 3 welcome). */
 @Composable
 fun GtBellMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Купол колокола: верхняя половина окружности + расширяющиеся стенки.
         drawArc(
             color = tint,
@@ -247,12 +243,12 @@ fun GtBellMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtPersonAddMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
+        val stroke = markStrokeWidth()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.14f,
             center = Offset(size.width * 0.38f, size.height * 0.3f),
-            style = Stroke(width = stroke),
+            style = markStroke(),
         )
         drawArc(
             color = tint,
@@ -261,7 +257,7 @@ fun GtPersonAddMark(tint: Color, modifier: Modifier = Modifier) {
             useCenter = false,
             topLeft = Offset(size.width * 0.12f, size.height * 0.48f),
             size = Size(size.width * 0.52f, size.height * 0.44f),
-            style = Stroke(width = stroke),
+            style = markStroke(),
         )
         // Плюс.
         drawLine(
@@ -283,7 +279,7 @@ fun GtPersonAddMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtKeyMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Головка.
         drawCircle(
             color = tint,
@@ -314,37 +310,11 @@ fun GtKeyMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** Закрытый замок — Ionicons `lock-closed` (приватная заметка choose). */
-@Composable
-fun GtLockMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        // Дужка.
-        drawArc(
-            color = tint,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(size.width * 0.28f, size.height * 0.14f),
-            size = Size(size.width * 0.44f, size.height * 0.42f),
-            style = stroke,
-        )
-        // Корпус.
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(size.width * 0.18f, size.height * 0.42f),
-            size = Size(size.width * 0.64f, size.height * 0.46f),
-            cornerRadius = CornerRadius(stroke.width * 2),
-            style = stroke,
-        )
-    }
-}
-
 /** Предупреждение — Ionicons `warning` (треугольник с восклицательным знаком). */
 @Composable
 fun GtWarningMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         val top = Offset(size.width * 0.5f, size.height * 0.12f)
         val bottomLeft = Offset(size.width * 0.1f, size.height * 0.88f)
         val bottomRight = Offset(size.width * 0.9f, size.height * 0.88f)
@@ -367,40 +337,14 @@ fun GtWarningMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** Успех — Ionicons `checkmark-circle` (#22c55e show-key). */
-@Composable
-fun GtCheckMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.44f,
-            center = Offset(size.width * 0.5f, size.height * 0.5f),
-            style = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.3f, size.height * 0.52f),
-            end = Offset(size.width * 0.45f, size.height * 0.66f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.45f, size.height * 0.66f),
-            end = Offset(size.width * 0.72f, size.height * 0.36f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
-
 /** Галочка без круга: состояние «выполнено» внутри кнопки, где кольцо дало бы двойную рамку. */
 @Composable
 fun GtTickMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = (Spacing.xxs / 2).toPx()
+        val stroke = markStrokeWidth()
         val elbow = Offset(size.width * 0.4f, size.height * 0.72f)
-        drawLine(tint, Offset(size.width * 0.14f, size.height * 0.5f), elbow, stroke, StrokeCap.Round)
-        drawLine(tint, elbow, Offset(size.width * 0.86f, size.height * 0.24f), stroke, StrokeCap.Round)
+        drawLine(tint, Offset(size.width * 0.14f, size.height * 0.5f), elbow, stroke)
+        drawLine(tint, elbow, Offset(size.width * 0.86f, size.height * 0.24f), stroke)
     }
 }
 
@@ -408,7 +352,7 @@ fun GtTickMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtCopyMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Задний лист (полный).
         drawRoundRect(
             color = tint,
@@ -438,7 +382,7 @@ fun GtCopyMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtBellOutlineMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawArc(
             color = tint,
             startAngle = 180f,
@@ -479,7 +423,7 @@ fun GtBellOutlineMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtClockMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.42f,
@@ -505,7 +449,7 @@ fun GtClockMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtSendMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         val tip = Offset(size.width * 0.88f, size.height * 0.12f)
         val bottom = Offset(size.width * 0.12f, size.height * 0.56f)
         val mid = Offset(size.width * 0.6f, size.height * 0.62f)
@@ -522,7 +466,7 @@ fun GtSendMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtRefreshMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawArc(
             color = tint,
             startAngle = -40f,
@@ -552,7 +496,7 @@ fun GtRefreshMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtGlobeMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.42f,
@@ -578,7 +522,7 @@ fun GtGlobeMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtPaletteMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawArc(
             color = tint,
             startAngle = 150f,
@@ -613,7 +557,7 @@ fun GtPaletteMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtSignOutMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Дверь (скобка).
         drawLine(tint, Offset(size.width * 0.3f, size.height * 0.12f), Offset(size.width * 0.12f, size.height * 0.12f), stroke.width)
         drawLine(tint, Offset(size.width * 0.12f, size.height * 0.12f), Offset(size.width * 0.12f, size.height * 0.88f), stroke.width)
@@ -629,7 +573,7 @@ fun GtSignOutMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtContrastMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.42f,
@@ -647,39 +591,11 @@ fun GtContrastMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** Солнце — Ionicons `sunny-outline` (пикер темы: light). */
-@Composable
-fun GtSunMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.26f,
-            center = Offset(size.width * 0.5f, size.height * 0.5f),
-            style = stroke,
-        )
-        // 8 лучей.
-        for (index in 0 until 8) {
-            val angle = Math.PI * index / 4.0
-            val innerR = size.minDimension * 0.36f
-            val outerR = size.minDimension * 0.46f
-            val cx = size.width * 0.5f
-            val cy = size.height * 0.5f
-            drawLine(
-                color = tint,
-                start = Offset(cx + innerR * kotlin.math.cos(angle).toFloat(), cy + innerR * kotlin.math.sin(angle).toFloat()),
-                end = Offset(cx + outerR * kotlin.math.cos(angle).toFloat(), cy + outerR * kotlin.math.sin(angle).toFloat()),
-                strokeWidth = stroke.width,
-            )
-        }
-    }
-}
-
 /** Луна — Ionicons `moon-outline` (пикер темы: dark). */
 @Composable
 fun GtMoonMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Серп: внешняя дуга + внутренняя вырезка (двумя дугами).
         drawArc(
             color = tint,
@@ -708,170 +624,11 @@ fun GtMoonMark(tint: Color, modifier: Modifier = Modifier) {
 // имён тем же простым стилем.
 // ---------------------------------------------------------------------------
 
-/** Карандаш — Ionicons `create-outline` (инлайн-редактирование имени). */
-@Composable
-fun GtPencilMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
-        // Корпус по диагонали.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.25f, size.height * 0.75f),
-            end = Offset(size.width * 0.72f, size.height * 0.28f),
-            strokeWidth = stroke,
-        )
-        // Грань (вторая линия корпуса).
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.33f, size.height * 0.83f),
-            end = Offset(size.width * 0.8f, size.height * 0.36f),
-            strokeWidth = stroke,
-        )
-        // Остриё.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.25f, size.height * 0.75f),
-            end = Offset(size.width * 0.16f, size.height * 0.9f),
-            strokeWidth = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.16f, size.height * 0.9f),
-            end = Offset(size.width * 0.33f, size.height * 0.83f),
-            strokeWidth = stroke,
-        )
-    }
-}
-
-/** Булавка локации — Ionicons `location-outline` (строка локации в шапке). */
-@Composable
-fun GtLocationMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        // Купол булавки.
-        drawArc(
-            color = tint,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(size.width * 0.28f, size.height * 0.1f),
-            size = Size(size.width * 0.44f, size.height * 0.44f),
-            style = stroke,
-        )
-        // Стенки к острию.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.28f, size.height * 0.32f),
-            end = Offset(size.width * 0.5f, size.height * 0.9f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.72f, size.height * 0.32f),
-            end = Offset(size.width * 0.5f, size.height * 0.9f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
-
-/** Горшок с растением — Ionicons `bulb`-стиль для пересадки (RN 🪴). */
-@Composable
-fun GtPotMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        // Листья: два овала-лепестка над горшком.
-        drawOval(
-            color = tint,
-            topLeft = Offset(size.width * 0.12f, size.height * 0.08f),
-            size = Size(size.width * 0.34f, size.height * 0.34f),
-            style = stroke,
-        )
-        drawOval(
-            color = tint,
-            topLeft = Offset(size.width * 0.54f, size.height * 0.08f),
-            size = Size(size.width * 0.34f, size.height * 0.34f),
-            style = stroke,
-        )
-        // Стебли в горшок.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.29f, size.height * 0.4f),
-            end = Offset(size.width * 0.42f, size.height * 0.56f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.71f, size.height * 0.4f),
-            end = Offset(size.width * 0.58f, size.height * 0.56f),
-            strokeWidth = stroke.width,
-        )
-        // Корпус горшка (трапеция тремя линиями).
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.24f, size.height * 0.56f),
-            end = Offset(size.width * 0.76f, size.height * 0.56f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.32f, size.height * 0.56f),
-            end = Offset(size.width * 0.38f, size.height * 0.9f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.68f, size.height * 0.56f),
-            end = Offset(size.width * 0.62f, size.height * 0.9f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.38f, size.height * 0.9f),
-            end = Offset(size.width * 0.62f, size.height * 0.9f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
-
-/** Ножницы — Ionicons `scissors` (RN ✂️, обрезка). */
-@Composable
-fun GtScissorsMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        // Лезвия крест-накрест.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.28f, size.height * 0.14f),
-            end = Offset(size.width * 0.72f, size.height * 0.62f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.72f, size.height * 0.14f),
-            end = Offset(size.width * 0.28f, size.height * 0.62f),
-            strokeWidth = stroke.width,
-        )
-        // Кольца-ручки.
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.12f,
-            center = Offset(size.width * 0.3f, size.height * 0.78f),
-            style = stroke,
-        )
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.12f,
-            center = Offset(size.width * 0.7f, size.height * 0.78f),
-            style = stroke,
-        )
-    }
-}
-
 /** Шестерёнка — Ionicons `settings-outline` (кнопка настроек ухода). */
 @Composable
 fun GtGearMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.3f,
@@ -899,7 +656,7 @@ fun GtGearMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtTrashMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Корпус.
         drawRoundRect(
             color = tint,
@@ -950,47 +707,11 @@ fun GtTrashMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** Галерея — Ionicons `images-outline` (модалка смены фото). */
-@Composable
-fun GtGalleryMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
-        // Рамка снимка.
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(size.width * 0.14f, size.height * 0.18f),
-            size = Size(size.width * 0.72f, size.height * 0.64f),
-            cornerRadius = CornerRadius(stroke.width * 2),
-            style = stroke,
-        )
-        // Солнце.
-        drawCircle(
-            color = tint,
-            radius = size.minDimension * 0.07f,
-            center = Offset(size.width * 0.36f, size.height * 0.38f),
-            style = stroke,
-        )
-        // Гора.
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.2f, size.height * 0.76f),
-            end = Offset(size.width * 0.44f, size.height * 0.5f),
-            strokeWidth = stroke.width,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.44f, size.height * 0.5f),
-            end = Offset(size.width * 0.8f, size.height * 0.76f),
-            strokeWidth = stroke.width,
-        )
-    }
-}
-
 /** Лупа — Ionicons `search` (поиск дашборда). */
 @Composable
 fun GtSearchMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         drawCircle(
             color = tint,
             radius = size.minDimension * 0.28f,
@@ -1006,51 +727,11 @@ fun GtSearchMark(tint: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** Крест — Ionicons `close`/`close-circle` (очистка поиска). */
-@Composable
-fun GtCloseMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.25f, size.height * 0.25f),
-            end = Offset(size.width * 0.75f, size.height * 0.75f),
-            strokeWidth = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.75f, size.height * 0.25f),
-            end = Offset(size.width * 0.25f, size.height * 0.75f),
-            strokeWidth = stroke,
-        )
-    }
-}
-
-/** Плюс — Ionicons `add` (FAB и кнопка пустого состояния). */
-@Composable
-fun GtPlusMark(tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.5f, size.height * 0.2f),
-            end = Offset(size.width * 0.5f, size.height * 0.8f),
-            strokeWidth = stroke,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(size.width * 0.2f, size.height * 0.5f),
-            end = Offset(size.width * 0.8f, size.height * 0.5f),
-            strokeWidth = stroke,
-        )
-    }
-}
-
 /** Воронка — Ionicons `funnel-outline` (пустой результат фильтра). */
 @Composable
 fun GtFunnelMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
+        val stroke = markStrokeWidth()
         // Верхняя кромка и стенки конуса.
         drawLine(
             color = tint,
@@ -1096,7 +777,7 @@ fun GtFunnelMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtCloudOffMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Капсула-основание облака.
         drawRoundRect(
             color = tint,
@@ -1129,7 +810,7 @@ fun GtCloudOffMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtListViewMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = (Spacing.xxs / 4).toPx()
+        val stroke = markStrokeWidth()
         for (index in 0..2) {
             val y = size.height * (0.25f + index * 0.25f)
             drawLine(
@@ -1146,7 +827,7 @@ fun GtListViewMark(tint: Color, modifier: Modifier = Modifier) {
 @Composable
 fun GtCardViewMark(tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val stroke = Stroke(width = (Spacing.xxs / 4).toPx())
+        val stroke = markStroke()
         // Задняя карточка.
         drawRoundRect(
             color = tint,

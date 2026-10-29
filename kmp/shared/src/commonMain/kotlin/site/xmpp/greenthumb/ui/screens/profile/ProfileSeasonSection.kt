@@ -102,7 +102,7 @@ internal fun SeasonModeSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            GtWaterDropMark(tint = scheme.primary, modifier = Modifier.size(Spacing.xl))
+            GtWaterDropMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_seasonTitle),

@@ -223,7 +223,7 @@ private fun Slide(page: Int) {
         ) {
             SlideMark(
                 page = page,
-                tint = scheme.primary,
+                tint = scheme.secondary,
                 iconSide = Spacing.xxl * 2 + Spacing.xs,
             )
         }
