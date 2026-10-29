@@ -32,6 +32,7 @@ import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
+import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.season.rememberSeasonContext
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
@@ -42,6 +43,8 @@ import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedMessage
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedTitle
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisScreen
 import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
@@ -83,6 +86,8 @@ public object NavRoutes {
     public const val PLANT: String = "plant/{id}"
     /** Diagnosis of one plant (architecture §5.7), opened from plant detail. */
     public const val PLANT_DIAGNOSIS: String = "plant/{id}/diagnosis"
+    /** «Проверить на болезни» from the photo sheet: the same screen with the plant cover preset. */
+    public const val PLANT_DIAGNOSIS_COVER: String = "plant/{id}/diagnosis/cover"
     /** Экран подтверждения удаления аккаунта (Stage 12 п.4; в RN нет). */
     public const val DELETE_ACCOUNT: String = "profile/delete-account"
     /** Recovery key as a QR code (architecture §5.3). */
@@ -318,19 +323,25 @@ public fun GtAppNavGraph(
                             isOnline = connectivity.isOnline,
                             season = season,
                             onOpenDiagnosis = plantDiagnoser?.let { { navController.navigate("plant/$plantId/diagnosis") } },
+                            onCheckPhoto = plantDiagnoser?.let { { navController.navigate("plant/$plantId/diagnosis/cover") } },
                         )
                     }
                 }
             }
-            composable(NavRoutes.PLANT_DIAGNOSIS) { entry ->
-                val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
-                AppLocalizedContent {
-                    if (plantDiagnoser != null && sessionUserId != null) {
-                        DiagnosisScreen(
-                            plantId = plantId,
-                            diagnoser = plantDiagnoser,
-                            onBack = { navController.popBackStack() },
-                        )
+            for ((route, useCover) in listOf(NavRoutes.PLANT_DIAGNOSIS to false, NavRoutes.PLANT_DIAGNOSIS_COVER to true)) {
+                composable(route) { entry ->
+                    val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
+                    AppLocalizedContent {
+                        if (plantDiagnoser != null && sessionUserId != null) {
+                            PlantDiagnosisRoute(
+                                userId = sessionUserId,
+                                plantId = plantId,
+                                plants = plants,
+                                diagnoser = plantDiagnoser,
+                                useCover = useCover,
+                                onBack = { navController.popBackStack() },
+                            )
+                        }
                     }
                 }
             }
@@ -485,3 +496,48 @@ private fun PlaceholderHeader(
  * [ProfileScreen] (Stage 7 п.4, фича screen-profile): пикеры языка/темы,
  * recovery key, время уведомления, пуши-секция, выход.
  */
+
+/** The diagnosed plant as found in this account's cache; null plant = not one of its plants. */
+private data class DiagnosisPlantLookup(val plant: PlantDto?)
+
+/**
+ * «Что с растением?» route. The journal save is offered only when the plant is one of this
+ * account's plants; [useCover] presets the plant cover instead of asking for a photo.
+ */
+@Composable
+private fun PlantDiagnosisRoute(
+    userId: String,
+    plantId: String,
+    plants: PlantRepositoryOpener,
+    diagnoser: PlantDiagnoser,
+    useCover: Boolean,
+    onBack: () -> Unit,
+) {
+    val repo = remember(userId) { plants.open(userId) }
+    // Looked up once: a later list change must not rebuild the open screen.
+    var lookup by remember(repo, plantId) { mutableStateOf<DiagnosisPlantLookup?>(null) }
+    LaunchedEffect(repo, plantId) {
+        lookup = DiagnosisPlantLookup(
+            try {
+                repo.observePlants().first().firstOrNull { it.id == plantId }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                null
+            },
+        )
+    }
+    val plant = (lookup ?: return).plant
+    val journal = remember(repo, plant?.id) {
+        plant?.let { DiagnosisJournalSaver { id, uri, caption -> repo.timeline.addPhoto(id, uri, caption) } }
+    }
+    val cover = plant?.photoUrl?.takeIf { useCover && it.isNotBlank() }
+    DiagnosisScreen(
+        plantId = plantId,
+        diagnoser = diagnoser,
+        onBack = onBack,
+        journal = journal,
+        initialPhoto = cover?.let { url -> { DiagnosisLogic.coverPhoto(url, diagnoser::fetchPhoto) } },
+        subtitle = plant?.let { listOf(it.name, it.location).filter { part -> part.isNotBlank() }.joinToString(" · ") },
+    )
+}

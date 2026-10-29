@@ -173,6 +173,8 @@
     <string name="plantDetails_placeCustomHint">Например: подоконник в детской</string>
     <string name="plantDetails_photoNew">Сделать новое фото</string>
     <string name="plantDetails_photoGallery">Выбрать из галереи</string>
+    <string name="plantDetails_photoCheck">Проверить на болезни</string>
+    <string name="plantDetails_photoCheckHint">по этому фото</string>
     <string name="plantDetails_plantNotFound">Растение не найдено</string>
     <string name="plantDetails_goHome">На главную</string>
     <string name="plantDetails_everyDay">Каждый %1$d день</string>
@@ -491,9 +493,9 @@
     <string name="timeline_deleteMessage">Фото будет удалено из ленты и журнала.</string>
     <string name="timeline_deleteFailed">Не удалось удалить фото. Проверьте подключение и попробуйте ещё раз.</string>
     <!-- diagnosis.* — plant diagnosis by photo (architecture §5.7, §8.7). -->
-    <string name="diagnosis_entry">Диагностика</string>
-    <string name="diagnosis_entryDescription">Узнать по фото, что не так с растением</string>
-    <string name="diagnosis_title">Диагностика</string>
+    <string name="diagnosis_entry">Что с растением?</string>
+    <string name="diagnosis_entryDescription">Фото → возможные причины и что делать</string>
+    <string name="diagnosis_title">Что с растением?</string>
     <string name="diagnosis_intro">Сфотографируйте листья или стебель, которые вас беспокоят. Учитывается недавняя история ухода за этим растением.</string>
     <string name="diagnosis_takePhoto">Сделать фото</string>
     <string name="diagnosis_choosePhoto">Выбрать из галереи</string>
@@ -504,10 +506,9 @@
     <string name="diagnosis_loading">Анализируем фото… Это может занять до минуты.</string>
     <string name="diagnosis_cancel">Отменить диагностику</string>
     <string name="diagnosis_resultTitle">Возможные причины</string>
-    <string name="diagnosis_likelihood">Вероятность: %1$s</string>
-    <string name="diagnosis_likelihoodLow">низкая</string>
-    <string name="diagnosis_likelihoodMedium">средняя</string>
-    <string name="diagnosis_likelihoodHigh">высокая</string>
+    <string name="diagnosis_likelihoodLow">Маловероятно</string>
+    <string name="diagnosis_likelihoodMedium">Возможно</string>
+    <string name="diagnosis_likelihoodHigh">Скорее всего</string>
     <string name="diagnosis_advice">Что делать</string>
     <string name="diagnosis_summary">Итог</string>
     <string name="diagnosis_disclaimer">Это подсказка, а не диагноз. Если растению становится хуже, обратитесь к специалисту.</string>
@@ -516,8 +517,16 @@
     <string name="diagnosis_networkError">Нет связи с сервером. Проверьте интернет и повторите.</string>
     <string name="diagnosis_failed">Не удалось разобрать фото. Попробуйте другое фото.</string>
     <string name="diagnosis_retry">Повторить</string>
-    <string name="diagnosis_newDiagnosis">Новая диагностика</string>
+    <string name="diagnosis_newDiagnosis">Проверить ещё раз</string>
     <string name="diagnosis_backToPlant">К растению</string>
+    <string name="diagnosis_serviceLimit">Сегодня проверки у сервиса закончились. Попробуйте завтра.</string>
+    <string name="diagnosis_saveToJournal">Сохранить в журнал растения</string>
+    <string name="diagnosis_savedToJournal">Сохранено в журнал</string>
+    <string name="diagnosis_saveFailed">Не удалось сохранить. Попробуйте ещё раз.</string>
+    <string name="diagnosis_done">Готово</string>
+    <string name="diagnosis_journalCaptionPrefix">Что с растением?</string>
+    <string name="diagnosis_photoLoading">Загружаем фото растения…</string>
+    <string name="diagnosis_photoLoadFailed">Не удалось загрузить фото. Снимите новое.</string>
     <!-- progress.* + achievement.* — streaks and achievements (architecture §5.8). -->
     <string name="progress_entry">Прогресс и достижения</string>
     <string name="progress_title">Прогресс</string>

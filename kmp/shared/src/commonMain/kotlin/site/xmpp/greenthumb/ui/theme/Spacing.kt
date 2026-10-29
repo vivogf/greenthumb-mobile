@@ -61,4 +61,13 @@ object Sizes {
 
     /** Height of the watering progress bar on plant detail. */
     val progressBar = 8.dp
+
+    /** One likelihood dot of a diagnosis cause. */
+    val likelihoodDot = 8.dp
+
+    /** Height of the photo on the diagnosis result. */
+    val diagnosisPhoto = 140.dp
+
+    /** Photo thumbnail of a journal entry. */
+    val journalThumb = 48.dp
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.HorizontalDivider
@@ -21,6 +22,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -28,13 +31,16 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.CARE_NOTE_MAX_LENGTH
 import site.xmpp.greenthumb.core.network.CareEventDto
 import site.xmpp.greenthumb.core.network.CareEventType
+import site.xmpp.greenthumb.core.network.TimelinePhotoDto
 import site.xmpp.greenthumb.data.PlantJournal
+import site.xmpp.greenthumb.data.PlantTimeline
 import site.xmpp.greenthumb.data.isHeldForReplay
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
@@ -43,6 +49,7 @@ import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtIconButton
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtJournalMark
+import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.formatPickerDate
@@ -68,6 +75,7 @@ import site.xmpp.greenthumb.ui.res.journal_typeRepot
 import site.xmpp.greenthumb.ui.res.journal_typeWater
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
 import site.xmpp.greenthumb.ui.res.plantDetails_delete
+import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -96,6 +104,9 @@ private enum class NoteMessage { NetworkRequired, SaveFailed, DeleteFailed }
  *
  * [refreshKey] changes when the screen knows the server journal moved
  * (a confirmed watering or care update, a replay after reconnect).
+ *
+ * A `photo` entry shows its timeline photo from [timeline] as a thumbnail with the caption
+ * (a saved «Что с растением?» result, for example).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -106,10 +117,14 @@ internal fun PlantJournalSection(
     refreshKey: Int,
     locale: String,
     modifier: Modifier = Modifier,
+    timeline: PlantTimeline? = null,
 ) {
     val entries by remember(journal, plantId) {
         journal.observe(plantId).catch { emit(emptyList()) }
     }.collectAsState(initial = null)
+    val photos by remember(timeline, plantId) {
+        timeline?.observe(plantId)?.catch { emit(emptyList()) } ?: flowOf(emptyList())
+    }.collectAsState(initial = emptyList())
     var refreshFailed by remember(plantId) { mutableStateOf(false) }
     var draft by remember(plantId) { mutableStateOf("") }
     var saving by remember(plantId) { mutableStateOf(false) }
@@ -253,6 +268,7 @@ internal fun PlantJournalSection(
                 if (index > 0) HorizontalDivider(color = scheme.outlineVariant)
                 JournalRow(
                     entry = entry,
+                    photo = JournalPhotoJoin.photoFor(entry, photos),
                     locale = locale,
                     onDelete = {
                         focusManager.clearFocus()
@@ -284,13 +300,23 @@ internal fun PlantJournalSection(
 }
 
 @Composable
-private fun JournalRow(entry: CareEventDto, locale: String, onDelete: () -> Unit) {
+private fun JournalRow(entry: CareEventDto, photo: TimelinePhotoDto?, locale: String, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth().testTag("journal_entry_${entry.id}"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        if (photo != null) {
+            GtPlantPhoto(
+                photoUrl = photo.url,
+                leafSize = Spacing.lg,
+                modifier = Modifier
+                    .size(Sizes.journalThumb)
+                    .clip(RoundedCornerShape(Radii.md))
+                    .testTag("journal_thumb_${entry.id}"),
+            )
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
@@ -307,12 +333,15 @@ private fun JournalRow(entry: CareEventDto, locale: String, onDelete: () -> Unit
                     color = scheme.onSurfaceVariant,
                 )
             }
-            val note = entry.note
-            if (!note.isNullOrEmpty()) {
+            val note = JournalPhotoJoin.captionFor(entry, photo)
+            if (note != null) {
                 Text(
                     text = note,
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface,
+                    maxLines = if (photo != null) 2 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("journal_caption_${entry.id}"),
                 )
             }
         }

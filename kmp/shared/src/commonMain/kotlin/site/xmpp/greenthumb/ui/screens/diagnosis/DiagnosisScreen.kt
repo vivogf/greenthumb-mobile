@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -36,7 +37,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.stringResource
@@ -48,7 +48,6 @@ import site.xmpp.greenthumb.core.platform.deleteStaleCaptures
 import site.xmpp.greenthumb.core.platform.pickImageKeepingCapture
 import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
-import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtInputField
@@ -62,32 +61,31 @@ import site.xmpp.greenthumb.ui.res.common_cameraPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
-import site.xmpp.greenthumb.ui.res.diagnosis_advice
 import site.xmpp.greenthumb.ui.res.diagnosis_backToPlant
 import site.xmpp.greenthumb.ui.res.diagnosis_cancel
 import site.xmpp.greenthumb.ui.res.diagnosis_choosePhoto
 import site.xmpp.greenthumb.ui.res.diagnosis_dailyLimit
-import site.xmpp.greenthumb.ui.res.diagnosis_disclaimer
 import site.xmpp.greenthumb.ui.res.diagnosis_failed
 import site.xmpp.greenthumb.ui.res.diagnosis_intro
-import site.xmpp.greenthumb.ui.res.diagnosis_likelihood
+import site.xmpp.greenthumb.ui.res.diagnosis_journalCaptionPrefix
 import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodHigh
 import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodLow
 import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodMedium
 import site.xmpp.greenthumb.ui.res.diagnosis_loading
 import site.xmpp.greenthumb.ui.res.diagnosis_networkError
-import site.xmpp.greenthumb.ui.res.diagnosis_newDiagnosis
 import site.xmpp.greenthumb.ui.res.diagnosis_notePlaceholder
+import site.xmpp.greenthumb.ui.res.diagnosis_photoLoadFailed
+import site.xmpp.greenthumb.ui.res.diagnosis_photoLoading
 import site.xmpp.greenthumb.ui.res.diagnosis_photoMissing
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
-import site.xmpp.greenthumb.ui.res.diagnosis_resultTitle
 import site.xmpp.greenthumb.ui.res.diagnosis_retry
+import site.xmpp.greenthumb.ui.res.diagnosis_serviceLimit
 import site.xmpp.greenthumb.ui.res.diagnosis_submit
-import site.xmpp.greenthumb.ui.res.diagnosis_summary
 import site.xmpp.greenthumb.ui.res.diagnosis_takePhoto
 import site.xmpp.greenthumb.ui.res.diagnosis_title
 import site.xmpp.greenthumb.ui.res.diagnosis_unavailable
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 @Composable
@@ -104,16 +102,18 @@ public fun diagnosisErrorText(error: DiagnosisError): String = stringResource(
     when (error) {
         DiagnosisError.Unavailable -> Res.string.diagnosis_unavailable
         DiagnosisError.DailyLimit -> Res.string.diagnosis_dailyLimit
+        DiagnosisError.ServiceLimit -> Res.string.diagnosis_serviceLimit
         DiagnosisError.Network -> Res.string.diagnosis_networkError
         DiagnosisError.Failed -> Res.string.diagnosis_failed
     },
 )
 
 /**
- * Diagnosis of one plant (architecture §5.7): photo from camera or gallery,
- * optional note, loading with cancel, result card or a message with retry.
- * The screen owns all of its state; leaving it cancels the request and
- * deletes the kept camera shot.
+ * «Что с растением?» for one plant (architecture §5.7): photo from camera or gallery (or the
+ * plant cover from [initialPhoto]), optional note, loading with cancel, then the result on its own
+ * screen or a message with retry. [journal] is given only for a plant of this account and enables
+ * «Сохранить в журнал растения». The screen owns all of its state; leaving it cancels the request
+ * and deletes the kept camera shot.
  */
 @Composable
 public fun DiagnosisScreen(
@@ -122,6 +122,9 @@ public fun DiagnosisScreen(
     onBack: () -> Unit,
     pick: suspend (PickSource) -> PickResult = { pickImageKeepingCapture(it) },
     deleteCapture: (String) -> Unit = ::deleteCaptureFile,
+    journal: DiagnosisJournalSaver? = null,
+    initialPhoto: (suspend () -> ByteArray)? = null,
+    subtitle: String? = null,
 ) {
     val controller = remember(plantId, diagnoser) {
         deleteStaleCaptures()
@@ -132,16 +135,22 @@ public fun DiagnosisScreen(
             prepare = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
             deleteCapture = deleteCapture,
             workContext = Dispatchers.Default,
+            journal = journal,
+            initialPhoto = initialPhoto,
         )
     }
     DisposableEffect(controller) { onDispose { controller.close() } }
-    DiagnosisContent(controller = controller, onBack = onBack)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(controller) { controller.loadInitialPhoto(scope) }
+    DiagnosisContent(controller = controller, onBack = onBack, subtitle = subtitle)
 }
 
 @Composable
-internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Unit) {
+internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Unit, subtitle: String? = null) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val captionPrefix = stringResource(Res.string.diagnosis_journalCaptionPrefix)
+    val words = Likelihood.entries.associateWith { likelihoodWord(it) }
     val focusManager = LocalFocusManager.current
     val language = DiagnosisLogic.wireLanguage(LocalAppLocale.current)
     val backLabel = stringResource(Res.string.a11y_back)
@@ -159,10 +168,10 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
             .testTag("diagnosis_screen"),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Box(
                 modifier = Modifier
-                    .size(Spacing.xxl)
+                    .size(Sizes.touch)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -178,18 +187,37 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
                     direction = GtChevronDirection.Left,
                 )
             }
-            Text(
-                text = stringResource(Res.string.diagnosis_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = scheme.onSurface,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(Res.string.diagnosis_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = scheme.onSurface,
+                    modifier = Modifier.testTag("diagnosis_title"),
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("diagnosis_subtitle"),
+                    )
+                }
+            }
         }
 
         when (phase) {
-            is DiagnosisPhase.Result -> ResultContent(
+            is DiagnosisPhase.Result -> DiagnosisResultView(
                 result = phase.result,
-                onNew = controller::startOver,
-                onBack = onBack,
+                photo = controller.photo,
+                saveState = if (controller.canSaveToJournal) controller.journalSave else null,
+                onSave = {
+                    controller.saveToJournal(
+                        scope,
+                        DiagnosisJournal.caption(captionPrefix, phase.result.causes) { words.getValue(it) },
+                    )
+                },
+                onDone = onBack,
+                onAgain = controller::startOver,
             )
             DiagnosisPhase.Loading -> {
                 PhotoPreview(controller.photo)
@@ -218,6 +246,28 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
                     color = scheme.onSurfaceVariant,
                 )
                 PhotoPreview(controller.photo)
+                if (controller.photoLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().testTag("diagnosis_photoLoading"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xl))
+                        Text(
+                            text = stringResource(Res.string.diagnosis_photoLoading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (controller.photoLoadFailed) {
+                    Text(
+                        text = stringResource(Res.string.diagnosis_photoLoadFailed),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = scheme.error,
+                        modifier = Modifier.testTag("diagnosis_photoLoadError"),
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
                     SecondaryButton(
                         text = stringResource(Res.string.diagnosis_takePhoto),
@@ -277,7 +327,7 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
                             focusManager.clearFocus()
                             controller.submit(scope, language)
                         },
-                        enabled = controller.hasPhoto && !controller.picking,
+                        enabled = controller.hasPhoto && !controller.picking && !controller.photoLoading,
                         modifier = Modifier.gtButtonWidth().testTag("diagnosis_submit"),
                     )
                 }
@@ -329,80 +379,4 @@ private fun PhotoPreview(photo: ByteArray?) {
                 .testTag("diagnosis_photo"),
         )
     }
-}
-
-@Composable
-private fun ResultContent(result: DiagnosisResult, onNew: () -> Unit, onBack: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Text(
-        text = stringResource(Res.string.diagnosis_resultTitle),
-        style = MaterialTheme.typography.titleMedium,
-        color = scheme.onSurface,
-        modifier = Modifier.testTag("diagnosis_result"),
-    )
-    result.causes.forEachIndexed { index, cause ->
-        GtCard(modifier = Modifier.fillMaxWidth().testTag("diagnosis_cause_$index")) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(
-                    text = cause.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = stringResource(Res.string.diagnosis_likelihood, likelihoodWord(cause.likelihood)),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.tertiary,
-                    modifier = Modifier.testTag("diagnosis_likelihood_$index"),
-                )
-                Text(
-                    text = cause.explanation,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = stringResource(Res.string.diagnosis_advice),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = cause.advice,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                )
-            }
-        }
-    }
-    if (result.summary.isNotEmpty()) {
-        GtCard(modifier = Modifier.fillMaxWidth().testTag("diagnosis_summary")) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(
-                    text = stringResource(Res.string.diagnosis_summary),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = result.summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                )
-            }
-        }
-    }
-    Text(
-        text = stringResource(Res.string.diagnosis_disclaimer),
-        style = MaterialTheme.typography.bodySmall,
-        color = scheme.onSurfaceVariant,
-        modifier = Modifier.testTag("diagnosis_disclaimer"),
-    )
-    SecondaryButton(
-        text = stringResource(Res.string.diagnosis_newDiagnosis),
-        onClick = onNew,
-        modifier = Modifier.gtButtonWidth().testTag("diagnosis_new"),
-    )
-    PrimaryButton(
-        text = stringResource(Res.string.diagnosis_backToPlant),
-        onClick = onBack,
-        modifier = Modifier.gtButtonWidth().testTag("diagnosis_done"),
-    )
 }

@@ -5,14 +5,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.DiagnosisResponse
 import site.xmpp.greenthumb.core.network.GreenThumbApi
+import site.xmpp.greenthumb.core.network.PHOTO_CAPTION_MAX_LENGTH
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
@@ -43,8 +49,11 @@ public enum class DiagnosisError {
     /** 503 `diagnosis_unavailable`, other 5xx or an answer the app cannot show. */
     Unavailable,
 
-    /** 429 `daily_limit`. */
+    /** 429 `daily_limit` for this account (`scope: "user"`, or no scope). */
     DailyLimit,
+
+    /** 429 `daily_limit` with `scope: "global"`: the whole service has used up today's checks. */
+    ServiceLimit,
 
     /** No connection or the 75 s client deadline. */
     Network,
@@ -56,12 +65,29 @@ public enum class DiagnosisError {
 /** Network seam of diagnosis; production uses [ApiPlantDiagnoser]. */
 public fun interface PlantDiagnoser {
     public suspend fun diagnose(plantId: String, photoDataUri: String, note: String?, language: String): DiagnosisResponse
+
+    /** Bytes of a stored plant photo (the cover used by «Проверить на болезни»). */
+    public suspend fun fetchPhoto(url: String): ByteArray = throw UnsupportedOperationException("no photo download")
 }
 
 public class ApiPlantDiagnoser(private val api: GreenThumbApi) : PlantDiagnoser {
     override suspend fun diagnose(plantId: String, photoDataUri: String, note: String?, language: String): DiagnosisResponse =
         api.diagnosePlant(plantId, photoDataUri, note, language)
+
+    override suspend fun fetchPhoto(url: String): ByteArray = api.downloadPhoto(url)
 }
+
+/**
+ * Writes a diagnosis to the plant journal: one `POST /api/plants/:id/photos` with the
+ * diagnosed photo and a caption. Production goes through `PlantTimeline.addPhoto`, so the
+ * photo and its journal entry also land in the local cache.
+ */
+public fun interface DiagnosisJournalSaver {
+    public suspend fun save(plantId: String, photoDataUri: String, caption: String)
+}
+
+/** «Сохранить в журнал растения» button state; a failure keeps the result and allows a retry. */
+public enum class JournalSaveState { Idle, Saving, Saved, Failed }
 
 public object DiagnosisLogic {
     public const val MAX_CAUSES: Int = 3
@@ -108,7 +134,11 @@ public object DiagnosisLogic {
 
     public fun errorFor(error: Throwable): DiagnosisError = when (error) {
         is ApiError.Network, is ApiError.Timeout -> DiagnosisError.Network
-        is ApiError.Client -> if (error.status == 429) DiagnosisError.DailyLimit else DiagnosisError.Failed
+        is ApiError.Client -> when {
+            error.status != 429 -> DiagnosisError.Failed
+            limitScope(error.body) == "global" -> DiagnosisError.ServiceLimit
+            else -> DiagnosisError.DailyLimit
+        }
         is ApiError.Server -> DiagnosisError.Unavailable
         is ApiError.Unauthorized -> DiagnosisError.Failed
         else -> DiagnosisError.Unavailable
@@ -129,6 +159,29 @@ public object DiagnosisLogic {
     }
 
     public fun photoDataUrl(jpeg: ByteArray): String = photoDataUri(jpeg)
+
+    /** `scope` of a 429 `daily_limit` body, or null when the body has none. */
+    private fun limitScope(body: String): String? = try {
+        Json.parseToJsonElement(body).jsonObject["scope"]?.jsonPrimitive?.content
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * Raw bytes of the plant cover: a legacy `data:` URI is decoded here, any other URL is
+     * downloaded with [download] (the API client).
+     */
+    @OptIn(ExperimentalEncodingApi::class)
+    public suspend fun coverPhoto(photoUrl: String, download: suspend (String) -> ByteArray): ByteArray {
+        val url = photoUrl.trim()
+        require(url.isNotEmpty()) { "the plant has no photo" }
+        if (url.startsWith("data:", ignoreCase = true)) {
+            val comma = url.indexOf(',')
+            require(comma > 0 && url.substring(0, comma).endsWith(";base64", ignoreCase = true)) { "unsupported data URI" }
+            return Base64.decode(url.substring(comma + 1))
+        }
+        return download(url)
+    }
 }
 
 /**
@@ -143,6 +196,8 @@ public class DiagnosisController(
     private val prepare: (ByteArray) -> ByteArray,
     private val deleteCapture: (String) -> Unit,
     private val workContext: CoroutineContext = EmptyCoroutineContext,
+    private val journal: DiagnosisJournalSaver? = null,
+    private val initialPhoto: (suspend () -> ByteArray)? = null,
 ) {
     public var phase: DiagnosisPhase by mutableStateOf(DiagnosisPhase.Input)
         private set
@@ -166,9 +221,29 @@ public class DiagnosisController(
     public var pickErrorMessage: String? by mutableStateOf(null)
         private set
 
+    /** The cover photo of «Проверить на болезни» is being downloaded and prepared. */
+    public var photoLoading: Boolean by mutableStateOf(false)
+        private set
+
+    /** The cover photo could not be loaded; the normal input is shown instead. */
+    public var photoLoadFailed: Boolean by mutableStateOf(false)
+        private set
+
+    public var journalSave: JournalSaveState by mutableStateOf(JournalSaveState.Idle)
+        private set
+
     public val hasPhoto: Boolean get() = photo != null
 
-    public val canRetry: Boolean get() = error != null && error != DiagnosisError.DailyLimit && photo != null
+    /** Only a screen opened from a plant of this account gets a journal. */
+    public val canSaveToJournal: Boolean get() = journal != null
+
+    public val canRetry: Boolean
+        get() = error != null && error != DiagnosisError.DailyLimit && error != DiagnosisError.ServiceLimit && photo != null
+
+    /** The prepared JPEG of the shown result; it is the photo saved to the journal. */
+    private var resultPhoto: ByteArray? = null
+    private var journalJob: Job? = null
+    private var initialJob: Job? = null
 
     private var capturePath: String? = null
     private var pickJob: Job? = null
@@ -178,6 +253,28 @@ public class DiagnosisController(
 
     public fun updateNote(value: String) {
         note = DiagnosisLogic.clampNote(value)
+    }
+
+    /** Loads the preset photo once; without one, or on failure, the input works as usual. */
+    public fun loadInitialPhoto(scope: CoroutineScope) {
+        val load = initialPhoto ?: return
+        if (closed || initialJob != null || photo != null) return
+        photoLoading = true
+        initialJob = scope.launch {
+            try {
+                val prepared = withContext(workContext) { prepare(load()) }
+                if (!closed && photo == null) {
+                    photo = prepared
+                    photoLoadFailed = false
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                if (photo == null) photoLoadFailed = true
+            } finally {
+                photoLoading = false
+            }
+        }
     }
 
     public fun pickPhoto(scope: CoroutineScope, source: PickSource) {
@@ -220,13 +317,14 @@ public class DiagnosisController(
         capturePath?.let(deleteCapture)
         capturePath = picked.capturePath
         photo = prepared
+        photoLoadFailed = false
         error = null
         if (phase is DiagnosisPhase.Result) phase = DiagnosisPhase.Input
     }
 
     public fun submit(scope: CoroutineScope, language: String) {
         val current = photo ?: return
-        if (closed || phase == DiagnosisPhase.Loading) return
+        if (closed || phase == DiagnosisPhase.Loading || photoLoading) return
         val id = ++requestId
         val noteToSend = DiagnosisLogic.wireNote(note)
         error = null
@@ -246,12 +344,42 @@ public class DiagnosisController(
             if (id != requestId) return@launch
             requestJob = null
             outcome.fold(
-                onSuccess = { phase = DiagnosisPhase.Result(it) },
+                onSuccess = {
+                    resultPhoto = current
+                    journalJob?.cancel()
+                    journalJob = null
+                    journalSave = JournalSaveState.Idle
+                    phase = DiagnosisPhase.Result(it)
+                },
                 onFailure = {
                     error = DiagnosisLogic.errorFor(it)
                     phase = DiagnosisPhase.Input
                 },
             )
+        }
+    }
+
+    /**
+     * Saves the shown result to the plant journal: one upload of the diagnosed photo with
+     * [caption]. Saved or in-flight saves ignore further taps; a failure can be retried and
+     * sends the same photo and caption again. No diagnosis request is made.
+     */
+    public fun saveToJournal(scope: CoroutineScope, caption: String) {
+        val saver = journal ?: return
+        val jpeg = resultPhoto ?: return
+        if (closed || phase !is DiagnosisPhase.Result) return
+        if (journalSave == JournalSaveState.Saving || journalSave == JournalSaveState.Saved) return
+        journalSave = JournalSaveState.Saving
+        journalJob = scope.launch {
+            journalSave = try {
+                val dataUri = withContext(workContext) { DiagnosisLogic.photoDataUrl(jpeg) }
+                saver.save(plantId, dataUri, caption)
+                JournalSaveState.Saved
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                JournalSaveState.Failed
+            }
         }
     }
 
@@ -287,11 +415,34 @@ public class DiagnosisController(
         cancel()
         pickJob?.cancel()
         pickJob = null
+        initialJob?.cancel()
+        journalJob?.cancel()
+        journalJob = null
+        resultPhoto = null
         capturePath?.let(deleteCapture)
         capturePath = null
         photo = null
         note = ""
         error = null
         phase = DiagnosisPhase.Input
+    }
+}
+
+/** Caption of a diagnosis saved to the plant journal (VAL-CARD-014). */
+public object DiagnosisJournal {
+    private val spaces = Regex("\\s+")
+
+    /**
+     * «<prefix>: <title> (<word>), …» for each shown cause, cut to [PHOTO_CAPTION_MAX_LENGTH]
+     * with «…» and never ending in half of a surrogate pair.
+     */
+    public fun caption(prefix: String, causes: List<DiagnosisCause>, word: (Likelihood) -> String): String {
+        val full = prefix.trim() + ": " + causes.joinToString(", ") { cause ->
+            "${cause.title.replace(spaces, " ").trim()} (${word(cause.likelihood)})"
+        }
+        if (full.length <= PHOTO_CAPTION_MAX_LENGTH) return full
+        var cut = full.take(PHOTO_CAPTION_MAX_LENGTH - 1)
+        if (cut.last().isHighSurrogate()) cut = cut.dropLast(1)
+        return cut.trimEnd() + "…"
     }
 }

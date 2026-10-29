@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -120,6 +123,8 @@ import site.xmpp.greenthumb.ui.res.plantDetails_careSettings
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
 import site.xmpp.greenthumb.ui.res.plantDetails_photoGallery
 import site.xmpp.greenthumb.ui.res.plantDetails_photoNew
+import site.xmpp.greenthumb.ui.res.plantDetails_photoCheck
+import site.xmpp.greenthumb.ui.res.plantDetails_photoCheckHint
 import site.xmpp.greenthumb.ui.res.plantDetails_photoSheetTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_daysAgo
 import site.xmpp.greenthumb.ui.res.plantDetails_delete
@@ -253,6 +258,8 @@ public fun PlantDetailScreen(
     season: SeasonContext = SeasonContext.Off,
     /** Opens the diagnosis screen (architecture §5.7); null hides the entry. */
     onOpenDiagnosis: (() -> Unit)? = null,
+    /** «Проверить на болезни» in the photo sheet: diagnosis of the current cover; null hides the row. */
+    onCheckPhoto: (() -> Unit)? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
@@ -545,6 +552,7 @@ public fun PlantDetailScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .heightIn(min = Sizes.touch)
                                         .testTag("plantDetail_name")
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
@@ -739,7 +747,7 @@ public fun PlantDetailScreen(
                                         text = editLabel,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.clickableNoIndication {
+                                        modifier = Modifier.touchTextLink {
                                             editedNotes = plant.notes
                                             editingNotes = true
                                         },
@@ -807,6 +815,7 @@ public fun PlantDetailScreen(
                         // ── Journal (architecture §5.5) ──
                         PlantJournalSection(
                             journal = repo.journal,
+                            timeline = repo.timeline,
                             plantId = plant.id,
                             online = online,
                             refreshKey = journalRefreshKey,
@@ -963,6 +972,18 @@ public fun PlantDetailScreen(
                             photoPicker.launch(scope, PickSource.Gallery)
                         },
                     )
+                    if (onCheckPhoto != null && plant.photoUrl.isNotBlank()) {
+                        GtSheetRow(
+                            label = stringResource(Res.string.plantDetails_photoCheck),
+                            icon = { GtDiagnosisMark(it) },
+                            supporting = stringResource(Res.string.plantDetails_photoCheckHint),
+                            onClick = {
+                                closePhotoSheet()
+                                onCheckPhoto()
+                            },
+                            modifier = Modifier.testTag("plantDetail_photoCheck"),
+                        )
+                    }
                     GtSheetRow(
                         label = cancelText,
                         icon = null,
@@ -1041,7 +1062,7 @@ private fun NotFoundScreen(
     }
 }
 
-/** Круглая кнопка шапки, 38×38 (RN header buttons); [fill] — rgba(0,0,0,0.4) над фото. */
+/** Круглая кнопка шапки: 38×38 circle (RN header buttons) inside a 48 dp touch target; [fill] — rgba(0,0,0,0.4) над фото. */
 @Composable
 private fun HeaderIconButton(
     label: String,
@@ -1051,13 +1072,19 @@ private fun HeaderIconButton(
 ) {
     Box(
         modifier = Modifier
-            .size(Spacing.xxl + Spacing.md)
-            .background(fill, CircleShape)
+            .size(Sizes.touch)
             .clickableNoIndication(onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        content()
+        Box(
+            modifier = Modifier
+                .size(Spacing.xxl + Spacing.md)
+                .background(fill, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
     }
 }
 
@@ -1067,6 +1094,13 @@ private fun Modifier.clickableNoIndication(onClick: () -> Unit): Modifier =
         indication = null,
         onClick = onClick,
     )
+
+/** Text link with a 48 dp touch area; the click and the text stay on one semantics node. */
+private fun Modifier.touchTextLink(onClick: () -> Unit): Modifier =
+    clickableNoIndication(onClick)
+        .sizeIn(minWidth = Sizes.touch, minHeight = Sizes.touch)
+        .wrapContentSize()
+        .padding(horizontal = Spacing.xs)
 
 
 /** Данные карточки действия ухода. */
@@ -1152,11 +1186,12 @@ private fun SettingsRow(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             icon(scheme.secondary)
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyLarge,
@@ -1173,7 +1208,7 @@ private fun SettingsRow(
         }
         GtChevronMark(
             tint = scheme.onSurfaceVariant,
-            modifier = Modifier.size(Spacing.md),
+            modifier = Modifier.padding(start = Spacing.xs).size(Spacing.md).testTag("settingsRow_chevron"),
             direction = GtChevronDirection.Right,
         )
     }
@@ -1211,14 +1246,14 @@ internal fun SettingsSpeciesRow(
                 text = stringResource(if (form.speciesId == null) Res.string.species_choose else Res.string.species_change),
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.tertiary,
-                modifier = Modifier.clickableNoIndication(onChoose).padding(Spacing.xs),
+                modifier = Modifier.touchTextLink(onChoose),
             )
             if (form.speciesId != null || form.speciesName != null) {
                 Text(
                     text = stringResource(Res.string.species_clear),
                     style = MaterialTheme.typography.labelLarge,
                     color = scheme.error,
-                    modifier = Modifier.clickableNoIndication(onClear).padding(Spacing.xs),
+                    modifier = Modifier.touchTextLink(onClear),
                 )
             }
         }

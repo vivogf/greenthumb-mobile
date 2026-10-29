@@ -3,8 +3,8 @@
 # plant named ${PLANT} and keeps a plant photo in the gallery. Typed texts are
 # ASCII: Maestro inputText cannot type Cyrillic on Android. STEP selects one stage:
 #   history       water the plant and add the journal note "Spots on leaves"
-#   live          detail → «Диагностика» → gallery photo + note → result card
-#                 (1 live call) → «К растению» back to the same detail
+#   live          detail → «Что с растением?» → gallery photo + note → result
+#                 screen (1 live call) → «Готово» back to the same detail
 #   reopen        open Diagnosis again: no photo, note or result from before
 #   cancel        submit, cancel while loading; the input stays and no result
 #                 appears within 45 s (the request may still reach the server)
@@ -59,9 +59,9 @@ name: GreenThumb diagnosis (${STEP})
     commands:
       - scrollUntilVisible:
           element:
-            text: "Диагностика"
+            text: "Что с растением\\?"
           direction: DOWN
-      - tapOn: "Диагностика"
+      - tapOn: "Что с растением\\?"
       - extendedWaitUntil:
           visible: "Сфотографируйте.*"
           timeout: 10000
@@ -122,9 +122,9 @@ name: GreenThumb diagnosis (${STEP})
       - extendedWaitUntil:
           visible: "Возможные причины"
           timeout: 80000
-      - assertVisible: "Вероятность: (низкая|средняя|высокая)"
+      - assertVisible: "Скорее всего|Возможно|Маловероятно"
       - assertVisible: "Что делать"
-      - assertNotVisible: "Вероятность: .*\\d.*"
+      - assertNotVisible: ".*\\d+ ?%.*"
       - takeScreenshot: ${STEP}-result
       - scrollUntilVisible:
           element:
@@ -137,9 +137,9 @@ name: GreenThumb diagnosis (${STEP})
           commands:
             - scrollUntilVisible:
                 element:
-                  text: "К растению"
+                  text: "Готово"
                 direction: DOWN
-            - tapOn: "К растению"
+            - tapOn: "Готово"
             - extendedWaitUntil:
                 visible: "Полить"
                 timeout: 10000

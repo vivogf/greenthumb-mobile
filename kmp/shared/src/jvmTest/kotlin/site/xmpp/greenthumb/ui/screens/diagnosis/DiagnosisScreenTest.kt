@@ -54,7 +54,7 @@ import site.xmpp.greenthumb.ui.screens.plantdetail.PlantDetailScreen
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
 /**
- * VAL-DIAG-018/019/022: what the diagnosis screen shows in Russian and English
+ * VAL-DIAG-018/019/022 (M10 likelihood words), VAL-CARD-012: what the diagnosis screen shows in Russian and English
  * for a result, 503, 429, network and timeout failures, and cancel; the
  * plant-detail entry opens it.
  */
@@ -206,14 +206,14 @@ class DiagnosisScreenTest {
         assertEquals(bodies[0], bodies[1], "retry sends the same photo and note")
     }
 
-    private fun assertResult(locale: String, prefix: String, high: String, medium: String, low: String, disclaimer: String) =
+    private fun assertResult(locale: String, high: String, medium: String, low: String, disclaimer: String) =
         runDesktopComposeUiTest {
             show(locale, status(HttpStatusCode.OK, okBody))
             pickAndSubmit()
             waitFor(hasTestTag("diagnosis_result"))
-            assertTrue(exists(tagged("diagnosis_likelihood_0", "$prefix$high")))
-            assertTrue(exists(tagged("diagnosis_likelihood_1", "$prefix$medium")))
-            assertTrue(exists(tagged("diagnosis_likelihood_2", "$prefix$low")))
+            assertTrue(exists(tagged("diagnosis_likelihood_0", high)))
+            assertTrue(exists(tagged("diagnosis_likelihood_1", medium)))
+            assertTrue(exists(tagged("diagnosis_likelihood_2", low)))
             assertTrue(exists(tagged("diagnosis_disclaimer", disclaimer)))
             assertTrue(exists(hasText("Reduce watering by 20%.")), "advice text is shown as sent")
             assertTrue(exists(hasText("Most likely too much water.")))
@@ -225,13 +225,13 @@ class DiagnosisScreenTest {
 
     @Test
     fun ru_result_uses_likelihood_words_and_disclaimer() = assertResult(
-        "ru", "Вероятность: ", high = "высокая", medium = "средняя", low = "низкая",
+        "ru", high = "Скорее всего", medium = "Возможно", low = "Маловероятно",
         disclaimer = "Это подсказка, а не диагноз. Если растению становится хуже, обратитесь к специалисту.",
     )
 
     @Test
     fun en_result_uses_likelihood_words_and_disclaimer() = assertResult(
-        "en", "Likelihood: ", high = "high", medium = "medium", low = "low",
+        "en", high = "Most likely", medium = "Possible", low = "Unlikely",
         disclaimer = "This is a hint, not a verdict. If the plant keeps getting worse, ask a specialist.",
     )
 
@@ -276,8 +276,8 @@ class DiagnosisScreenTest {
     @Test
     fun likelihood_words_map_low_medium_high_in_both_languages() {
         val expected = mapOf(
-            "ru" to listOf("низкая", "средняя", "высокая"),
-            "en" to listOf("low", "medium", "high"),
+            "ru" to listOf("Маловероятно", "Возможно", "Скорее всего"),
+            "en" to listOf("Unlikely", "Possible", "Most likely"),
         )
         for ((locale, words) in expected) {
             runDesktopComposeUiTest {
@@ -329,7 +329,10 @@ class DiagnosisScreenTest {
             runCatching { dir.toPath().deleteRecursively() }
         }
         runBlocking { repo.refresh() }
-        for ((locale, label) in listOf("ru" to "Диагностика", "en" to "Diagnosis")) {
+        for ((locale, label, line) in listOf(
+            Triple("ru", "Что с растением?", "Фото → возможные причины и что делать"),
+            Triple("en", "What's wrong with my plant?", "Photo → likely causes and what to do"),
+        )) {
             runDesktopComposeUiTest {
                 var opened by mutableStateOf(0)
                 setContent {
@@ -348,6 +351,9 @@ class DiagnosisScreenTest {
                     }
                 }
                 waitFor(tagged("plantDetail_diagnosis", label))
+                assertTrue(exists(tagged("plantDetail_diagnosis", line)), "[$locale] supporting line")
+                val all = texts()
+                assertTrue(all.none { it == "Диагностика" || it == "Diagnosis" }, "[$locale] no old entry label: $all")
                 onNode(hasTestTag("plantDetail_diagnosis")).performSemanticsAction(SemanticsActions.OnClick)
                 waitForIdle()
                 assertEquals(1, opened, locale)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.toggleable
@@ -18,6 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -51,10 +53,10 @@ fun GtSwitch(
         animationSpec = tween(durationMillis = 150),
         label = "switchThumb",
     )
+    // The tappable node is at least 48 dp; the track inside keeps its RN size.
     Box(
         modifier = modifier
-            .size(width = SwitchWidth, height = SwitchHeight)
-            .background(trackColor, RoundedCornerShape(percent = 50))
+            .sizeIn(minWidth = Sizes.touch, minHeight = Sizes.touch)
             .toggleable(
                 value = checked,
                 role = Role.Switch,
@@ -68,15 +70,22 @@ fun GtSwitch(
                 // (a11y-имя тумблера пушей); поведение switch не меняется.
                 this.contentDescription = contentDescription
             },
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = Spacing.xxs / 4)
-                .size(width = SwitchThumbWidth, height = SwitchHeight - Spacing.xxs / 2)
-                .background(thumbColor, CircleShape),
-        )
+                .size(width = SwitchWidth, height = SwitchHeight)
+                .background(trackColor, RoundedCornerShape(percent = 50)),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                    .padding(horizontal = Spacing.xxs / 4)
+                    .size(width = SwitchThumbWidth, height = SwitchHeight - Spacing.xxs / 2)
+                    .background(thumbColor, CircleShape),
+            )
+        }
     }
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -45,6 +46,7 @@ import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
 import site.xmpp.greenthumb.ui.theme.Motion
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /** Частица всплеска полива. */
@@ -159,6 +161,7 @@ public fun GtWaterButton(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = Sizes.touch)
                     .graphicsLayer { scaleX = pop; scaleY = pop }
                     .background(scheme.primary, RoundedCornerShape(Radii.md))
                     .clickable(enabled = !watered, role = Role.Button, onClick = ::handlePress)

@@ -1,6 +1,7 @@
 package site.xmpp.greenthumb.core.network
 
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpMethod
 import kotlinx.serialization.StringFormat
@@ -150,6 +151,13 @@ class GreenThumbApi(private val client: ApiClient) {
         request<TimelinePhotosPage>(HttpMethod.Get, "/api/plants/$plantId/photos").photos
 
     /** POST /api/plants/:id/photos { photo, caption? } → 201 photo + its `photo` event. */
+    /**
+     * GET of a stored plant photo (absolute public URL of the photo store) → its bytes.
+     * Throws [ApiError] like any other call, so a failed download is a normal error.
+     */
+    suspend fun downloadPhoto(url: String): ByteArray =
+        client.request(HttpMethod.Get, url, timeoutMillis = PHOTO_UPLOAD_TIMEOUT_MILLIS).bodyAsBytes()
+
     suspend fun addPhoto(plantId: String, photoDataUri: String, caption: String?): CreatedTimelinePhotoDto =
         json.decodeFromString(
             decodeBody(
