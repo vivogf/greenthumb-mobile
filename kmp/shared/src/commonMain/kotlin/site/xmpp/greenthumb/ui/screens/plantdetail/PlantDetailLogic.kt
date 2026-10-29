@@ -295,3 +295,9 @@ public object CareSettingsPatch {
         return patch
     }
 }
+
+/**
+ * The dark header gradient keeps white header text readable over a photo. In the light theme a plant
+ * without a photo shows only the light placeholder: a scrim there would turn it grey and darken the screen.
+ */
+internal fun headerNeedsScrim(photoUrl: String, darkTheme: Boolean): Boolean = darkTheme || photoUrl.isNotBlank()

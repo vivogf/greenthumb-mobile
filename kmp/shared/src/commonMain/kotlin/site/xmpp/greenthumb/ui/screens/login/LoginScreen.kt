@@ -51,6 +51,7 @@ import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.LocalRecoveryKeyVault
 import site.xmpp.greenthumb.core.platform.OpenUrl
+import site.xmpp.greenthumb.core.platform.SystemBackHandler
 import site.xmpp.greenthumb.core.storage.MissingRecoveryKeyException
 import site.xmpp.greenthumb.core.storage.SessionManager
 import site.xmpp.greenthumb.core.storage.SessionState
@@ -138,6 +139,12 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  */
 public enum class LoginMode { Choose, Create, Login }
 
+/** Where system Back leads from [mode]; null leaves Back to the system (Choose is the first screen). */
+internal fun loginBackTarget(mode: LoginMode): LoginMode? = when (mode) {
+    LoginMode.Choose -> null
+    LoginMode.Create, LoginMode.Login -> LoginMode.Choose
+}
+
 /**
  * Экран логина (режимы choose/create/login; RN app/(auth)/login.tsx).
  *
@@ -158,6 +165,9 @@ public fun LoginScreen(
 ) {
     // Keyed: Key not found can switch the start mode after this screen is already composed.
     var mode by remember(initialMode) { mutableStateOf(initialMode) }
+    SystemBackHandler(enabled = loginBackTarget(mode) != null) {
+        loginBackTarget(mode)?.let { mode = it }
+    }
     when (mode) {
         LoginMode.Choose -> ChooseMode(onChoose = { mode = LoginMode.Create }, onLogin = { mode = LoginMode.Login })
         LoginMode.Create -> CreateMode(

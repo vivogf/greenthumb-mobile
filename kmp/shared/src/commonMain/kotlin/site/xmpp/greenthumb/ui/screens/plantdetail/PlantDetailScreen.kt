@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -469,6 +470,18 @@ public fun PlantDetailScreen(
                 is WateredAgoLabel.DaysAgo -> stringResource(Res.string.plantDetails_daysAgo, label.days)
             }
 
+            val headerScrim = headerNeedsScrim(
+                photoUrl = plant.photoUrl,
+                darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f,
+            )
+            val headerInk = if (headerScrim) Color.White else MaterialTheme.colorScheme.onSurface
+            val headerPencil =
+                if (headerScrim) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+            val headerMuted =
+                if (headerScrim) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+            val headerButtonFill =
+                if (headerScrim) Color.Black.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(
                     modifier = Modifier
@@ -493,12 +506,18 @@ public fun PlantDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        0f to Color.Black.copy(alpha = 0.35f),
-                                        0.5f to Color.Transparent,
-                                        1f to Color.Black.copy(alpha = 0.7f),
-                                    ),
+                                .then(
+                                    if (headerScrim) {
+                                        Modifier.background(
+                                            Brush.verticalGradient(
+                                                0f to Color.Black.copy(alpha = 0.35f),
+                                                0.5f to Color.Transparent,
+                                                1f to Color.Black.copy(alpha = 0.7f),
+                                            ),
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
                                 )
                                 .testTag("plantDetail_headerPhoto")
                                 .clickable(role = Role.Image, onClickLabel = photoSheetTitle) {
@@ -516,21 +535,22 @@ public fun PlantDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                HeaderIconButton(label = backLabel, onClick = onBack) {
+                                HeaderIconButton(label = backLabel, fill = headerButtonFill, onClick = onBack) {
                                     GtChevronMark(
-                                        tint = Color.White,
+                                        tint = headerInk,
                                         modifier = Modifier.size(Spacing.lg),
                                         direction = GtChevronDirection.Left,
                                     )
                                 }
                                 HeaderIconButton(
                                     label = changePhotoLabel,
+                                    fill = headerButtonFill,
                                     onClick = {
                                         focusManager.clearFocus()
                                         showPhotoSheet = true
                                     },
                                 ) {
-                                    GtCameraMark(tint = Color.White, modifier = Modifier.size(Spacing.lg))
+                                    GtCameraMark(tint = headerInk, modifier = Modifier.size(Spacing.lg))
                                 }
                             }
                             Spacer(modifier = Modifier.weight(1f))
@@ -573,11 +593,11 @@ public fun PlantDetailScreen(
                                             text = plant.name,
                                             style = MaterialTheme.typography.headlineSmall
                                                 .copy(fontWeight = FontWeight.Bold),
-                                            color = Color.White,
+                                            color = headerInk,
                                             modifier = Modifier.weight(1f),
                                         )
                                         GtPencilMark(
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = headerPencil,
                                             modifier = Modifier.size(Spacing.lg),
                                         )
                                     }
@@ -588,13 +608,13 @@ public fun PlantDetailScreen(
                                     horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
                                 ) {
                                     GtLocationMark(
-                                        tint = Color.White.copy(alpha = 0.75f),
+                                        tint = headerMuted,
                                         modifier = Modifier.size(Spacing.sm),
                                     )
                                     Text(
                                         text = plant.location,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White.copy(alpha = 0.75f),
+                                        color = headerMuted,
                                     )
                                 }
                             }
@@ -1063,17 +1083,18 @@ private fun NameEditField(
     )
 }
 
-/** Круглая кнопка шапки: rgba(0,0,0,0.4) фон, 38×38 (RN header buttons). */
+/** Круглая кнопка шапки, 38×38 (RN header buttons); [fill] — rgba(0,0,0,0.4) над фото. */
 @Composable
 private fun HeaderIconButton(
     label: String,
+    fill: Color,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .size(Spacing.xxl + Spacing.md)
-            .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+            .background(fill, CircleShape)
             .clickableNoIndication(onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,

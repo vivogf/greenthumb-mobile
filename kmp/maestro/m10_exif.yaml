@@ -63,7 +63,7 @@ name: M10 EXIF guard (${STEP})
           visible: "Add photo|Добавить фото"
           timeout: 10000
       - tapOn: "Add photo|Добавить фото"
-      - tapOn: "Gallery|Галерея"
+      - tapOn: "Choose from gallery|Выбрать из галереи|Gallery|Галерея"
       - extendedWaitUntil:
           visible: "Photo taken on.*"
           timeout: 10000
@@ -101,7 +101,7 @@ name: M10 EXIF guard (${STEP})
             text: "Add photo|Добавить фото"
           direction: DOWN
       - tapOn: "Add photo|Добавить фото"
-      - tapOn: "Gallery|Галерея"
+      - tapOn: "Choose from gallery|Выбрать из галереи|Gallery|Галерея"
       - extendedWaitUntil:
           visible: "Photo taken on.*"
           timeout: 10000

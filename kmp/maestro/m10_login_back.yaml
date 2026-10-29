@@ -1,0 +1,47 @@
+# M10a fix: system Back on the login screen. Create and «I Have a Key» modes return to the choose
+# screen; Back on the choose screen leaves the app (default behaviour). Needs no account; clears app state.
+appId: com.greenthumbplantcare.debug
+name: M10 login — system Back
+---
+- launchApp:
+    clearState: true
+- repeat:
+    times: 15
+    while:
+      notVisible: "Create New Account|Создать аккаунт"
+    commands:
+      - runFlow:
+          when:
+            visible: "Skip|Пропустить"
+          commands:
+            - tapOn: "Skip|Пропустить"
+      - runFlow:
+          when:
+            visible: "Welcome Back|С возвращением"
+          commands:
+            - back
+- assertVisible: "Create New Account|Создать аккаунт"
+- tapOn: "Create New Account|Создать аккаунт"
+- extendedWaitUntil:
+    visible: "Create Account|Создание аккаунта"
+    timeout: 5000
+- takeScreenshot: login-back-create
+- back
+- extendedWaitUntil:
+    visible: "Create New Account|Создать аккаунт"
+    timeout: 5000
+- assertNotVisible: "Create Account|Создание аккаунта"
+- tapOn: "I Have a Key|У меня есть ключ"
+- extendedWaitUntil:
+    visible: "Welcome Back|С возвращением"
+    timeout: 5000
+- back
+- extendedWaitUntil:
+    visible: "Create New Account|Создать аккаунт"
+    timeout: 5000
+- assertNotVisible: "Welcome Back|С возвращением"
+- takeScreenshot: login-back-choose
+- back
+- extendedWaitUntil:
+    notVisible: "Create New Account|Создать аккаунт"
+    timeout: 5000

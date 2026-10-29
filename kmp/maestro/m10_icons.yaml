@@ -27,7 +27,7 @@ name: M10 icons — call sites
     direction: UP
 - tapOn: "Change plant photo|Сменить фото растения|Изменить фото.*"
 - extendedWaitUntil:
-    visible: "Gallery|Галерея"
+    visible: "Choose from gallery|Выбрать из галереи"
     timeout: 5000
 - takeScreenshot: icons-photo-sheet
 - back

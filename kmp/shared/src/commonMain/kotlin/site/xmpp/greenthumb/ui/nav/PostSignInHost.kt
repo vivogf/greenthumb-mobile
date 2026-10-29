@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.PushTokens
+import site.xmpp.greenthumb.core.platform.SystemBackHandler
 import site.xmpp.greenthumb.ui.screens.enablenotifications.EnableNotificationsScreen
 import site.xmpp.greenthumb.ui.screens.login.ShowKeySurface
 
@@ -54,13 +55,17 @@ public fun PostSignInHost(
     var current by remember { mutableStateOf(surface) }
     AppLocalizedContent {
         when (val s = current) {
-            is PostSignInSurface.ShowKey ->
+            is PostSignInSurface.ShowKey -> {
+                // The account already exists, so Back cannot return to the choose screen. Closing the
+                // app here would drop this one-time screen before the user confirms the key is saved.
+                SystemBackHandler(enabled = true) {}
                 ShowKeySurface(
                     recoveryKey = s.recoveryKey,
                     userId = userId,
                     onContinue = { current = PostSignInSurface.Enable },
                     keyNotStored = s.keyNotStored,
                 )
+            }
             PostSignInSurface.Enable ->
                 EnableNotificationsScreen(
                     push = push,
