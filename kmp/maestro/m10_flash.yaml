@@ -1,0 +1,45 @@
+# M10 VAL-LOOK-002 / VAL-LOOK-003: the path recorded for the white-flash check.
+# Needs a signed-in app (m10_flash_login.yaml) with two plants without photos, one named
+# "Flash Fern". Cold start (launchApp stops the app first) → dashboard → plant → Back →
+# Add Plant → Back → Profile → Back. Every step asserts the screen it reached, so the same
+# flow also proves navigation works with the system animation scales at 0.
+# Profile shows the recovery key and sets FLAG_SECURE: screenrecord draws the wallpaper
+# instead of the Profile window, so those frames are not app frames.
+appId: com.greenthumbplantcare.debug
+name: M10 flash — cold start and screen changes
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Flash Fern"
+    timeout: 20000
+- assertVisible: "My Plants|Мои растения"
+- tapOn: "Flash Fern"
+- extendedWaitUntil:
+    notVisible: "My Plants|Мои растения"
+    timeout: 5000
+- assertVisible: "Flash Fern"
+- takeScreenshot: m10-plant
+- back
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 5000
+- tapOn: "Add a new plant|Добавить новое растение"
+- extendedWaitUntil:
+    visible: "Add New Plant|Новое растение"
+    timeout: 5000
+- takeScreenshot: m10-add-plant
+- back
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 5000
+- tapOn: "Profile|Профиль"
+- extendedWaitUntil:
+    visible: "My Profile|Мой профиль"
+    timeout: 5000
+- takeScreenshot: m10-profile
+- back
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 5000
+- takeScreenshot: m10-dashboard

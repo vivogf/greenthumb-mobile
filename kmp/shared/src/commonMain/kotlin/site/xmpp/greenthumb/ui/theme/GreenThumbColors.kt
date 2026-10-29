@@ -51,8 +51,14 @@ object GreenThumbColors {
      */
     val success: Color = Color(red = 0x22 / 255f, green = 0xC5 / 255f, blue = 0x5E / 255f)
 
-    val light: ColorScheme = scheme(LightPalette, DarkPalette, isLight = true)
-    val dark: ColorScheme = scheme(DarkPalette, LightPalette, isLight = false)
+    /**
+     * Dark scrim: the page colour at 60 %, so a sheet never lifts the screen towards grey. The
+     * light theme keeps [modalScrim]: a light scrim over a light screen would hide nothing.
+     */
+    val darkScrim: Color = Color(red = 0x0A / 255f, green = 0x10 / 255f, blue = 0x0B / 255f, alpha = 0.6f)
+
+    val light: ColorScheme = scheme(LightPalette, DarkPalette, isLight = true, scrim = modalScrim)
+    val dark: ColorScheme = scheme(DarkPalette, LightPalette, isLight = false, scrim = darkScrim)
 }
 
 private data class Palette(
@@ -107,7 +113,7 @@ private val DarkPalette = Palette(
  * Все слоты заданы явно: дефолты `lightColorScheme`/`darkColorScheme` не
  * используются. Фабрика light/dark одна и та же, потому что аргументы полные.
  */
-private fun scheme(p: Palette, inverse: Palette, isLight: Boolean): ColorScheme = lightColorScheme(
+private fun scheme(p: Palette, inverse: Palette, isLight: Boolean, scrim: Color): ColorScheme = lightColorScheme(
     primary = p.primary,
     onPrimary = p.primaryForeground,
     primaryContainer = p.muted,
@@ -136,7 +142,7 @@ private fun scheme(p: Palette, inverse: Palette, isLight: Boolean): ColorScheme 
     onErrorContainer = p.destructiveForeground,
     outline = p.border,
     outlineVariant = p.cardBorder,
-    scrim = GreenThumbColors.modalScrim,
+    scrim = scrim,
     surfaceBright = if (isLight) p.background else p.input,
     surfaceDim = if (isLight) p.muted else p.background,
     surfaceContainerLowest = p.background,

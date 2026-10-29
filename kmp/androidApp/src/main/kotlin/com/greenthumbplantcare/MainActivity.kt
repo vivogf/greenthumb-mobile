@@ -15,6 +15,7 @@ import site.xmpp.greenthumb.App
 import site.xmpp.greenthumb.core.platform.AppActivityHolder
 import site.xmpp.greenthumb.core.platform.AppLocale
 import site.xmpp.greenthumb.core.platform.Connectivity
+import site.xmpp.greenthumb.core.platform.WindowColors
 import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.ApiSpeciesIdentifier
 
@@ -36,6 +37,8 @@ class MainActivity : ComponentActivity() {
         // живёт на Activity, Application-контекста недостаточно. Пишется до
         // setContent — pickImage вызывается уже из первого кадра экранов.
         AppActivityHolder.activity = this
+        // The last in-app Light/Dark choice, before the first frame (the manifest theme is dark).
+        WindowColors.applySaved(this)
         // Граф сессии и opener per-user баз — на процесс (Application, фикс M6
         // VAL-SHELL-003): пересоздание Activity конфигурацией (поворот, масштаб
         // шрифта) переиспользует их вместо повторного открытия DataStore-файлов

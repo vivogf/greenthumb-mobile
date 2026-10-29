@@ -56,7 +56,9 @@ import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
 import site.xmpp.greenthumb.ui.screens.progress.ProgressScreen
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
+import site.xmpp.greenthumb.ui.theme.LocalReduceMotion
 import site.xmpp.greenthumb.ui.theme.Spacing
+import site.xmpp.greenthumb.ui.theme.screenTransitions
 
 /**
  * Маршруты графа — 1:1 с expo-router `app/` (RN): имена фичи kmp-navigation
@@ -181,145 +183,155 @@ public fun GtAppNavGraph(
     // Null for the few milliseconds auto mode waits for the latitude table (preloaded in App());
     // season-dependent screens stay blank instead of showing unadjusted statuses that then flip.
     val season = rememberSeasonContext(session)
-    NavHost(navController = navController, startDestination = startDestination) {
-        composable(NavRoutes.WELCOME) {
-            AppLocalizedContent {
-                WelcomeScreen(
-                    settings = settings,
-                    onFinish = {
-                        navController.navigate(NavRoutes.LOGIN) {
-                            // Единственное законное завершение карусели — вход:
-                            // интро не возвращается по Back после завершения
-                            // (RN router.replace — не push).
-                            popUpTo(NavRoutes.WELCOME) { inclusive = true }
+    val transitions = screenTransitions(LocalReduceMotion.current)
+    GtPageRoot {
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            enterTransition = { transitions.enter },
+            exitTransition = { transitions.exit },
+            popEnterTransition = { transitions.enter },
+            popExitTransition = { transitions.exit },
+        ) {
+            composable(NavRoutes.WELCOME) {
+                AppLocalizedContent {
+                    WelcomeScreen(
+                        settings = settings,
+                        onFinish = {
+                            navController.navigate(NavRoutes.LOGIN) {
+                                // Единственное законное завершение карусели — вход:
+                                // интро не возвращается по Back после завершения
+                                // (RN router.replace — не push).
+                                popUpTo(NavRoutes.WELCOME) { inclusive = true }
+                            }
+                        },
+                    )
+                }
+            }
+            composable(NavRoutes.LOGIN) {
+                AppLocalizedContent {
+                    LoginScreen(
+                        session = session,
+                        onAccountCreated = onAccountCreated,
+                        initialMode = initialLoginMode,
+                        initialNotice = initialLoginNotice,
+                    )
+                }
+            }
+            composable(NavRoutes.TABS_DASHBOARD) {
+                AppLocalizedContent {
+                    TabShell(selected = GtTab.Plants, onSelect = { navController.navigateTab(it.route) }) {
+                        if (sessionUserId != null && season != null) {
+                            DashboardScreen(
+                                userId = sessionUserId,
+                                session = session,
+                                onlineSession = onlineSession,
+                                connectivity = connectivity,
+                                opener = plants,
+                                settings = settings,
+                                onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
+                                onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
+                                season = season,
+                            )
                         }
-                    },
-                )
+                    }
+                }
             }
-        }
-        composable(NavRoutes.LOGIN) {
-            AppLocalizedContent {
-                LoginScreen(
-                    session = session,
-                    onAccountCreated = onAccountCreated,
-                    initialMode = initialLoginMode,
-                    initialNotice = initialLoginNotice,
-                )
-            }
-        }
-        composable(NavRoutes.TABS_DASHBOARD) {
-            AppLocalizedContent {
-                TabShell(selected = GtTab.Plants, onSelect = { navController.navigateTab(it.route) }) {
-                    if (sessionUserId != null && season != null) {
-                        DashboardScreen(
-                            userId = sessionUserId,
+            composable(NavRoutes.TABS_PROFILE) {
+                AppLocalizedContent {
+                    TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
+                        ProfileScreen(
                             session = session,
-                            onlineSession = onlineSession,
-                            connectivity = connectivity,
-                            opener = plants,
                             settings = settings,
-                            onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
+                            push = push,
+                            pushLanguage = { pushLanguage() },
                             onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
-                            season = season,
+                            onDeleteAccount = { navController.navigate(NavRoutes.DELETE_ACCOUNT) },
+                            onShowKeyQr = { navController.navigate(NavRoutes.KEY_QR) },
+                            onOpenProgress = sessionUserId?.let { { navController.navigate(NavRoutes.PROGRESS) } },
                         )
                     }
                 }
             }
-        }
-        composable(NavRoutes.TABS_PROFILE) {
-            AppLocalizedContent {
-                TabShell(selected = GtTab.Profile, onSelect = { navController.navigateTab(it.route) }) {
-                    ProfileScreen(
+            // Экран подтверждения удаления аккаунта (Stage 12 п.4, VAL-REL-003):
+            // подтверждение → session.deleteAccount() → SignedOut пересобирает
+            // граф на экран входа (App()); экрану самостоятельная навигация
+            // после успеха не нужна. Back — popBackStack на профиль.
+            composable(NavRoutes.DELETE_ACCOUNT) {
+                AppLocalizedContent {
+                    DeleteAccountScreen(
                         session = session,
-                        settings = settings,
-                        push = push,
-                        pushLanguage = { pushLanguage() },
-                        onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
-                        onDeleteAccount = { navController.navigate(NavRoutes.DELETE_ACCOUNT) },
-                        onShowKeyQr = { navController.navigate(NavRoutes.KEY_QR) },
-                        onOpenProgress = sessionUserId?.let { { navController.navigate(NavRoutes.PROGRESS) } },
-                    )
-                }
-            }
-        }
-        // Экран подтверждения удаления аккаунта (Stage 12 п.4, VAL-REL-003):
-        // подтверждение → session.deleteAccount() → SignedOut пересобирает
-        // граф на экран входа (App()); экрану самостоятельная навигация
-        // после успеха не нужна. Back — popBackStack на профиль.
-        composable(NavRoutes.DELETE_ACCOUNT) {
-            AppLocalizedContent {
-                DeleteAccountScreen(
-                    session = session,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-        }
-        composable(NavRoutes.KEY_QR) {
-            AppLocalizedContent {
-                RecoveryKeyQrScreen(
-                    session = session,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-        }
-        composable(NavRoutes.PROGRESS) {
-            AppLocalizedContent {
-                if (sessionUserId != null) {
-                    ProgressScreen(
-                        userId = sessionUserId,
-                        opener = plants,
-                        isOnline = connectivity.isOnline,
                         onBack = { navController.popBackStack() },
                     )
                 }
             }
-        }
-        composable(NavRoutes.ADD_PLANT) {
-            AppLocalizedContent {
-                if (sessionUserId != null) {
-                    AddPlantScreen(
-                        userId = sessionUserId,
-                        opener = plants,
+            composable(NavRoutes.KEY_QR) {
+                AppLocalizedContent {
+                    RecoveryKeyQrScreen(
+                        session = session,
                         onBack = { navController.popBackStack() },
-                        identifier = speciesIdentifier,
                     )
                 }
             }
-        }
-        composable(NavRoutes.PLANT) { entry ->
-            // SavedState в navigation 2.9.2 мультиплатформенный: строковые
-            // аргументы читаются SavedStateReader'ом (на Android SavedState —
-            // Bundle, читатель тот же API).
-            val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
-            AppLocalizedContent {
-                if (season != null) {
-                    PlantDetailScreen(
-                        userId = sessionUserId ?: "",
-                        plantId = plantId,
-                        opener = plants,
-                        onBack = { navController.popBackStack() },
-                        // RN onMutate: router.replace('/') сразу после подтверждения
-                        // — экран исчезает до ответа сети (репозиторий уже убрал
-                        // строку из Room). popBackStack — дашборд с сохранённым
-                        // состоянием вкладки.
-                        onDeleted = { navController.popBackStack() },
-                        deleteErrorState = deleteErrorState,
-                        isOnline = connectivity.isOnline,
-                        season = season,
-                        onOpenDiagnosis = plantDiagnoser?.let { { navController.navigate("plant/$plantId/diagnosis") } },
-                    )
+            composable(NavRoutes.PROGRESS) {
+                AppLocalizedContent {
+                    if (sessionUserId != null) {
+                        ProgressScreen(
+                            userId = sessionUserId,
+                            opener = plants,
+                            isOnline = connectivity.isOnline,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                 }
             }
-        }
-        composable(NavRoutes.PLANT_DIAGNOSIS) { entry ->
-            val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
-            AppLocalizedContent {
-                if (plantDiagnoser != null && sessionUserId != null) {
-                    DiagnosisScreen(
-                        plantId = plantId,
-                        diagnoser = plantDiagnoser,
-                        onBack = { navController.popBackStack() },
-                    )
+            composable(NavRoutes.ADD_PLANT) {
+                AppLocalizedContent {
+                    if (sessionUserId != null) {
+                        AddPlantScreen(
+                            userId = sessionUserId,
+                            opener = plants,
+                            onBack = { navController.popBackStack() },
+                            identifier = speciesIdentifier,
+                        )
+                    }
+                }
+            }
+            composable(NavRoutes.PLANT) { entry ->
+                // SavedState в navigation 2.9.2 мультиплатформенный: строковые
+                // аргументы читаются SavedStateReader'ом (на Android SavedState —
+                // Bundle, читатель тот же API).
+                val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
+                AppLocalizedContent {
+                    if (season != null) {
+                        PlantDetailScreen(
+                            userId = sessionUserId ?: "",
+                            plantId = plantId,
+                            opener = plants,
+                            onBack = { navController.popBackStack() },
+                            // RN onMutate: router.replace('/') сразу после подтверждения
+                            // — экран исчезает до ответа сети (репозиторий уже убрал
+                            // строку из Room). popBackStack — дашборд с сохранённым
+                            // состоянием вкладки.
+                            onDeleted = { navController.popBackStack() },
+                            deleteErrorState = deleteErrorState,
+                            isOnline = connectivity.isOnline,
+                            season = season,
+                            onOpenDiagnosis = plantDiagnoser?.let { { navController.navigate("plant/$plantId/diagnosis") } },
+                        )
+                    }
+                }
+            }
+            composable(NavRoutes.PLANT_DIAGNOSIS) { entry ->
+                val plantId = entry.arguments?.read { getStringOrNull(NavRoutes.PLANT_ARG) }.orEmpty()
+                AppLocalizedContent {
+                    if (plantDiagnoser != null && sessionUserId != null) {
+                        DiagnosisScreen(
+                            plantId = plantId,
+                            diagnoser = plantDiagnoser,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                 }
             }
         }

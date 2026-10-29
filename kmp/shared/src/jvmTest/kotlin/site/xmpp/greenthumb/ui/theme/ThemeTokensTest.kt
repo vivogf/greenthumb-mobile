@@ -80,6 +80,8 @@ class ThemeTokensTest {
         assertRgba(dark.amberBg, 217, 119, 6, 0.12f, "dark.amberBg")
         assertRgba(dark.amberBorder, 217, 119, 6, 0.25f, "dark.amberBorder")
         assertHex(dark.cardBorder, "#272420")
+        assertHex(dark.page, "#0a100b")
+        assertHex(light.page, "#f3f6f1")
 
         assertEquals(GreenThumbColors.light.outlineVariant.toArgb(), light.cardBorder.toArgb())
         assertEquals(GreenThumbColors.dark.outlineVariant.toArgb(), dark.cardBorder.toArgb())
@@ -87,7 +89,7 @@ class ThemeTokensTest {
 
     @Test
     fun scheme_slots_stay_inside_palette_or_modal_scrim() {
-        val allowed = paletteArgb() + GreenThumbColors.modalScrim.toArgb()
+        val allowed = paletteArgb() + GreenThumbColors.modalScrim.toArgb() + GreenThumbColors.darkScrim.toArgb()
         for (scheme in listOf(GreenThumbColors.light, GreenThumbColors.dark)) {
             for ((name, color) in slots(scheme)) {
                 assertTrue(color.toArgb() in allowed, "$name ${color.toArgb().toUInt().toString(16)} is not a constants.ts color or the modal scrim")
@@ -95,7 +97,8 @@ class ThemeTokensTest {
         }
         assertRgba(GreenThumbColors.modalScrim, 0, 0, 0, 0.5f, "modalScrim")
         assertEquals(GreenThumbColors.modalScrim, GreenThumbColors.light.scrim)
-        assertEquals(GreenThumbColors.modalScrim, GreenThumbColors.dark.scrim)
+        assertRgba(GreenThumbColors.darkScrim, 0x0A, 0x10, 0x0B, 0.6f, "darkScrim")
+        assertEquals(GreenThumbColors.darkScrim, GreenThumbColors.dark.scrim)
     }
 
     @Test

@@ -70,6 +70,10 @@ object Motion {
     /** Развёртка слева направо по списку: `delay={props.index * 70}` — `index.tsx:700`. */
     const val ThanosStaggerMs = 70
 
+    /** Screen change: fade only, enter 200 ms, exit 160 ms (VAL-LOOK-001: both at most 200). */
+    const val ScreenEnterMs = 200
+    const val ScreenExitMs = 160
+
     const val BulkWaterSnapMs = 1150
     const val BulkWaterSuccessBannerMs = 2400
 

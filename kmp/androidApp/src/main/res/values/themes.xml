@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Window theme (M10 VAL-LOOK-001): a dark platform theme whose window, splash and system
+         bars are the «Лес» page colour, so no white frame shows before Compose draws or while
+         two screens cross-fade. MainActivity repaints the window for the in-app Light theme
+         (WindowColors in :shared). -->
+    <style name="Theme.GreenThumb" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/gt_page</item>
+        <item name="android:colorBackground">@color/gt_page</item>
+        <item name="android:statusBarColor">@color/gt_page</item>
+        <item name="android:navigationBarColor">@color/gt_page</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/gt_page</item>
+        <!-- An explicit splash icon: without it the system may draw the themed launcher icon,
+             whose light grey disc fills the screen for a few frames on a cold start. -->
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@mipmap/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">@color/gt_page</item>
+    </style>
+</resources>

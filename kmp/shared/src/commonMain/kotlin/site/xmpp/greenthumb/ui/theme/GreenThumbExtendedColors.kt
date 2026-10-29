@@ -19,6 +19,8 @@ data class GreenThumbExtendedColors(
     val amberBg: Color,
     val amberBorder: Color,
     val cardBorder: Color,
+    /** «Лес» page: the window, the navigation root and the system bars behind every screen. */
+    val page: Color,
 ) {
     companion object {
         val light = GreenThumbExtendedColors(
@@ -26,12 +28,14 @@ data class GreenThumbExtendedColors(
             amberBg = rgba(217, 119, 6, 0.08f),
             amberBorder = rgba(217, 119, 6, 0.20f),
             cardBorder = Color(red = 0xF0 / 255f, green = 0xF0 / 255f, blue = 0xF0 / 255f),
+            page = Color(red = 0xF3 / 255f, green = 0xF6 / 255f, blue = 0xF1 / 255f),
         )
         val dark = GreenThumbExtendedColors(
             amber = amber,
             amberBg = rgba(217, 119, 6, 0.12f),
             amberBorder = rgba(217, 119, 6, 0.25f),
             cardBorder = Color(red = 0x27 / 255f, green = 0x24 / 255f, blue = 0x20 / 255f),
+            page = Color(red = 0x0A / 255f, green = 0x10 / 255f, blue = 0x0B / 255f),
         )
     }
 }

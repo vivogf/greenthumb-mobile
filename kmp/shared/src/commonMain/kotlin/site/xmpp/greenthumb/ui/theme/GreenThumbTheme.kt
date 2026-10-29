@@ -39,6 +39,19 @@ public fun resolveDarkTheme(preference: ThemePreference?, systemDark: Boolean): 
     }
 
 /**
+ * Startup variant: until the stored preference has been read, the theme last applied to the
+ * window ([lastWindowDark], null on a first launch) decides, so a Dark user on a light system
+ * never sees light first frames.
+ */
+public fun resolveDarkTheme(
+    preference: ThemePreference?,
+    systemDark: Boolean,
+    preferenceRead: Boolean,
+    lastWindowDark: Boolean?,
+): Boolean =
+    if (!preferenceRead && lastWindowDark != null) lastWindowDark else resolveDarkTheme(preference, systemDark)
+
+/**
  * Тема приложения: Material3 [ColorScheme] плюс [LocalGreenThumbExtendedColors].
  *
  * [darkTheme] обычно приходит из [resolveDarkTheme]: предпочтение light/dark/auto
@@ -49,11 +62,15 @@ public fun resolveDarkTheme(preference: ThemePreference?, systemDark: Boolean): 
 @Composable
 fun GreenThumbTheme(
     darkTheme: Boolean,
+    reduceMotion: Boolean = systemReduceMotion(),
     content: @Composable () -> Unit,
 ) {
     val extended = if (darkTheme) GreenThumbExtendedColors.dark else GreenThumbExtendedColors.light
     val scheme = if (darkTheme) GreenThumbColors.dark else GreenThumbColors.light
-    CompositionLocalProvider(LocalGreenThumbExtendedColors provides extended) {
+    CompositionLocalProvider(
+        LocalGreenThumbExtendedColors provides extended,
+        LocalReduceMotion provides reduceMotion,
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             shapes = GreenThumbShapes,

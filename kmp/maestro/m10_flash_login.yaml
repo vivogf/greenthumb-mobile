@@ -1,0 +1,54 @@
+# M10 VAL-LOOK-002 setup: sign in with a throwaway key and pick the in-app Dark theme.
+# The key is a placeholder; run only through render-smoke.sh
+# (GT_FLOW=m10_flash_login.yaml GT_KEY_FILE=<600 key file> bash maestro/render-smoke.sh run).
+# No screenshots while the key is on screen. The worker records this flow with screenrecord
+# for the login → dashboard brightness check and deletes the video after the measurement.
+appId: com.greenthumbplantcare.debug
+name: M10 flash — sign in and Dark theme
+---
+- launchApp:
+    clearState: true
+- repeat:
+    times: 15
+    while:
+      notVisible: "Welcome Back|С возвращением"
+    commands:
+      - runFlow:
+          when:
+            visible: "Skip|Пропустить"
+          commands:
+            - tapOn: "Skip|Пропустить"
+      - runFlow:
+          when:
+            visible: "Enter recovery key|Ввести ключ"
+          commands:
+            - tapOn: "Enter recovery key|Ввести ключ"
+      - runFlow:
+          when:
+            visible: "I Have a Key|У меня есть ключ"
+          commands:
+            - tapOn: "I Have a Key|У меня есть ключ"
+- assertVisible: "Welcome Back|С возвращением"
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: ${GT_RECOVERY_KEY}
+- hideKeyboard
+- tapOn: "Sign In|Войти"
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Flash Fern"
+    timeout: 20000
+- tapOn: "Profile|Профиль"
+- extendedWaitUntil:
+    visible: "My Profile|Мой профиль"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Theme|Тема"
+- tapOn: "Theme|Тема"
+- tapOn: "Dark|Тёмная"
+- waitForAnimationToEnd
+- tapOn: "Plants|Растения"
+- extendedWaitUntil:
+    visible: "Flash Fern"
+    timeout: 10000

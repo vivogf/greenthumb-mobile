@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import coil3.compose.setSingletonImageLoaderFactory
+import kotlinx.coroutines.flow.map
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.buildImageLoader
 import site.xmpp.greenthumb.core.platform.AppEnvironment
@@ -20,7 +21,9 @@ import site.xmpp.greenthumb.core.platform.KillSwitchVerdict
 import site.xmpp.greenthumb.core.platform.OpenUrl
 import site.xmpp.greenthumb.core.platform.PushTokens
 import site.xmpp.greenthumb.core.platform.RemoteKillSwitch
+import site.xmpp.greenthumb.core.platform.SyncWindowColors
 import site.xmpp.greenthumb.core.platform.isSystemDarkTheme
+import site.xmpp.greenthumb.core.platform.lastWindowDark
 import site.xmpp.greenthumb.core.storage.AppPreferencesStore
 import site.xmpp.greenthumb.core.storage.CurrentRecoveryKey
 import site.xmpp.greenthumb.core.storage.SessionManager
@@ -45,6 +48,7 @@ import site.xmpp.greenthumb.ui.nav.sessionUserIdOrNull
 import site.xmpp.greenthumb.ui.screens.login.LoginMode
 import site.xmpp.greenthumb.ui.screens.login.SavedKeyOutcome
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
+import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.res.Res
@@ -155,6 +159,8 @@ fun App(
     // desktop — no-op. Детали — [AppLocaleSyncRoot].
     AppLocaleSyncRoot()
     val themePreference by settings.theme.collectAsState(initial = null)
+    val themePreferenceRead by remember(settings) { settings.theme.map { true } }.collectAsState(initial = false)
+    val lastWindowDark = lastWindowDark()
     val systemDark = isSystemDarkTheme()
     // Локаль (Stage 6 п.4): preference из AppSettings (greenthumb_language) или
     // null = системная (RN-дефолт: язык устройства вне en/ru → фолбэк ресурсов en).
@@ -221,7 +227,9 @@ fun App(
     // не перечитывает конфиг и не мигает контентом).
     val killSwitchVerdict by killSwitch.verdict.collectAsState()
     AppEnvironment(customAppLocale = languagePreference?.wire) {
-        GreenThumbTheme(darkTheme = resolveDarkTheme(themePreference, systemDark)) {
+        val darkTheme = resolveDarkTheme(themePreference, systemDark, themePreferenceRead, lastWindowDark)
+        GreenThumbTheme(darkTheme = darkTheme) {
+            SyncWindowColors(page = greenThumbExtendedColors().page, dark = darkTheme)
             // Блокирующий экран обновления ВЫШЕ маршрутизации и сессии (план
             // Stage 12 п.1): отозванная версия не показывает ни растений, ни
             // входа — только ссылку в стор. Пока Allowed/проверка идёт —
