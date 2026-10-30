@@ -3,9 +3,6 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.runtime.CompositionLocalProvider
-import coil3.ImageLoader
-import coil3.SingletonImageLoader
-import coil3.annotation.DelicateCoilApi
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -32,11 +29,11 @@ import java.io.File
 import java.util.Locale
 import kotlin.io.path.deleteRecursively
 import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.GreenThumbApi
@@ -46,6 +43,7 @@ import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.components.GtSheetTags
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
@@ -54,24 +52,19 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  * «Что с растением?» row text wrapping before its chevron at font scale 1.3, a saved diagnosis in
  * the journal as thumbnail + caption (VAL-CARD-014) and 48 dp targets (VAL-CARD-019).
  */
-@OptIn(ExperimentalTestApi::class, DelicateCoilApi::class)
+@OptIn(ExperimentalTestApi::class)
 class PlantCardDiagnosisTest {
     private val originalLocale: Locale = Locale.getDefault()
     private var cleanup: (() -> Unit)? = null
 
-    // These tests render real photos outside App. Coil's own default singleton makes a later
-    // App test's setSafe throw, so install a plain loader first and drop it afterwards.
-    @BeforeTest
-    fun installImageLoader() {
-        SingletonImageLoader.setUnsafe { context -> ImageLoader.Builder(context).build() }
-    }
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
 
     @AfterTest
     fun tearDown() {
         Locale.setDefault(originalLocale)
         cleanup?.invoke()
         cleanup = null
-        SingletonImageLoader.reset()
     }
 
     private val json = headersOf("Content-Type", "application/json")

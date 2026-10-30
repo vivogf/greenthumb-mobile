@@ -20,7 +20,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.jetbrains.compose.resources.stringResource
+import org.junit.Rule
 import site.xmpp.greenthumb.core.platform.AppEnvironment
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.addPlant_addPhoto
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
@@ -31,6 +33,9 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @OptIn(ExperimentalTestApi::class)
 class GtImagePickerFieldLabelTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
+
 
     @Test
     fun add_photo_label_is_one_centred_line() = runDesktopComposeUiTest(width = 360, height = 640) {

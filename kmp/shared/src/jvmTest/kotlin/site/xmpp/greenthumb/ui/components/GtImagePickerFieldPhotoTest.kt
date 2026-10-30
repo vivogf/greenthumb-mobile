@@ -5,8 +5,10 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.runDesktopComposeUiTest
+import org.junit.Rule
 import site.xmpp.greenthumb.core.platform.paintedJpeg
 import site.xmpp.greenthumb.core.platform.photoDataUri
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -17,6 +19,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class GtImagePickerFieldPhotoTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
 
     @Test
     fun chosen_photo_is_drawn_inside_the_picker_box() = runDesktopComposeUiTest {

@@ -7,10 +7,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import coil3.compose.setSingletonImageLoaderFactory
 import kotlinx.coroutines.flow.map
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.buildImageLoader
+import site.xmpp.greenthumb.core.network.installAppImageLoader
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.AppForeground
 import site.xmpp.greenthumb.core.platform.AppLocaleSyncRoot
@@ -153,7 +153,7 @@ fun App(
     // (VAL-PHOTO-005). Must run in the root body before the first AsyncImage:
     // a nested AsyncImage would otherwise create the default loader first and
     // this factory would be ignored.
-    setSingletonImageLoaderFactory { context -> buildImageLoader(context, apiClient) }
+    remember(apiClient) { installAppImageLoader { context -> buildImageLoader(context, apiClient) } }
     // M6b (VAL-I18N-007): синхронизация выбранной локали с платформой в корне
     // тела — до детей. Android: чтение LocalConfiguration делает корень
     // реактивным к каждой доставке конфигурации (в т.ч. display-ступеням

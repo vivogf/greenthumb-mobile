@@ -34,6 +34,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.GreenThumbApi
@@ -44,6 +45,7 @@ import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
@@ -55,6 +57,9 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @OptIn(ExperimentalTestApi::class)
 class IdentifyScreenFlowTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
+
 
     private class Server {
         val identifyBodies = mutableListOf<String>()

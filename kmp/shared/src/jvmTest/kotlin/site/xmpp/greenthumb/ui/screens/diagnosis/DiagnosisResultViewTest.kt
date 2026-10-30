@@ -31,12 +31,14 @@ import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Rule
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.NoSessionRecoveryProvider
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.platform.PickResult
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
 /**
@@ -46,6 +48,9 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @OptIn(ExperimentalTestApi::class)
 class DiagnosisResultViewTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
+
     private val originalLocale: Locale = Locale.getDefault()
     private var cleanup: (() -> Unit)? = null
 

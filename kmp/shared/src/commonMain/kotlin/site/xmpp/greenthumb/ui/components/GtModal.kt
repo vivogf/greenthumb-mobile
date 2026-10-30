@@ -19,6 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -56,6 +61,13 @@ internal fun GtModal(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(GT_MODAL_SCRIM_TAG)
+                // A focused text field keeps system Back from reaching the dialog, so the sheet could not
+                // close while a field had focus (the keyboard-hiding Back is taken by the IME before this).
+                .onPreviewKeyEvent { event ->
+                    if (event.key != Key.Back) return@onPreviewKeyEvent false
+                    if (event.type == KeyEventType.KeyUp) onDismissRequest()
+                    true
+                }
                 .background(MaterialTheme.colorScheme.scrim)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

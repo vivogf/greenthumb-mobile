@@ -2,16 +2,20 @@
 
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -35,6 +39,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.GreenThumbApi
@@ -44,6 +49,7 @@ import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.components.GT_MODAL_SCRIM_TAG
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
@@ -53,6 +59,9 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @OptIn(ExperimentalTestApi::class)
 class PlantNamePlaceSheetTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
+
     private var cleanup: (() -> Unit)? = null
 
     @AfterTest
@@ -211,6 +220,21 @@ class PlantNamePlaceSheetTest {
             // On Android the Dialog sends system Back to onDismissRequest; the scrim tap calls the same
             // callback, and the desktop test window has no Back key. The device check covers real Back.
             click(hasTestTag(GT_MODAL_SCRIM_TAG))
+            assertSheetClosedWithOldValues()
+        }
+    }
+
+    @Test
+    fun back_key_with_the_name_field_focused_cancels_without_patch() {
+        val repo = openRepo()
+        runDesktopComposeUiTest {
+            showPlant(repo)
+            openSheet()
+            nameField().performSemanticsAction(SemanticsActions.RequestFocus)
+            nameField().performTextInput(" changed")
+            nameField().assertIsFocused()
+            // The keyboard (if any) is already hidden here; this is the Back that must reach the sheet.
+            nameField().performKeyInput { pressKey(Key.Back) }
             assertSheetClosedWithOldValues()
         }
     }

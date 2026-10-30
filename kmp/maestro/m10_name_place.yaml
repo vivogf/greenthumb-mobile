@@ -9,6 +9,8 @@
 #   custom   «Other…» + «Подоконник у мамы», ✓; reopen shows «Other…» selected with the text
 #   clear    clear the custom text, ✓ → no place line
 #   ru       after switching the app to Russian: the sheet in ru with «Своё…» preselected for a custom place
+#   backfocus the name field keeps focus (keyboard open) and system Back closes the sheet within two
+#            presses (the first may only hide the keyboard); the typed name is not saved
 # No hideKeyboard after typing in the sheet: when no soft keyboard is drawn (elt_test), Maestro presses Back,
 # and Back cancels the sheet. Screenshots: SHOT_PREFIX-<case>.png.
 appId: com.greenthumbplantcare.debug
@@ -74,6 +76,42 @@ name: GreenThumb name and place (${STEP})
       - assertNotVisible: "Np Back"
       - assertNotVisible: "Bedroom"
       - takeScreenshot: ${SHOT_PREFIX}-cancel-back
+
+- runFlow:
+    when:
+      true: ${STEP == 'backfocus'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "My Plants"
+          timeout: 30000
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Water.*"
+          timeout: 10000
+      - tapOn: "Np Fern"
+      - extendedWaitUntil:
+          visible: "Name and place"
+          timeout: 10000
+      - tapOn:
+          text: "Np Fern"
+          below: "Name"
+      - inputText: " Typed"
+      - assertVisible: "Np Fern Typed"
+      - takeScreenshot: ${SHOT_PREFIX}-backfocus-typed
+      - back
+      - runFlow:
+          when:
+            visible: "Name and place"
+          commands:
+            - back
+      - extendedWaitUntil:
+          notVisible: "Name and place"
+          timeout: 5000
+      - assertVisible: "Np Fern"
+      - assertNotVisible: ".*Typed.*"
+      - takeScreenshot: ${SHOT_PREFIX}-backfocus-closed
 
 # blank leaves the sheet open with an empty name, so the caller can dump the disabled ✓; press Back after it.
 - runFlow:

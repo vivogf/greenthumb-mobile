@@ -164,11 +164,11 @@ class DiagnosisScreenTest {
 
     @Test
     fun ru_503_shows_temporarily_unavailable() =
-        assertErrorState("ru", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Диагностика временно недоступна", retry = true)
+        assertErrorState("ru", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Проверка растения временно недоступна", retry = true)
 
     @Test
     fun en_503_shows_temporarily_unavailable() =
-        assertErrorState("en", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Diagnosis is temporarily unavailable", retry = true)
+        assertErrorState("en", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Plant check is temporarily unavailable", retry = true)
 
     @Test
     fun ru_429_shows_the_daily_limit() =

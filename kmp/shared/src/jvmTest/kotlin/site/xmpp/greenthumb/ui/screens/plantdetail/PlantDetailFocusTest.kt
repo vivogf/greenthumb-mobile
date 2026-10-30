@@ -35,6 +35,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.GreenThumbApi
@@ -43,6 +44,7 @@ import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
@@ -53,6 +55,9 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
  */
 @OptIn(ExperimentalTestApi::class)
 class PlantDetailFocusTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
+
     private var cleanup: (() -> Unit)? = null
 
     @AfterTest
