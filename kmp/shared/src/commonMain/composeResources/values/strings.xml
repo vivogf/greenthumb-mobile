@@ -550,4 +550,17 @@
     <string name="achievement_first_note_description">Write a note in a plant's journal.</string>
     <string name="achievement_first_photo_title">First photo</string>
     <string name="achievement_first_photo_description">Add a photo of a plant.</string>
+    <!-- Smart camera (M10 D§ item 9a) -->
+    <string name="smartcam_title">Smart camera</string>
+    <string name="smartcam_modePlant">Plant</string>
+    <string name="smartcam_modeDisease">Problem</string>
+    <string name="smartcam_hintPlant">We find the species by photo. The photo goes to Pl@ntNet.</string>
+    <string name="smartcam_hintDisease">We suggest what is wrong. The photo goes to OpenAI.</string>
+    <string name="smartcam_takePhoto">Take photo</string>
+    <string name="smartcam_choosePhoto">Choose from gallery</string>
+    <string name="smartcam_addToMine">Add to my plants</string>
+    <string name="smartcam_justLook">Just find out</string>
+    <string name="smartcam_retake">Take another</string>
+    <string name="smartcam_noMatch">The species was not recognised. Try another photo.</string>
+    <string name="a11y_smartCamera">Smart camera</string>
 </resources>

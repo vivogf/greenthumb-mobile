@@ -22,6 +22,7 @@ import site.xmpp.greenthumb.core.network.PHOTO_CAPTION_MAX_LENGTH
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
+import site.xmpp.greenthumb.ui.screens.smartcam.StandaloneDiagnoser
 
 /** Likelihood of a cause, shown only as a word (architecture §8.7: no numbers). */
 public enum class Likelihood { Low, Medium, High }
@@ -70,9 +71,13 @@ public fun interface PlantDiagnoser {
     public suspend fun fetchPhoto(url: String): ByteArray = throw UnsupportedOperationException("no photo download")
 }
 
-public class ApiPlantDiagnoser(private val api: GreenThumbApi) : PlantDiagnoser {
+/** Production diagnoser; it also serves the smart camera's plant-less diagnosis. */
+public class ApiPlantDiagnoser(private val api: GreenThumbApi) : PlantDiagnoser, StandaloneDiagnoser {
     override suspend fun diagnose(plantId: String, photoDataUri: String, note: String?, language: String): DiagnosisResponse =
         api.diagnosePlant(plantId, photoDataUri, note, language)
+
+    override suspend fun diagnose(photoDataUri: String, note: String?, language: String): DiagnosisResponse =
+        api.diagnoseWithoutPlant(photoDataUri, note, language)
 
     override suspend fun fetchPhoto(url: String): ByteArray = api.downloadPhoto(url)
 }

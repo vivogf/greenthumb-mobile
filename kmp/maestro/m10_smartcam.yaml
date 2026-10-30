@@ -1,0 +1,196 @@
+# Smart camera (feature m10-smart-camera; VAL-CAM-001/003/005/006/008).
+# Run every stage through render-smoke.sh (GT_FLOW=m10_smartcam.yaml GT_STEP=<stage> GT_KEY_FILE=<600 key file>);
+# only `login` uses the key. The caller pushes a Monstera JPEG to /sdcard/Pictures + media scan, and passes
+# PHOTO (content description regex of that photo in the picker) through the env of the gallery stages.
+#   login     clean start, sign in with the throwaway key, wait for the dashboard
+#   ru / en   Profile → language
+#   dash      dashboard: the icon-only «Умная камера» button (content description), screenshot
+#   open      open the smart camera, both modes with their hints, back to «Растение»; no request
+#   gcancel   «Выбрать из галереи» → Back in the picker → mode choice again, nothing sent
+#   gallery   «Выбрать из галереи» → ${PHOTO} → plant result (1 live Pl@ntNet call); stays on the result
+#   retake    on a result: «Снять ещё раз» → mode choice with «Растение» (Pl@ntNet hint)
+#   addmine   on a result: «Добавить к моим растениям» → Add Plant prefilled (name, photo); Back saves nothing
+#   justlook  on a result: «Просто узнать» → dashboard
+appId: com.greenthumbplantcare.debug
+name: GreenThumb smart camera (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'login'}
+    commands:
+      - launchApp:
+          clearState: true
+      - repeat:
+          times: 15
+          while:
+            notVisible: "Welcome Back|С возвращением"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Skip|Пропустить"
+                commands:
+                  - tapOn: "Skip|Пропустить"
+            - runFlow:
+                when:
+                  visible: "Enter recovery key|Ввести ключ"
+                commands:
+                  - tapOn: "Enter recovery key|Ввести ключ"
+            - runFlow:
+                when:
+                  visible: "I Have a Key|У меня есть ключ"
+                commands:
+                  - tapOn: "I Have a Key|У меня есть ключ"
+      - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      - inputText: ${GT_RECOVERY_KEY}
+      - hideKeyboard
+      - tapOn: "Sign In|Войти"
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+
+- runFlow:
+    when:
+      true: ${STEP == 'ru' || STEP == 'en'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 30000
+      - tapOn: "Profile|Профиль"
+      - scrollUntilVisible:
+          element:
+            text: "Language|Язык"
+          direction: DOWN
+      - tapOn: "Language|Язык"
+      - extendedWaitUntil:
+          visible: "Choose Language|Выберите язык"
+          timeout: 10000
+      - runFlow:
+          when:
+            true: ${STEP == 'ru'}
+          commands:
+            - tapOn: "Русский"
+      - runFlow:
+          when:
+            true: ${STEP == 'en'}
+          commands:
+            - tapOn: "English"
+      - tapOn: "Plants|Растения"
+
+- runFlow:
+    when:
+      true: ${STEP == 'dash'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - assertNotVisible: "Камера|Camera"
+      - takeScreenshot: dash
+
+- runFlow:
+    when:
+      true: ${STEP == 'open'}
+    commands:
+      - tapOn: "Умная камера|Smart camera"
+      - extendedWaitUntil:
+          visible: "Сделать фото|Take photo"
+          timeout: 10000
+      - assertVisible: "Растение|Plant"
+      - assertVisible: "Болезнь|Problem"
+      - assertVisible: "Выбрать из галереи|Choose from gallery"
+      - assertVisible: ".*Pl@ntNet.*"
+      - takeScreenshot: open-plant
+      - tapOn: "Болезнь|Problem"
+      - assertVisible: ".*OpenAI.*"
+      - assertVisible: "Сделать фото|Take photo"
+      - takeScreenshot: open-disease
+      - tapOn: "Растение|Plant"
+      - assertVisible: ".*Pl@ntNet.*"
+
+- runFlow:
+    when:
+      true: ${STEP == 'gcancel'}
+    commands:
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - waitForAnimationToEnd
+      - takeScreenshot: gcancel-picker
+      - back
+      - extendedWaitUntil:
+          visible: "Сделать фото|Take photo"
+          timeout: 10000
+      - assertVisible: ".*Pl@ntNet.*"
+      - takeScreenshot: gcancel-back
+
+- runFlow:
+    when:
+      true: ${STEP == 'gallery'}
+    commands:
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Добавить к моим растениям|Add to my plants"
+          timeout: 40000
+      - assertVisible: "Monstera deliciosa"
+      - assertVisible: ".*Pl@ntNet.*"
+      - assertNotVisible: ".*\\d+ ?%.*"
+      - assertNotVisible: ".*\\d+ (из|of) \\d+.*"
+      - takeScreenshot: gallery-result-top
+      - scrollUntilVisible:
+          element:
+            text: "Снять ещё раз|Take another"
+          direction: DOWN
+      - assertVisible: "Просто узнать|Just find out"
+      - takeScreenshot: gallery-result-bottom
+
+- runFlow:
+    when:
+      true: ${STEP == 'retake'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Снять ещё раз|Take another"
+          direction: DOWN
+      - tapOn: "Снять ещё раз|Take another"
+      - extendedWaitUntil:
+          visible: "Сделать фото|Take photo"
+          timeout: 10000
+      - assertVisible: ".*Pl@ntNet.*"
+      - takeScreenshot: retake-choice
+
+- runFlow:
+    when:
+      true: ${STEP == 'addmine'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Добавить к моим растениям|Add to my plants"
+          direction: DOWN
+      - tapOn: "Добавить к моим растениям|Add to my plants"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+      - assertVisible: "Monstera deliciosa"
+      - takeScreenshot: addmine-form
+      - back
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      true: ${STEP == 'justlook'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Просто узнать|Just find out"
+          direction: DOWN
+      - tapOn: "Просто узнать|Just find out"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+      - assertVisible: "Profile|Профиль"
+      - takeScreenshot: justlook-dashboard

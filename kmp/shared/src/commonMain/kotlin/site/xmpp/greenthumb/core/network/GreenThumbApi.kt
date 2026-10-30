@@ -209,6 +209,19 @@ class GreenThumbApi(private val client: ApiClient) {
             ),
         )
 
+    /** POST /api/diagnose: the same body and answer as [diagnosePlant], without a plant (smart camera). */
+    suspend fun diagnoseWithoutPlant(photoDataUri: String, note: String?, language: String): DiagnosisResponse =
+        json.decodeFromString(
+            decodeBody(
+                client.request(
+                    HttpMethod.Post,
+                    "/api/diagnose",
+                    json.encodeToString(DiagnoseRequest(photo = photoDataUri, note = note, language = language)),
+                    timeoutMillis = DIAGNOSE_TIMEOUT_MILLIS,
+                ),
+            ),
+        )
+
     // ------------------------------------------------------------------
     // Progress
     // ------------------------------------------------------------------

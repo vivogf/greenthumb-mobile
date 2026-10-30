@@ -3,7 +3,13 @@
 package site.xmpp.greenthumb.ui.screens.dashboard
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
+import site.xmpp.greenthumb.ui.theme.Sizes
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -566,6 +572,51 @@ class DashboardScreenTest {
             assertOneRefresh(before)
             waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
 
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // VAL-CAM-001: icon-only smart camera button on the filled and the empty dashboard.
+    private fun androidx.compose.ui.test.ComposeUiTest.assertSmartCameraOpens() {
+        val button = hasContentDescription("Smart camera") and hasClickAction()
+        waitUntilAtLeastOneExists(button, TIMEOUT)
+        onAllNodes(button).assertCountEquals(1)
+        onNode(button).assertWidthIsAtLeast(Sizes.touch).assertHeightIsAtLeast(Sizes.touch)
+        val shown = onNode(button).fetchSemanticsNode().config
+        assertTrue(
+            !shown.contains(SemanticsProperties.Text) || shown[SemanticsProperties.Text].all { it.text.isEmpty() },
+            "the smart camera button has no text",
+        )
+        clickAt(button)
+        waitUntilAtLeastOneExists(hasText("Take photo"), TIMEOUT)
+        onNode(hasText("Plant") and hasClickAction()).assertExists()
+        onNode(hasText("Problem") and hasClickAction()).assertExists()
+        onNode(hasText("Choose from gallery")).assertExists()
+        onNode(hasTestTag("smartcam_title") and hasText("Smart camera")).assertExists()
+    }
+
+    @Test
+    fun smart_camera_button_on_filled_dashboard_opens_the_smart_camera() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            onNode(hasContentDescription("Add a new plant")).assertExists()
+            assertSmartCameraOpens()
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun smart_camera_button_on_empty_dashboard_opens_the_smart_camera() {
+        val graph = newHarness()
+        graph.server.plantsEmpty = true
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard(firstVisible = "No plants yet")
+            assertSmartCameraOpens()
             runOnIdle { graph.close() }
         }
     }

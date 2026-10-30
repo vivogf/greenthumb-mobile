@@ -70,4 +70,10 @@ object Sizes {
 
     /** Photo thumbnail of a journal entry. */
     val journalThumb = 48.dp
+
+    /** Round smart camera button of the dashboard (same size as the «+» button). */
+    val smartCameraButton = 56.dp
+
+    /** Width of the smart camera glow ring. */
+    val glowBorder = 2.dp
 }

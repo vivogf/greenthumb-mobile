@@ -19,9 +19,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.savedstate.read
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -41,6 +43,7 @@ import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedMessage
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedTitle
+import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraftStore
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
@@ -57,6 +60,9 @@ import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
 import site.xmpp.greenthumb.ui.screens.progress.ProgressScreen
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraMode
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraScreen
+import site.xmpp.greenthumb.ui.screens.smartcam.StandaloneDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.welcome.WelcomeScreen
 import site.xmpp.greenthumb.ui.theme.LocalReduceMotion
@@ -94,6 +100,14 @@ public object NavRoutes {
     public const val KEY_QR: String = "profile/recovery-key-qr"
     /** Streaks and achievements (architecture §5.8). */
     public const val PROGRESS: String = "profile/progress"
+
+    /** Smart camera (D§ item 9a); `mode` is `plant` (default) or `disease`. */
+    public const val SMART_CAMERA: String = "smartcam?mode={mode}"
+    public const val SMART_CAMERA_MODE_ARG: String = "mode"
+
+    /** Add Plant prefilled by the smart camera; the token names the draft in [AddPlantDraftStore]. */
+    public const val ADD_PLANT_DRAFT: String = "add-plant/draft/{draft}"
+    public const val ADD_PLANT_DRAFT_ARG: String = "draft"
 
     /** Имя аргумента маршрута растения. */
     public const val PLANT_ARG: String = "id"
@@ -189,6 +203,7 @@ public fun GtAppNavGraph(
     // season-dependent screens stay blank instead of showing unadjusted statuses that then flip.
     val season = rememberSeasonContext(session)
     val transitions = screenTransitions(LocalReduceMotion.current)
+    val addPlantDrafts = remember { AddPlantDraftStore() }
     GtPageRoot {
         NavHost(
             navController = navController,
@@ -237,6 +252,7 @@ public fun GtAppNavGraph(
                                 onOpenPlant = { plantId -> navController.navigate("plant/$plantId") },
                                 onAddPlant = { navController.navigate(NavRoutes.ADD_PLANT) },
                                 season = season,
+                                onOpenSmartCamera = { navController.navigate("smartcam") },
                             )
                         }
                     }
@@ -298,6 +314,47 @@ public fun GtAppNavGraph(
                             opener = plants,
                             onBack = { navController.popBackStack() },
                             identifier = speciesIdentifier,
+                        )
+                    }
+                }
+            }
+            composable(
+                NavRoutes.SMART_CAMERA,
+                arguments = listOf(
+                    navArgument(NavRoutes.SMART_CAMERA_MODE_ARG) {
+                        type = NavType.StringType
+                        defaultValue = SmartCameraMode.Plant.wire
+                    },
+                ),
+            ) { entry ->
+                val mode = SmartCameraMode.fromWire(entry.arguments?.read { getStringOrNull(NavRoutes.SMART_CAMERA_MODE_ARG) })
+                AppLocalizedContent {
+                    SmartCameraScreen(
+                        initialMode = mode,
+                        identifier = speciesIdentifier,
+                        diagnoser = plantDiagnoser as? StandaloneDiagnoser,
+                        onClose = { navController.popBackStack() },
+                        onAddToMine = { draft ->
+                            val token = addPlantDrafts.put(draft)
+                            navController.navigate("add-plant/draft/$token") {
+                                popUpTo(NavRoutes.SMART_CAMERA) { inclusive = true }
+                            }
+                        },
+                    )
+                }
+            }
+            composable(NavRoutes.ADD_PLANT_DRAFT) { entry ->
+                val token = entry.arguments?.read { getStringOrNull(NavRoutes.ADD_PLANT_DRAFT_ARG) }.orEmpty()
+                // Taken outside the localized subtree, so a language change keeps the prefilled form.
+                val draft = remember(token) { addPlantDrafts.take(token) }
+                AppLocalizedContent {
+                    if (sessionUserId != null) {
+                        AddPlantScreen(
+                            userId = sessionUserId,
+                            opener = plants,
+                            onBack = { navController.popBackStack() },
+                            identifier = speciesIdentifier,
+                            draft = draft,
                         )
                     }
                 }

@@ -98,6 +98,7 @@ import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtLocationMark
 import site.xmpp.greenthumb.ui.components.GtCardViewMark
 import site.xmpp.greenthumb.ui.components.GtPlusMark
+import site.xmpp.greenthumb.ui.components.GtSmartCameraButton
 import site.xmpp.greenthumb.ui.components.GtSearchMark
 import site.xmpp.greenthumb.ui.components.GtSkeleton
 import site.xmpp.greenthumb.ui.components.GtSkeletonMode
@@ -109,6 +110,7 @@ import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.a11y_addPlant
+import site.xmpp.greenthumb.ui.res.a11y_smartCamera
 import site.xmpp.greenthumb.ui.res.a11y_clearSearch
 import site.xmpp.greenthumb.ui.res.a11y_openPlant
 import site.xmpp.greenthumb.ui.res.a11y_postponeAll
@@ -219,6 +221,8 @@ public fun DashboardScreen(
     onAddPlant: () -> Unit,
     /** Seasonal rule of the signed-in user ([rememberSeasonContext]). */
     season: SeasonContext = SeasonContext.Off,
+    /** Opens «Умная камера»; null hides the button. */
+    onOpenSmartCamera: (() -> Unit)? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Источник ON_RESUME (VAL-DASH-010): подписка живёт, пока открыт дашборд.
@@ -843,23 +847,37 @@ public fun DashboardScreen(
             }
         }
 
-        // ── FAB (RN: только когда растения есть).
-        if (hasPlants) {
-            val addLabel = stringResource(Res.string.a11y_addPlant)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(Spacing.xl)
-                    .size(Spacing.xxl * 2 + Spacing.xs)
-                    .background(scheme.primary, CircleShape)
-                    .clickable(role = Role.Button, onClick = onAddPlant)
-                    .semantics { contentDescription = addLabel },
-                contentAlignment = Alignment.Center,
-            ) {
-                GtPlusMark(
-                    tint = scheme.onPrimary,
-                    modifier = Modifier.size(Spacing.xxl + Spacing.xs),
+        // ── Smart camera (always, also on the empty dashboard) and the «+» FAB (RN: only with plants).
+        val resumed by foreground.isResumed.collectAsState()
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.xl),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onOpenSmartCamera != null) {
+                GtSmartCameraButton(
+                    onClick = onOpenSmartCamera,
+                    contentDescription = stringResource(Res.string.a11y_smartCamera),
+                    active = resumed,
                 )
+            }
+            if (hasPlants) {
+                val addLabel = stringResource(Res.string.a11y_addPlant)
+                Box(
+                    modifier = Modifier
+                        .size(Spacing.xxl * 2 + Spacing.xs)
+                        .background(scheme.primary, CircleShape)
+                        .clickable(role = Role.Button, onClick = onAddPlant)
+                        .semantics { contentDescription = addLabel },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GtPlusMark(
+                        tint = scheme.onPrimary,
+                        modifier = Modifier.size(Spacing.xxl + Spacing.xs),
+                    )
+                }
             }
         }
     }

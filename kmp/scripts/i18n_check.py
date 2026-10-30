@@ -341,6 +341,19 @@ KMP_ONLY_KEYS = {
     "plantDetails.careOffline",
     "plantDetails.careQueuedTitle",
     "plantDetails.careQueuedBody",
+    # Smart camera (M10 D§ item 9a).
+    "smartcam.title",
+    "smartcam.modePlant",
+    "smartcam.modeDisease",
+    "smartcam.hintPlant",
+    "smartcam.hintDisease",
+    "smartcam.takePhoto",
+    "smartcam.choosePhoto",
+    "smartcam.addToMine",
+    "smartcam.justLook",
+    "smartcam.retake",
+    "smartcam.noMatch",
+    "a11y.smartCamera",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of

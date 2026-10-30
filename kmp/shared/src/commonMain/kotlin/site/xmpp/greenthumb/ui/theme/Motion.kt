@@ -74,6 +74,13 @@ object Motion {
     const val ScreenEnterMs = 200
     const val ScreenExitMs = 160
 
+    /** Smart camera ring: one turn of the sweep gradient, linear (D§ item 9a). */
+    const val GlowSpinMs = 2800
+
+    /** Smart camera ring: one full alpha pulse (down and back up). */
+    const val GlowPulseMs = 2400
+    const val GlowMinAlpha = 0.55f
+
     const val BulkWaterSnapMs = 1150
     const val BulkWaterSuccessBannerMs = 2400
 

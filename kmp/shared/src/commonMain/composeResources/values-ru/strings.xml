@@ -560,4 +560,17 @@
     <string name="achievement_first_note_description">Напишите заметку в журнале растения.</string>
     <string name="achievement_first_photo_title">Первое фото</string>
     <string name="achievement_first_photo_description">Добавьте фото растения.</string>
+    <!-- Smart camera (M10 D§ item 9a) -->
+    <string name="smartcam_title">Умная камера</string>
+    <string name="smartcam_modePlant">Растение</string>
+    <string name="smartcam_modeDisease">Болезнь</string>
+    <string name="smartcam_hintPlant">Узнаем вид по фото. Фото уйдёт в Pl@ntNet.</string>
+    <string name="smartcam_hintDisease">Подскажем, что с растением. Фото уйдёт в OpenAI.</string>
+    <string name="smartcam_takePhoto">Сделать фото</string>
+    <string name="smartcam_choosePhoto">Выбрать из галереи</string>
+    <string name="smartcam_addToMine">Добавить к моим растениям</string>
+    <string name="smartcam_justLook">Просто узнать</string>
+    <string name="smartcam_retake">Снять ещё раз</string>
+    <string name="smartcam_noMatch">Вид не распознан. Попробуйте другое фото.</string>
+    <string name="a11y_smartCamera">Умная камера</string>
 </resources>

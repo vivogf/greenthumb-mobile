@@ -63,6 +63,20 @@ data class CropRect(
     }
 
     companion object {
+        /** The largest centred square of a [width]×[height] image; invalid sizes keep the whole image. */
+        fun centerSquare(width: Int, height: Int): CropRect {
+            if (width <= 0 || height <= 0 || width == height) return CropRect(0f, 0f, 1f, 1f)
+            return if (width > height) {
+                val side = height.toFloat() / width
+                val left = (1f - side) / 2f
+                CropRect(left, 0f, left + side, 1f)
+            } else {
+                val side = width.toFloat() / height
+                val top = (1f - side) / 2f
+                CropRect(0f, top, 1f, top + side)
+            }
+        }
+
         /**
          * Нормализованный кроп = пересечение отображённого прямоугольника
          * [displayed] (где реально лежит картинка на экране, px) с квадратным

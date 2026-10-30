@@ -176,6 +176,8 @@ public fun AddPlantScreen(
     onBack: () -> Unit,
     /** Identification by photo; null hides the action (UI tests without a network seam). */
     identifier: SpeciesIdentifier? = null,
+    /** Species and photo from the smart camera; the form opens prefilled with them. */
+    draft: AddPlantDraft? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     val scheme = MaterialTheme.colorScheme
@@ -184,7 +186,12 @@ public fun AddPlantScreen(
 
     // Локальное состояние формы RN add-plant.tsx (поля + advancedOpen +
     // submitting). Дефолт даты — todayString() (RN defaultValues).
-    var fields by remember { mutableStateOf(AddPlantFields(lastWateredDate = pickerToday().toString())) }
+    var fields by remember {
+        val today = pickerToday().toString()
+        mutableStateOf(
+            draft?.let { AddPlantDraft.initialFields(it, today, locale) } ?: AddPlantFields(lastWateredDate = today),
+        )
+    }
     var advancedOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
