@@ -20,8 +20,8 @@ import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 public data class AddPlantFields(
     public val name: String = "",
     public val location: String = "",
-    /** Частота полива — текст поля ввода (RN keyboardType numeric). */
-    public val waterFrequencyText: String = "",
+    /** Watering interval in days as text; the stepper starts at a real 7 (M10 item 9b). */
+    public val waterFrequencyText: String = AddPlantForm.DEFAULT_WATER.toString(),
     /** `YYYY-MM-DD`; RN defaultValues — todayString(). */
     public val lastWateredDate: String? = null,
     public val notes: String = "",
@@ -43,6 +43,8 @@ public data class AddPlantFields(
      * edits the name, it is theirs and is never overwritten.
      */
     public val speciesAutoName: String? = null,
+    /** The watering value this form last took from a species; while unchanged it is marked «по виду». */
+    public val speciesWaterText: String? = null,
 )
 
 /** Локализованные тексты ошибок (stringResource решает композиция, функция чистая). */
@@ -71,6 +73,26 @@ public data class AddPlantErrors(
 }
 
 public object AddPlantForm {
+    /** Server bounds of `water_frequency_days` (`plantInput.ts`, same as the care settings stepper). */
+    public val WATER_RANGE: IntRange = 1..365
+
+    public const val DEFAULT_WATER: Int = 7
+
+    /** The stepper value: the typed interval inside [WATER_RANGE], or [DEFAULT_WATER]. */
+    public fun waterValue(fields: AddPlantFields): Int =
+        fields.waterFrequencyText.trim().toIntOrNull()?.coerceIn(WATER_RANGE) ?: DEFAULT_WATER
+
+    public fun withWater(fields: AddPlantFields, days: Int): AddPlantFields =
+        fields.copy(waterFrequencyText = days.coerceIn(WATER_RANGE).toString())
+
+    /** The name still is the one a species filled in. */
+    public fun nameFromSpecies(fields: AddPlantFields): Boolean =
+        fields.speciesAutoName != null && fields.name == fields.speciesAutoName
+
+    /** The watering interval still is the one a species filled in. */
+    public fun waterFromSpecies(fields: AddPlantFields): Boolean =
+        fields.speciesWaterText != null && fields.waterFrequencyText == fields.speciesWaterText
+
     /** Частота «пустая» — нет введённого числа (RN: '' → undefined → поле опущено). */
     private fun parseFrequency(text: String): Int? =
         text.trim().takeIf { it.isNotEmpty() }?.toIntOrNull()
@@ -147,6 +169,7 @@ public object AddPlantForm {
             name = if (nameIsAuto) speciesName else fields.name,
             speciesAutoName = if (nameIsAuto) speciesName else null,
             waterFrequencyText = species.waterIntervalDays.toString(),
+            speciesWaterText = species.waterIntervalDays.toString(),
             fertilizeFrequencyText = species.fertilizeIntervalDays?.toString() ?: "",
             repotFrequencyText = species.repotIntervalMonths?.toString() ?: "",
             speciesId = species.id,
@@ -169,12 +192,13 @@ public object AddPlantForm {
             speciesAutoName = if (nameIsAuto) autoName else null,
             speciesId = null,
             speciesName = candidate.scientificName,
+            speciesWaterText = null,
         )
     }
 
     /** Removes the species; the name and intervals stay as they are. */
     public fun clearSpecies(fields: AddPlantFields): AddPlantFields =
-        fields.copy(speciesId = null, speciesName = null, speciesAutoName = null)
+        fields.copy(speciesId = null, speciesName = null, speciesAutoName = null, speciesWaterText = null)
 
     private fun parseOptionalDate(date: String?): String? =
         date?.trim()?.takeIf { it.isNotEmpty() }

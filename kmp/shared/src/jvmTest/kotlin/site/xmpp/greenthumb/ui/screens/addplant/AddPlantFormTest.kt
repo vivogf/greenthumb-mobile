@@ -386,4 +386,99 @@ class AddPlantFormTest {
         )
         assertEquals(7, dto.waterFrequencyDays)
     }
+
+    // ------------------------------------------------------------------
+    // M10 item 9b: watering stepper, species marks, typed name
+    // ------------------------------------------------------------------
+
+    private val monstera = site.xmpp.greenthumb.catalog.SpeciesEntry(
+        id = "monstera-deliciosa",
+        scientificName = "Monstera deliciosa",
+        synonyms = emptyList(),
+        names = site.xmpp.greenthumb.catalog.SpeciesText(ru = "Монстера деликатесная", en = "Swiss cheese plant"),
+        aliases = site.xmpp.greenthumb.catalog.SpeciesAliases(),
+        waterIntervalDays = 8,
+        fertilizeIntervalDays = 21,
+        repotIntervalMonths = 24,
+        light = site.xmpp.greenthumb.catalog.SpeciesLight.BrightIndirect,
+        tip = site.xmpp.greenthumb.catalog.SpeciesText(ru = "Совет", en = "Tip"),
+    )
+
+    private fun candidate(name: String, common: String?, entry: site.xmpp.greenthumb.catalog.SpeciesEntry? = null) =
+        site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate(
+            scientificName = name,
+            commonName = common,
+            level = site.xmpp.greenthumb.ui.screens.species.ScoreLevel.High,
+            catalogEntry = entry,
+        )
+
+    @Test
+    fun defaultWaterIsSeven() {
+        val fresh = AddPlantFields(name = "Щучий хвост", lastWateredDate = "2026-10-30")
+        assertEquals(7, AddPlantForm.waterValue(fresh), "the stepper starts at a real 7")
+        assertEquals(null, AddPlantForm.validate(fresh, texts).waterFrequency, "the default needs no input")
+        assertEquals(7, AddPlantForm.toInsertPlantDto(fresh).waterFrequencyDays, "saving untouched stores 7")
+    }
+
+    @Test
+    fun waterStepperStaysInsideServerBounds() {
+        val fresh = AddPlantFields()
+        assertEquals("8", AddPlantForm.withWater(fresh, 8).waterFrequencyText)
+        assertEquals("1", AddPlantForm.withWater(fresh, 0).waterFrequencyText, "server minimum is 1")
+        assertEquals("365", AddPlantForm.withWater(fresh, 400).waterFrequencyText, "server maximum is 365")
+        assertEquals(AddPlantForm.WATER_RANGE, 1..365)
+    }
+
+    @Test
+    fun speciesDoesNotOverwriteTypedName() {
+        val auto = AddPlantForm.applyCandidate(AddPlantFields(), candidate("Sansevieria trifasciata", "Snake plant"), "en")
+        assertEquals("Snake plant", auto.name)
+        assertTrue(AddPlantForm.nameFromSpecies(auto))
+        // The user clears the name and types their own.
+        val typed = auto.copy(name = "Щучий хвост")
+        assertFalse(AddPlantForm.nameFromSpecies(typed), "a typed name is not marked «по виду»")
+        val other = AddPlantForm.applyCandidate(typed, candidate("Dracaena trifasciata", "Mother-in-law's tongue"), "en")
+        assertEquals("Щучий хвост", other.name, "another candidate keeps the typed name")
+        val catalogPick = AddPlantForm.applyCandidate(other, candidate("Monstera deliciosa", null, monstera), "en")
+        assertEquals("Щучий хвост", catalogPick.name, "a catalog candidate keeps it too")
+        assertEquals("Щучий хвост", AddPlantForm.toInsertPlantDto(catalogPick.copy(lastWateredDate = "2026-10-30")).name)
+    }
+
+    @Test
+    fun fieldsFilledBySpeciesAreMarked() {
+        val filled = AddPlantForm.applyCandidate(AddPlantFields(), candidate("Monstera deliciosa", null, monstera), "ru")
+        assertEquals("Монстера деликатесная", filled.name)
+        assertEquals(8, AddPlantForm.waterValue(filled))
+        assertTrue(AddPlantForm.nameFromSpecies(filled))
+        assertTrue(AddPlantForm.waterFromSpecies(filled))
+        val stepped = AddPlantForm.withWater(filled, 9)
+        assertFalse(AddPlantForm.waterFromSpecies(stepped), "a changed value is the user's")
+        assertTrue(AddPlantForm.nameFromSpecies(stepped))
+        val cleared = AddPlantForm.clearSpecies(filled)
+        assertFalse(AddPlantForm.nameFromSpecies(cleared))
+        assertFalse(AddPlantForm.waterFromSpecies(cleared))
+        // A candidate outside the catalog has no watering value.
+        val outside = AddPlantForm.applyCandidate(AddPlantFields(), candidate("Unknownia rara", "Rare one"), "en")
+        assertTrue(AddPlantForm.nameFromSpecies(outside))
+        assertFalse(AddPlantForm.waterFromSpecies(outside))
+        assertEquals(7, AddPlantForm.waterValue(outside))
+        // Nothing is marked on a fresh form.
+        assertFalse(AddPlantForm.nameFromSpecies(AddPlantFields()))
+        assertFalse(AddPlantForm.waterFromSpecies(AddPlantFields()))
+    }
+
+    @Test
+    fun draftPrefillsAll() {
+        val photo = site.xmpp.greenthumb.core.platform.paintedJpeg(32, 32)
+        val draft = AddPlantDraft(candidate("Monstera deliciosa", null, monstera), photo)
+        val fields = AddPlantDraft.initialFields(draft, lastWateredDate = "2026-10-30", language = "ru")
+        assertTrue(fields.photoUrl.startsWith("data:image/jpeg;base64,"), "the draft photo is the cover")
+        assertEquals("monstera-deliciosa", fields.speciesId)
+        assertEquals("Monstera deliciosa", fields.speciesName)
+        assertEquals("Монстера деликатесная", fields.name)
+        assertEquals(8, AddPlantForm.waterValue(fields))
+        assertTrue(AddPlantForm.nameFromSpecies(fields))
+        assertTrue(AddPlantForm.waterFromSpecies(fields))
+        assertEquals("2026-10-30", fields.lastWateredDate)
+    }
 }

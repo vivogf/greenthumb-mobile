@@ -60,6 +60,10 @@ fun GtImagePickerField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     photoUrl: String = "",
+    /** A fixed height makes the box fill the width (Add Plant); null keeps the small square. */
+    height: Dp? = null,
+    /** Prefix of the source sheet row tags (`<prefix>_camera`, `_gallery`, `_remove`, `_cancel`). */
+    sheetTagPrefix: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     var open by remember { mutableStateOf(false) }
@@ -70,7 +74,13 @@ fun GtImagePickerField(
         Box(
             modifier = Modifier
                 // Without a photo the box widens to keep «Добавить фото» on one line (large font scale).
-                .then(if (hasImage) Modifier.size(boxSize) else Modifier.height(boxSize).widthIn(min = boxSize))
+                .then(
+                    when {
+                        height != null -> Modifier.fillMaxWidth().height(height)
+                        hasImage -> Modifier.size(boxSize)
+                        else -> Modifier.height(boxSize).widthIn(min = boxSize)
+                    },
+                )
                 .background(scheme.surfaceVariant, shape)
                 .then(
                     if (hasImage) {
@@ -126,29 +136,74 @@ fun GtImagePickerField(
         }
     }
     if (open) {
-        GtModal(onDismissRequest = { open = false }) {
-            GtSheetTitle(sourceTitle)
-            GtSheetRow(label = cameraLabel, icon = { GtCameraMark(it) }, onClick = {
+        GtPhotoSourceSheet(
+            title = sourceTitle,
+            cameraLabel = cameraLabel,
+            galleryLabel = galleryLabel,
+            cancelLabel = cancelLabel,
+            onPick = { source ->
                 open = false
-                onPickRequested(GtImageSource.Camera)
-            })
-            GtSheetRow(label = galleryLabel, icon = { GtGalleryMark(it) }, onClick = {
+                onPickRequested(source)
+            },
+            onDismiss = { open = false },
+            removeLabel = removeLabel.takeIf { hasImage },
+            onRemove = {
                 open = false
-                onPickRequested(GtImageSource.Gallery)
-            })
-            if (hasImage) {
-                GtSheetRow(
-                    label = removeLabel,
-                    icon = { GtTrashMark(it) },
-                    role = GtSheetRowRole.Destructive,
-                    onClick = {
-                        open = false
-                        onRemove()
-                    },
-                )
-            }
-            GtSheetRow(label = cancelLabel, icon = null, role = GtSheetRowRole.Cancel, onClick = { open = false })
+                onRemove()
+            },
+            tagPrefix = sheetTagPrefix,
+        )
+    }
+}
+
+/**
+ * Camera / gallery (/ remove) / cancel sheet of a photo, built from [GtSheetRow]s.
+ * [removeLabel] null hides the remove row. With [tagPrefix] the rows get the tags
+ * `<prefix>_camera`, `_gallery`, `_remove` and `_cancel`.
+ */
+@Composable
+fun GtPhotoSourceSheet(
+    title: String,
+    cameraLabel: String,
+    galleryLabel: String,
+    cancelLabel: String,
+    onPick: (GtImageSource) -> Unit,
+    onDismiss: () -> Unit,
+    removeLabel: String? = null,
+    onRemove: () -> Unit = {},
+    tagPrefix: String? = null,
+) {
+    fun tag(part: String): String = if (tagPrefix == null) GtSheetTags.ROW else tagPrefix + part
+    GtModal(onDismissRequest = onDismiss) {
+        GtSheetTitle(title)
+        GtSheetRow(
+            label = cameraLabel,
+            icon = { GtCameraMark(it) },
+            onClick = { onPick(GtImageSource.Camera) },
+            tag = tag("_camera"),
+        )
+        GtSheetRow(
+            label = galleryLabel,
+            icon = { GtGalleryMark(it) },
+            onClick = { onPick(GtImageSource.Gallery) },
+            tag = tag("_gallery"),
+        )
+        if (removeLabel != null) {
+            GtSheetRow(
+                label = removeLabel,
+                icon = { GtTrashMark(it) },
+                role = GtSheetRowRole.Destructive,
+                onClick = onRemove,
+                tag = tag("_remove"),
+            )
         }
+        GtSheetRow(
+            label = cancelLabel,
+            icon = null,
+            role = GtSheetRowRole.Cancel,
+            onClick = onDismiss,
+            tag = tag("_cancel"),
+        )
     }
 }
 

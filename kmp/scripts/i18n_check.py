@@ -358,6 +358,13 @@ KMP_ONLY_KEYS = {
     "smartcam.pickPlant",
     "smartcam.chosenPlant",
     "a11y.smartCamera",
+    # New plant: optional recognition, «по виду» marks, watering stepper (M10 D§1 item 9b).
+    "addPlant.identifyByPhoto",
+    "addPlant.identifyNote",
+    "addPlant.orPickSpecies",
+    "addPlant.nameHint",
+    "addPlant.fromSpecies",
+    "addPlant.waterEvery",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of

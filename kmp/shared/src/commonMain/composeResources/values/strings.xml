@@ -115,6 +115,12 @@
     <string name="addPlant_removePhoto">Remove photo</string>
     <string name="addPlant_addPhoto">Add photo</string>
     <string name="addPlant_wateringLabel">Watering Frequency (days)</string>
+    <string name="addPlant_identifyByPhoto">Find species by photo</string>
+    <string name="addPlant_identifyNote">The photo goes to Pl@ntNet. You can skip this.</string>
+    <string name="addPlant_orPickSpecies">or pick a species from the list</string>
+    <string name="addPlant_nameHint">Wrong plant? Type your own name</string>
+    <string name="addPlant_fromSpecies">from species</string>
+    <string name="addPlant_waterEvery">Water every</string>
     <string name="addPlant_everyDays">Every %1$d days</string>
     <string name="addPlant_lastWateredLabel">Last Watered Date</string>
     <string name="addPlant_lastWateredHint">Select when you last watered this plant</string>

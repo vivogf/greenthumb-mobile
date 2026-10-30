@@ -123,6 +123,12 @@
     <string name="addPlant_removePhoto">Удалить фото</string>
     <string name="addPlant_addPhoto">Добавить фото</string>
     <string name="addPlant_wateringLabel">Частота полива (дней)</string>
+    <string name="addPlant_identifyByPhoto">Узнать вид по фото</string>
+    <string name="addPlant_identifyNote">Фото уйдёт в Pl@ntNet. Можно не нажимать.</string>
+    <string name="addPlant_orPickSpecies">или выбрать вид из списка</string>
+    <string name="addPlant_nameHint">Не то растение? Впишите своё название</string>
+    <string name="addPlant_fromSpecies">по виду</string>
+    <string name="addPlant_waterEvery">Поливать каждые</string>
     <string name="addPlant_everyDays">Каждые %1$d дн.</string>
     <string name="addPlant_lastWateredLabel">Дата последнего полива</string>
     <string name="addPlant_lastWateredHint">Выберите, когда вы последний раз поливали это растение</string>

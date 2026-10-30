@@ -74,6 +74,9 @@ object Sizes {
     /** Round smart camera button of the dashboard (same size as the «+» button). */
     val smartCameraButton = 56.dp
 
+    /** Height of the full-width photo box on Add Plant. */
+    val photoBoxTall = 200.dp
+
     /** Width of the smart camera glow ring. */
     val glowBorder = 2.dp
 }

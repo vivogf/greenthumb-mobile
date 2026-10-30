@@ -58,7 +58,8 @@ class PhotoPickerController internal constructor(
 
     private var cropDecision: CompletableDeferred<CropRect?>? = null
 
-    fun launch(scope: CoroutineScope, source: PickSource) {
+    /** [then] runs once after [onPicked] for this launch only; a cancelled pick or crop never calls it. */
+    fun launch(scope: CoroutineScope, source: PickSource, then: ((ByteArray) -> Unit)? = null) {
         // Пикер уже открыт (кроп или другой запуск) — не дублируем.
         if (cropping != null || cropDecision != null) return
         scope.launch {
@@ -73,12 +74,12 @@ class PhotoPickerController internal constructor(
             when (result) {
                 is PickResult.Cancelled -> Unit
                 is PickResult.PermissionDenied -> deniedSource = result.source
-                is PickResult.Picked -> awaitCrop(result.bytes)
+                is PickResult.Picked -> awaitCrop(result.bytes, then)
             }
         }
     }
 
-    private suspend fun awaitCrop(bytes: ByteArray) {
+    private suspend fun awaitCrop(bytes: ByteArray, then: ((ByteArray) -> Unit)?) {
         val decision = CompletableDeferred<CropRect?>()
         cropDecision = decision
         cropping = bytes
@@ -87,6 +88,7 @@ class PhotoPickerController internal constructor(
             if (rect != null) {
                 val output = crop(bytes, rect)
                 onPicked(output)
+                then?.invoke(output)
             }
             // rect == null — отмена кропа: молчим, как отмена пикера.
         } catch (cancellation: CancellationException) {

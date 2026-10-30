@@ -102,7 +102,6 @@ import site.xmpp.greenthumb.ui.res.addPlant_validation_dateRequired
 import site.xmpp.greenthumb.ui.res.addPlant_validation_frequencyInvalidNumber
 import site.xmpp.greenthumb.ui.res.addPlant_validation_frequencyMinimum
 import site.xmpp.greenthumb.ui.res.addPlant_validation_nameRequired
-import site.xmpp.greenthumb.ui.res.addPlant_wateringLabel
 import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_done
@@ -112,14 +111,28 @@ import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
 import site.xmpp.greenthumb.ui.res.species_change
-import site.xmpp.greenthumb.ui.res.species_identify
-import site.xmpp.greenthumb.ui.res.species_choose
+import site.xmpp.greenthumb.ui.res.species_identifySourceTitle
+import site.xmpp.greenthumb.ui.res.addPlant_identifyByPhoto
+import site.xmpp.greenthumb.ui.res.addPlant_identifyNote
+import site.xmpp.greenthumb.ui.res.addPlant_orPickSpecies
+import site.xmpp.greenthumb.ui.res.addPlant_nameHint
+import site.xmpp.greenthumb.ui.res.addPlant_fromSpecies
+import site.xmpp.greenthumb.ui.res.addPlant_waterEvery
+import site.xmpp.greenthumb.ui.res.plantDetails_careWatering
+import site.xmpp.greenthumb.ui.res.plantDetails_careDecrease
+import site.xmpp.greenthumb.ui.res.plantDetails_careIncrease
+import site.xmpp.greenthumb.ui.screens.plantdetail.CareType
+import site.xmpp.greenthumb.ui.screens.plantdetail.careUnitText
+import site.xmpp.greenthumb.ui.components.GtPhotoSourceSheet
+import site.xmpp.greenthumb.ui.components.GtStepper
+import site.xmpp.greenthumb.ui.theme.Sizes
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.style.TextAlign
 import site.xmpp.greenthumb.ui.res.species_clear
 import site.xmpp.greenthumb.ui.res.species_prefilledHint
 import site.xmpp.greenthumb.ui.res.species_title
 import site.xmpp.greenthumb.ui.screens.species.IdentifyController
 import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
-import site.xmpp.greenthumb.ui.screens.species.IdentifySourceDialog
 import site.xmpp.greenthumb.ui.screens.species.IdentifyState
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifyDialog
@@ -200,6 +213,9 @@ public fun AddPlantScreen(
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
     var identifySourceOpen by remember { mutableStateOf(false) }
+    // Bytes of the cover: «Узнать вид по фото» identifies this photo, never a second pick.
+    var coverBytes by remember { mutableStateOf(draft?.photoJpeg) }
+    val focusManager = LocalFocusManager.current
     val identify = remember(identifier) {
         identifier?.let { seam ->
             IdentifyController(
@@ -213,7 +229,12 @@ public fun AddPlantScreen(
     // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → data-URI в форму.
     // rememberUpdatedState внутри не даёт рекомпозиции потерять открытый кроп.
     val photoPicker = rememberPhotoPicker { bytes ->
+        coverBytes = bytes
         fields = fields.copy(photoUrl = photoDataUri(bytes))
+    }
+
+    fun identifyCover(bytes: ByteArray) {
+        identify?.identifyPhoto(scope, bytes, IdentifyLogic.wireLanguage(locale)) { currentCatalog }
     }
 
     // Тексты — до корутин (stringResource композабелен, catch — нет).
@@ -295,9 +316,12 @@ public fun AddPlantScreen(
                 )
             }
 
-            // Фото (квадрат; пикер — Stage 8 п.1: галерея/камера + свой кроп).
+            // Full-width photo box (M10 item 9b): a chosen photo only becomes the cover.
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 GtImagePickerField(
+                    modifier = Modifier.fillMaxWidth(),
+                    height = Sizes.photoBoxTall,
+                    sheetTagPrefix = "addPlant_photo",
                     hasImage = fields.photoUrl.isNotEmpty(),
                     label = if (fields.photoUrl.isEmpty()) photoPlaceholder else photoLabel,
                     sourceTitle = photoSourceTitle,
@@ -315,18 +339,50 @@ public fun AddPlantScreen(
                             },
                         )
                     },
-                    onRemove = { fields = fields.copy(photoUrl = "") },
+                    onRemove = {
+                        coverBytes = null
+                        fields = fields.copy(photoUrl = "")
+                    },
                 )
             }
 
             // Species from the offline catalog or by photo (architecture §5.4).
             val chosenSpecies = catalog?.byId(fields.speciesId)
             if (fields.speciesId == null && fields.speciesName == null) {
-                SecondaryButton(
-                    text = stringResource(Res.string.species_choose),
-                    onClick = { speciesPickerOpen = true },
-                    modifier = Modifier.gtButtonWidth(),
-                )
+                // Recognition is optional and only runs on this tap (M10 item 9b).
+                if (identify != null) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        SecondaryButton(
+                            text = stringResource(Res.string.addPlant_identifyByPhoto),
+                            onClick = {
+                                focusManager.clearFocus()
+                                val cover = coverBytes
+                                if (cover != null) identifyCover(cover) else identifySourceOpen = true
+                            },
+                            modifier = Modifier.gtButtonWidth().testTag("addPlant_identify"),
+                        )
+                        Text(
+                            text = stringResource(Res.string.addPlant_identifyNote),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TextAction(
+                        text = stringResource(Res.string.addPlant_orPickSpecies),
+                        color = scheme.tertiary,
+                        modifier = Modifier.testTag("addPlant_pickSpecies"),
+                    ) {
+                        focusManager.clearFocus()
+                        speciesPickerOpen = true
+                    }
+                }
             } else {
                 LabeledField(label = stringResource(Res.string.species_title)) {
                     GtCard {
@@ -368,22 +424,26 @@ public fun AddPlantScreen(
                     }
                 }
             }
-            if (identify != null) {
-                SecondaryButton(
-                    text = stringResource(Res.string.species_identify),
-                    onClick = { identifySourceOpen = true },
-                    modifier = Modifier.gtButtonWidth().testTag("addPlant_identify"),
-                )
-            }
 
-            // Имя (обязательное; подсветка ошибки — рамка error).
-            LabeledField(label = stringResource(Res.string.addPlant_nameLabel)) {
+            // Name: always an ordinary field; a species name is marked «по виду» until edited.
+            LabeledField(
+                label = stringResource(Res.string.addPlant_nameLabel),
+                mark = if (AddPlantForm.nameFromSpecies(fields)) "addPlant_nameFromSpecies" else null,
+            ) {
                 GtInputField(
                     value = fields.name,
                     onValueChange = { fields = fields.copy(name = it) },
                     placeholder = stringResource(Res.string.addPlant_namePlaceholder),
                     error = errors?.name,
                 )
+                if (fields.speciesId != null || fields.speciesName != null) {
+                    Text(
+                        text = stringResource(Res.string.addPlant_nameHint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("addPlant_nameHint"),
+                    )
+                }
             }
 
             // Локация (опциональная).
@@ -399,13 +459,20 @@ public fun AddPlantScreen(
                 title = stringResource(Res.string.addPlant_sectionWatering),
                 titleStyle = GtTypography.sectionTitle,
             )
-            LabeledField(label = stringResource(Res.string.addPlant_wateringLabel)) {
-                GtInputField(
-                    value = fields.waterFrequencyText,
-                    onValueChange = { fields = fields.copy(waterFrequencyText = it) },
-                    placeholder = "7",
-                    error = errors?.waterFrequency,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            LabeledField(
+                label = stringResource(Res.string.addPlant_waterEvery),
+                mark = if (AddPlantForm.waterFromSpecies(fields)) "addPlant_waterFromSpecies" else null,
+            ) {
+                val water = AddPlantForm.waterValue(fields)
+                val waterTitle = stringResource(Res.string.plantDetails_careWatering)
+                GtStepper(
+                    value = water,
+                    range = AddPlantForm.WATER_RANGE,
+                    onValueChange = { fields = AddPlantForm.withWater(fields, it) },
+                    unit = careUnitText(CareType.Water, water),
+                    decreaseLabel = stringResource(Res.string.plantDetails_careDecrease, waterTitle),
+                    increaseLabel = stringResource(Res.string.plantDetails_careIncrease, waterTitle),
+                    testTagPrefix = "addPlant_water",
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -559,13 +626,25 @@ public fun AddPlantScreen(
         )
     }
 
+    // No cover yet: one pick sets the cover, then that same photo is identified.
     if (identifySourceOpen && identify != null) {
-        IdentifySourceDialog(
+        GtPhotoSourceSheet(
+            title = stringResource(Res.string.species_identifySourceTitle),
+            cameraLabel = stringResource(Res.string.common_camera),
+            galleryLabel = stringResource(Res.string.common_gallery),
+            cancelLabel = cancelText,
             onPick = { source ->
                 identifySourceOpen = false
-                identify.start(scope, source, IdentifyLogic.wireLanguage(locale)) { currentCatalog }
+                photoPicker.launch(
+                    scope,
+                    when (source) {
+                        GtImageSource.Camera -> PickSource.Camera
+                        GtImageSource.Gallery -> PickSource.Gallery
+                    },
+                ) { bytes -> identifyCover(bytes) }
             },
             onDismiss = { identifySourceOpen = false },
+            tagPrefix = "identify",
         )
     }
 
@@ -623,12 +702,12 @@ public fun AddPlantScreen(
 
 /** Small text button inside a row. */
 @Composable
-private fun TextAction(text: String, color: Color, onClick: () -> Unit) {
+private fun TextAction(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
         color = color,
-        modifier = Modifier
+        modifier = modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -639,11 +718,24 @@ private fun TextAction(text: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-/** Подпись и поле одной группой: зазор [Spacing.xs] (RN marginBottom 6), без резерва под пустую подпись. */
+/**
+ * Подпись и поле одной группой: зазор [Spacing.xs] (RN marginBottom 6), без резерва под пустую подпись.
+ * A non-null [mark] (its test tag) shows «по виду» at the end of the label row.
+ */
 @Composable
-private fun LabeledField(label: String, field: @Composable () -> Unit) {
+private fun LabeledField(label: String, mark: String? = null, field: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        FormLabel(text = label)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.weight(1f)) { FormLabel(text = label) }
+            if (mark != null) {
+                Text(
+                    text = stringResource(Res.string.addPlant_fromSpecies),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.testTag(mark),
+                )
+            }
+        }
         field()
     }
 }

@@ -117,19 +117,30 @@ public class IdentifyController(
             when (picked) {
                 is PickResult.Cancelled -> Unit
                 is PickResult.PermissionDenied -> deniedSource = picked.source
-                is PickResult.Picked -> {
-                    val photo = try {
-                        withContext(Dispatchers.Default) { photoDataUri(resize(picked.bytes)) }
-                    } catch (cancellation: CancellationException) {
-                        throw cancellation
-                    } catch (error: Throwable) {
-                        pickErrorMessage = error.message ?: error.toString()
-                        return@launch
-                    }
-                    identify(photo, lang, catalog)
-                }
+                is PickResult.Picked -> prepareAndIdentify(picked.bytes, lang, catalog)
             }
         }
+    }
+
+    /**
+     * Identifies a photo the screen already has (the chosen cover): no picker opens.
+     * Returns the running job, or null when another identification is still running.
+     */
+    public fun identifyPhoto(scope: CoroutineScope, photo: ByteArray, lang: String, catalog: () -> CatalogRepository?): Job? {
+        if (job?.isActive == true) return null
+        return scope.launch { prepareAndIdentify(photo, lang, catalog) }.also { job = it }
+    }
+
+    private suspend fun prepareAndIdentify(bytes: ByteArray, lang: String, catalog: () -> CatalogRepository?) {
+        val photo = try {
+            withContext(Dispatchers.Default) { photoDataUri(resize(bytes)) }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Throwable) {
+            pickErrorMessage = error.message ?: error.toString()
+            return
+        }
+        identify(photo, lang, catalog)
     }
 
     /** Sends one photo and settles the state. */

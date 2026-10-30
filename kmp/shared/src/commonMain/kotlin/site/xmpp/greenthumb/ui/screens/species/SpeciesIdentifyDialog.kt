@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,14 +24,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
-import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.res.Res
-import site.xmpp.greenthumb.ui.res.common_camera
 import site.xmpp.greenthumb.ui.res.common_cancel
-import site.xmpp.greenthumb.ui.res.common_gallery
 import site.xmpp.greenthumb.ui.res.powered_by_plantnet
 import site.xmpp.greenthumb.ui.res.species_confidenceHigh
 import site.xmpp.greenthumb.ui.res.species_confidenceLow
@@ -42,7 +38,6 @@ import site.xmpp.greenthumb.ui.res.species_identifyConfidence
 import site.xmpp.greenthumb.ui.res.species_identifyEmpty
 import site.xmpp.greenthumb.ui.res.species_identifyLoading
 import site.xmpp.greenthumb.ui.res.species_identifyQuota
-import site.xmpp.greenthumb.ui.res.species_identifySourceTitle
 import site.xmpp.greenthumb.ui.res.species_identifyTitle
 import site.xmpp.greenthumb.ui.res.species_identifyUnavailable
 import site.xmpp.greenthumb.ui.res.species_inCatalog
@@ -59,23 +54,6 @@ public fun confidenceWord(level: ScoreLevel): String = stringResource(
         ScoreLevel.Low -> Res.string.species_confidenceLow
     },
 )
-
-/** Camera or gallery for the identification photo. */
-@Composable
-public fun IdentifySourceDialog(onPick: (PickSource) -> Unit, onDismiss: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    GtModal(onDismissRequest = onDismiss) {
-        Text(
-            text = stringResource(Res.string.species_identifySourceTitle),
-            style = MaterialTheme.typography.titleMedium,
-            color = scheme.onSurface,
-            modifier = Modifier.fillMaxWidth().padding(start = Spacing.xl, top = Spacing.xl, bottom = Spacing.xs),
-        )
-        DialogRow(stringResource(Res.string.common_camera), "identify_camera") { onPick(PickSource.Camera) }
-        DialogRow(stringResource(Res.string.common_gallery), "identify_gallery") { onPick(PickSource.Gallery) }
-        DialogRow(stringResource(Res.string.common_cancel), "identify_sourceCancel", muted = true, onClick = onDismiss)
-    }
-}
 
 /**
  * Identification result: loading with cancel, up to three candidates with
@@ -226,24 +204,6 @@ public fun PlantNetAttribution() {
             text = stringResource(Res.string.species_poweredBy),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun DialogRow(label: String, tag: String, muted: Boolean = false, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.xl, vertical = Spacing.md)
-            .testTag(tag),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (muted) scheme.onSurfaceVariant else scheme.tertiary,
         )
     }
 }

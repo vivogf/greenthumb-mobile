@@ -59,6 +59,18 @@ import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.ui.components.formatPickerDate
 import site.xmpp.greenthumb.ui.components.pickerToday
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTextClearance
+import org.junit.Rule
+import site.xmpp.greenthumb.core.network.SpeciesCandidateDto
+import site.xmpp.greenthumb.core.platform.FilePickBridge
+import site.xmpp.greenthumb.core.platform.paintedJpeg
+import site.xmpp.greenthumb.ui.PlainImageLoaderRule
+import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 
 /**
  * Stage 7 п.5 (фича screen-add-plant) — desktop-ветка VAL-ADDPLANT-001/002:
@@ -78,6 +90,8 @@ import site.xmpp.greenthumb.ui.components.pickerToday
  */
 @OptIn(ExperimentalTestApi::class)
 class AddPlantScreenTest {
+    @get:Rule
+    val imageLoader = PlainImageLoaderRule()
 
     private var harness: Harness? = null
 
@@ -360,12 +374,12 @@ class AddPlantScreenTest {
      */
     private fun androidx.compose.ui.test.ComposeUiTest.fillForm(
         name: String,
-        frequency: String,
+        waterSteps: Int = 0,
     ) {
         val editable = onAllNodes(isEditable())
-        assertTrue(editable.fetchSemanticsNodes().size >= 4, "поля формы присутствуют")
+        assertTrue(editable.fetchSemanticsNodes().size >= 3, "поля формы присутствуют")
         editable[0].performTextInput(name)
-        editable[2].performTextInput(frequency)
+        repeat(waterSteps) { clickUnmergedTag("addPlant_water_dec") }
         waitForIdle()
     }
 
@@ -409,7 +423,8 @@ class AddPlantScreenTest {
 
             // Ошибки EN-локали (RN-хардкод рус. текстов → ключи validation.*).
             waitUntilAtLeastOneExists(hasText("Enter a name"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Enter a number"), TIMEOUT)
+            // The watering stepper always holds a valid number (7 by default).
+            onNodeWithText("Enter a number").assertDoesNotExist()
             // POST не ушёл (валидация блокирует submit).
             assertEquals(postsAtSubmit, graph.server.plantsCount, "POST заблокирован невалидной формой")
             // Форма осталась открыта (назад не ушли).
@@ -444,7 +459,7 @@ class AddPlantScreenTest {
             waitUntilAtLeastOneExists(hasText("Новое растение"), TIMEOUT)
             clickSubmit("Добавить растение")
             waitUntilAtLeastOneExists(hasText("Введите название"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Введите число"), TIMEOUT)
+            onNodeWithText("Введите число").assertDoesNotExist()
             onNodeWithText("Минимум 1 день").assertDoesNotExist()
 
             runOnIdle { graph.close() }
@@ -487,8 +502,8 @@ class AddPlantScreenTest {
             }
             waitUntilAtLeastOneExists(hasText("Plant Name"), TIMEOUT)
             val editable = onAllNodes(isEditable())
-            // editable[0] = name field, [1] = location, [2] = watering frequency.
-            listOf("Plant Name" to 0, "Location" to 1, "Watering Frequency (days)" to 2).forEach { (label, i) ->
+            // editable[0] = name field, [1] = location; watering is a stepper, not a text field.
+            listOf("Plant Name" to 0, "Location" to 1).forEach { (label, i) ->
                 val labelBottom = onNodeWithText(label).getBoundsInRoot().bottom
                 val fieldTop = editable[i].getBoundsInRoot().top
                 val gap = fieldTop - labelBottom
@@ -535,7 +550,7 @@ class AddPlantScreenTest {
             openAddPlantForm()
 
             // Имя, частота; дата дефолтная (сегодня) — RN defaultValues.
-            fillForm(name = "Monstera", frequency = "5")
+            fillForm(name = "Monstera", waterSteps = 2)
 
             clickSubmit("Add Plant")
             // POST зафиксирован с телом формы.
@@ -572,7 +587,7 @@ class AddPlantScreenTest {
             openDashboard()
             openAddPlantForm()
 
-            fillForm(name = "Monstera", frequency = "7")
+            fillForm(name = "Monstera")
 
             clickSubmit("Add Plant")
             // Алерт ошибки загрузки (RN showAlert uploadFailed).
@@ -599,7 +614,7 @@ class AddPlantScreenTest {
             openDashboard()
             openAddPlantForm()
 
-            fillForm(name = "ValOffline", frequency = "7")
+            fillForm(name = "ValOffline")
 
             clickSubmit("Add Plant")
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
@@ -688,7 +703,176 @@ class AddPlantScreenTest {
         }
     }
 
-    private companion object {
-        const val TIMEOUT: Long = 10_000L
+    // ------------------------------------------------------------------
+    // M10 item 9b: photo never triggers recognition, optional identify, stepper
+    // ------------------------------------------------------------------
+
+    private class CountingIdentifier : SpeciesIdentifier {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+
+        override suspend fun identify(photoDataUri: String, lang: String): List<SpeciesCandidateDto> {
+            calls.incrementAndGet()
+            return listOf(
+                SpeciesCandidateDto("Monstera deliciosa", listOf("Swiss cheese plant"), 0.81),
+                SpeciesCandidateDto("Unknownia rara", listOf("Rare one"), 0.05),
+            )
+        }
+    }
+
+    private fun photoFile(): File {
+        val file = File.createTempFile("gt-addplant-cover", ".jpg")
+        file.deleteOnExit()
+        file.writeBytes(paintedJpeg(64, 48))
+        return file
+    }
+
+    private fun ComposeUiTest.unmergedCount(tag: String): Int =
+        onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().size
+
+    private fun ComposeUiTest.clickUnmergedTag(tag: String) {
+        waitUntil(timeoutMillis = TIMEOUT) { unmergedCount(tag) > 0 }
+        onAllNodes(hasTestTag(tag), useUnmergedTree = true)[0].performSemanticsAction(SemanticsActions.OnClick)
+    }
+
+    /** Answers the desktop file picker with [file] and confirms the crop screen. */
+    private fun ComposeUiTest.answerPickerAndCrop(file: File, done: String) {
+        waitUntil(timeoutMillis = TIMEOUT) { FilePickBridge.pending != null }
+        runOnIdle {
+            val request = FilePickBridge.pending!!
+            FilePickBridge.clear(request)
+            request.deferred.complete(file.absolutePath)
+        }
+        val doneButton = hasClickAction() and hasText(done)
+        waitUntil(timeoutMillis = TIMEOUT) {
+            onAllNodes(doneButton).fetchSemanticsNodes().any { node ->
+                !node.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
+            }
+        }
+        clickAt(doneButton)
+        waitUntilDoesNotExist(doneButton, TIMEOUT)
+    }
+
+    /** Photo box → Gallery → file → crop Done: the cover is set. */
+    private fun ComposeUiTest.chooseCover(file: File, addPhoto: String, done: String) {
+        clickAt(hasClickAction() and hasContentDescription(addPhoto))
+        clickUnmergedTag("addPlant_photo_gallery")
+        answerPickerAndCrop(file, done)
+    }
+
+    private fun ComposeUiTest.setAddPlant(graph: Harness, identifier: SpeciesIdentifier?, locale: String) {
+        setContent {
+            site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = locale) {
+                site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                    AddPlantScreen(userId = "73", opener = graph.opener, onBack = {}, identifier = identifier)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun choosingPhotoDoesNotCallIdentifier() {
+        val graph = newHarness()
+        val identifier = CountingIdentifier()
+        val file = photoFile()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier, "en")
+            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            onNodeWithText("The photo goes to Pl@ntNet. You can skip this.").assertExists()
+            chooseCover(file, addPhoto = "Add photo", done = "Done")
+            waitUntilAtLeastOneExists(hasContentDescription("Plant Photo"), TIMEOUT)
+            assertEquals(0, identifier.calls.get(), "a chosen photo is only the cover")
+            onNodeWithText("Species").assertDoesNotExist()
+
+            onAllNodes(isEditable())[0].performTextInput("Snake plant")
+            clickSubmit("Add Plant")
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"photo_url\":\"data:image/jpeg;base64,"), "cover saved")
+            assertTrue(body.contains("\"water_frequency_days\":7"), "untouched stepper saves 7: $body")
+            assertTrue(!body.contains("species_"), "no species without recognition: $body")
+            assertEquals(0, identifier.calls.get(), "saving sends nothing to Pl@ntNet")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun identifyUsesChosenPhotoWithoutSecondPick() {
+        val graph = newHarness()
+        val identifier = CountingIdentifier()
+        val file = photoFile()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier, "en")
+            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            chooseCover(file, addPhoto = "Add photo", done = "Done")
+            waitUntilAtLeastOneExists(hasContentDescription("Plant Photo"), TIMEOUT)
+
+            clickUnmergedTag("addPlant_identify")
+            waitUntil(timeoutMillis = TIMEOUT) { identifier.calls.get() == 1 }
+            assertEquals(null, FilePickBridge.pending, "no second picker")
+            assertEquals(0, unmergedCount("identify_gallery"), "no source sheet")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("identify_candidate_0") > 0 }
+            clickUnmergedTag("identify_candidate_0")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("identify_dialog") == 0 }
+
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_nameFromSpecies") == 1 }
+            assertEquals(1, unmergedCount("addPlant_waterFromSpecies"), "watering marked «from species»")
+            onNodeWithText("Wrong plant? Type your own name").assertExists()
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+            assertEquals(1, identifier.calls.get())
+
+            // The name stays an ordinary field: type an own name, the mark goes away.
+            val name = onAllNodes(isEditable())[0]
+            name.performTextClearance()
+            name.performTextInput("Щучий хвост")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_nameFromSpecies") == 0 }
+            clickSubmit("Add Plant")
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"Щучий хвост\""), body)
+            assertTrue(body.contains("\"species_name\":\"Monstera deliciosa\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":8"), body)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun identifyWithoutPhotoPicksOnceThenIdentifies() {
+        val graph = newHarness()
+        val identifier = CountingIdentifier()
+        val file = photoFile()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier, "ru")
+            waitUntilAtLeastOneExists(hasText("Узнать вид по фото"), TIMEOUT)
+            onNodeWithText("Фото уйдёт в Pl@ntNet. Можно не нажимать.").assertExists()
+            onNodeWithText("или выбрать вид из списка").assertExists()
+            clickUnmergedTag("addPlant_identify")
+            clickUnmergedTag("identify_gallery")
+            answerPickerAndCrop(file, done = "Готово")
+            waitUntil(timeoutMillis = TIMEOUT) { identifier.calls.get() == 1 }
+            waitUntilAtLeastOneExists(hasContentDescription("Фото растения"), TIMEOUT)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("identify_candidate_0") > 0 }
+            assertEquals(1, identifier.calls.get())
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun waterStepperShowsSevenDaysAndSteps() {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier = null, locale = "ru")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_water_value") == 1 }
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("7")
+            onNodeWithTag("addPlant_water_unit", useUnmergedTree = true).assertTextEquals("дней")
+            onNodeWithText("Поливать каждые").assertExists()
+            clickUnmergedTag("addPlant_water_inc")
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+            val inc = onNodeWithTag("addPlant_water_inc", useUnmergedTree = true).getBoundsInRoot()
+            assertTrue(inc.right - inc.left >= 48.dp && inc.bottom - inc.top >= 48.dp, "stepper button is at least 48 dp")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    private companion object {        const val TIMEOUT: Long = 10_000L
     }
 }

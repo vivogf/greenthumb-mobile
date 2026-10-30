@@ -145,4 +145,32 @@ class PhotoPickerFlowTest {
         )
         assertEquals(3, results.map { it::class }.distinct().size)
     }
+
+    /** M10 item 9b: a launch can ask for one follow-up with the cropped bytes; cancel never calls it. */
+    @Test
+    fun followUpRunsOnceAfterThisLaunchOnly() = runTest {
+        val h = Harness()
+        var result: PickResult = PickResult.Cancelled
+        val controller = h.controller { result }
+        val followed = mutableListOf<ByteArray>()
+        controller.launch(backgroundScope, PickSource.Gallery) { followed += it }
+        runCurrent()
+        assertEquals(0, followed.size, "cancel: no follow-up")
+
+        result = PickResult.Picked(h.raw)
+        controller.launch(backgroundScope, PickSource.Gallery)
+        runCurrent()
+        controller.confirmCrop(CropRect(0f, 0f, 1f, 1f))
+        runCurrent()
+        assertEquals(1, h.picked.size)
+        assertEquals(0, followed.size, "a later plain launch does not run an old follow-up")
+
+        controller.launch(backgroundScope, PickSource.Gallery) { followed += it }
+        runCurrent()
+        controller.confirmCrop(CropRect(0f, 0f, 1f, 1f))
+        runCurrent()
+        assertEquals(2, h.picked.size)
+        assertEquals(1, followed.size)
+        assertContentEquals(h.cropped, followed.single(), "the follow-up gets the same cover bytes")
+    }
 }

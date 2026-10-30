@@ -71,6 +71,7 @@ fun GtSheetRow(
     modifier: Modifier = Modifier,
     role: GtSheetRowRole = GtSheetRowRole.Normal,
     supporting: String? = null,
+    tag: String = GtSheetTags.ROW,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
@@ -78,7 +79,7 @@ fun GtSheetRow(
             .fillMaxWidth()
             .heightIn(min = Sizes.sheetRow)
             .clickable(role = Role.Button, onClick = onClick)
-            .testTag(GtSheetTags.ROW)
+            .testTag(tag)
             .padding(horizontal = Spacing.xxl, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.lg),

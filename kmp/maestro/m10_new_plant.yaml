@@ -1,0 +1,193 @@
+# New plant form (feature m10-new-plant; VAL-CAM-007, VAL-CAM-013..017, VAL-CROSS-020).
+# Keyless: the app is already signed in (m10_smartcam.yaml STEP=login through render-smoke.sh). The caller pushes a
+# Monstera JPEG to /sdcard/Pictures + media scan and passes PHOTO (content description regex of that photo in the
+# picker). STEP selects one stage; between stages the caller reads `api_usage` and GET /api/plants.
+#   form      open Add Plant from the dashboard: stepper 7 «дней», «Поливать каждые», «Узнать вид по фото» with
+#             its note and «или выбрать вид из списка», no «по виду» mark; stays open
+#   nophoto   (form open, no photo) «Узнать вид по фото» opens the photo source sheet once; «Отмена» closes it,
+#             nothing is sent
+#   photo     (form open) the photo box → «Галерея» → ${PHOTO} → crop «Готово»: the cover is set, no candidates
+#             appear (0 Pl@ntNet calls)
+#   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, save → dashboard shows ${NAME}
+#   identify  (form open with a photo) «Узнать вид по фото» → candidates (1 Pl@ntNet call) → first candidate →
+#             name and watering marked «по виду», name hint shown; the name is replaced by ${NAME}; save
+#   draft     (smart camera plant result on screen) «Добавить к моим растениям» → Add Plant with the photo and
+#             the species marked «по виду» → save
+# NAME must be Latin: Maestro inputText drops Cyrillic in the Add Plant fields on elt_test.
+# Selectors are bilingual ru|en. Do not call hideKeyboard inside a sheet (Back closes it).
+appId: com.greenthumbplantcare.debug
+name: GreenThumb new plant (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'form'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Профиль|Profile"
+          timeout: 30000
+      - tapOn: "Добавить растение|Add Plant|Добавить новое растение|Add a new plant"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+      - assertVisible: "Узнать вид по фото|Find species by photo"
+      - assertVisible: "Фото уйдёт в Pl@ntNet. Можно не нажимать.|The photo goes to Pl@ntNet. You can skip this."
+      - assertVisible: "или выбрать вид из списка|or pick a species from the list"
+      - assertNotVisible: "по виду|from species"
+      - takeScreenshot: form-top
+      - scrollUntilVisible:
+          element:
+            text: "Поливать каждые|Water every"
+          direction: DOWN
+      - assertVisible: "7"
+      - assertVisible: "дней|days"
+      - takeScreenshot: form-water
+      - scrollUntilVisible:
+          element:
+            text: "Узнать вид по фото|Find species by photo"
+          direction: UP
+
+- runFlow:
+    when:
+      true: ${STEP == 'nophoto'}
+    commands:
+      - tapOn: "Узнать вид по фото|Find species by photo"
+      - extendedWaitUntil:
+          visible: "Фото растения|Photo of the plant"
+          timeout: 10000
+      - assertVisible: "Камера|Camera"
+      - assertVisible: "Галерея|Gallery"
+      - takeScreenshot: nophoto-sheet
+      - tapOn: "Отмена|Cancel"
+      - extendedWaitUntil:
+          notVisible: "Камера|Camera"
+          timeout: 5000
+      - assertVisible: "Добавить фото|Add photo"
+
+- runFlow:
+    when:
+      true: ${STEP == 'photo'}
+    commands:
+      - tapOn: "Добавить фото|Add photo"
+      - extendedWaitUntil:
+          visible: "Галерея|Gallery"
+          timeout: 10000
+      - takeScreenshot: photo-sheet
+      - tapOn: "Галерея|Gallery"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Готово|Done"
+          timeout: 15000
+      - tapOn: "Готово|Done"
+      - extendedWaitUntil:
+          visible: "Узнать вид по фото|Find species by photo"
+          timeout: 15000
+      - waitForAnimationToEnd
+      - assertNotVisible: "Monstera deliciosa"
+      - assertNotVisible: "по виду|from species"
+      - takeScreenshot: photo-set
+
+- runFlow:
+    when:
+      true: ${STEP == 'manual'}
+    commands:
+      - tapOn: "например, Монстера Деликатесная|e.g., Monstera Deliciosa"
+      - inputText: ${NAME}
+      - scrollUntilVisible:
+          element:
+            text: "Поливать каждые|Water every"
+          direction: DOWN
+      - runFlow:
+          when:
+            true: ${PLUS != '0'}
+          commands:
+            - repeat:
+                times: ${PLUS}
+                commands:
+                  - tapOn: "Полив: больше|Watering: increase"
+      - takeScreenshot: manual-form
+      - scrollUntilVisible:
+          element:
+            text: "Добавить растение|Add Plant"
+          direction: DOWN
+      - tapOn: "Добавить растение|Add Plant"
+      - extendedWaitUntil:
+          visible: ${NAME}
+          timeout: 40000
+      - assertVisible: "Мои растения|My Plants"
+      - takeScreenshot: manual-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'identify'}
+    commands:
+      - tapOn: "Узнать вид по фото|Find species by photo"
+      - extendedWaitUntil:
+          visible: "Monstera deliciosa"
+          timeout: 40000
+      - assertNotVisible: "Галерея|Gallery"
+      - takeScreenshot: identify-candidates
+      - tapOn: "Monstera deliciosa"
+      - extendedWaitUntil:
+          visible: "по виду|from species"
+          timeout: 10000
+      - assertVisible: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
+      - takeScreenshot: identify-filled
+      - scrollUntilVisible:
+          element:
+            text: "Поливать каждые|Water every"
+          direction: DOWN
+      - takeScreenshot: identify-filled-water
+      - scrollUntilVisible:
+          element:
+            text: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
+          direction: UP
+      - tapOn:
+          below: "Название растения|Plant Name"
+          above: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
+      # eraseText under-erases Cyrillic (a catalog name is Cyrillic in ru): erase far past its length.
+      - eraseText: 200
+      - inputText: ${NAME}
+      - assertVisible: ${NAME}
+      - takeScreenshot: identify-own-name
+      - scrollUntilVisible:
+          element:
+            text: "Добавить растение|Add Plant"
+          direction: DOWN
+      - tapOn: "Добавить растение|Add Plant"
+      - extendedWaitUntil:
+          visible: ${NAME}
+          timeout: 40000
+      - assertVisible: "Мои растения|My Plants"
+      - takeScreenshot: identify-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'draft'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Добавить к моим растениям|Add to my plants"
+          direction: DOWN
+      - tapOn: "Добавить к моим растениям|Add to my plants"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+      - assertVisible: "Monstera deliciosa"
+      - assertVisible: "по виду|from species"
+      - assertVisible: "Фото растения|Plant Photo"
+      - takeScreenshot: draft-form
+      - scrollUntilVisible:
+          element:
+            text: "Добавить растение|Add Plant"
+          direction: DOWN
+      - takeScreenshot: draft-form-water
+      - tapOn: "Добавить растение|Add Plant"
+      - extendedWaitUntil:
+          visible: "Мои растения|My Plants"
+          timeout: 40000
+      - takeScreenshot: draft-dashboard
