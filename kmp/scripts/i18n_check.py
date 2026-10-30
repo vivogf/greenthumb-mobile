@@ -103,7 +103,6 @@ KMP_ONLY_KEYS = {
     # species identification by photo (architecture §5.4, §8.4).
     "species.identify",
     "species.identifyTitle",
-    "species.identifySourceTitle",
     "species.identifyLoading",
     "species.identifyChooseHint",
     "species.identifyConfidence",
@@ -203,7 +202,6 @@ KMP_ONLY_KEYS = {
     "addPlant.validation.dateRequired",
     # addPlant.section* — RN add-plant.tsx:251 держит заголовки секций с
     # эмодзи захардкоженными по-русски («💧 Полив»); KMP локализует их.
-    "addPlant.sectionWatering",
     "addPlant.sectionFertilizing",
     "addPlant.sectionRepotting",
     "addPlant.sectionPruning",
@@ -369,6 +367,11 @@ KMP_ONLY_KEYS = {
     "addPlant.nameHint",
     "addPlant.fromSpecies",
     "addPlant.waterEvery",
+    # New plant as one short form with a collapsed «Ещё параметры» (M11 item 5).
+    "addPlant.submit",
+    "addPlant.moreOptions",
+    "addPlant.moreOptionsHint",
+    "addPlant.extraCare",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of

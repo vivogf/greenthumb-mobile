@@ -776,6 +776,7 @@ public fun ProfileScreen(
                             role = Role.Button,
                             enabled = !regenerating,
                         ) { if (!regenerating) showRegenerateConfirm = true }
+                        .heightIn(min = Sizes.touch)
                         .padding(vertical = Spacing.xxs),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -796,6 +797,7 @@ public fun ProfileScreen(
                                 indication = null,
                                 role = Role.Button,
                             ) { onShowKeyQr() }
+                            .heightIn(min = Sizes.touch)
                             .padding(vertical = Spacing.xxs)
                             .testTag("profile_showKeyQr"),
                         verticalAlignment = Alignment.CenterVertically,

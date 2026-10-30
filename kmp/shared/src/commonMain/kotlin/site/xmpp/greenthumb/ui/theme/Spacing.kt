@@ -77,6 +77,9 @@ object Sizes {
     /** Height of the full-width photo box on Add Plant. */
     val photoBoxTall = 200.dp
 
+    /** Height of the empty photo box on Add Plant, so the short form fits above the fold (M11 item 5). */
+    val photoBoxShort = 152.dp
+
     /** Width of the smart camera glow ring. */
     val glowBorder = 2.dp
 }

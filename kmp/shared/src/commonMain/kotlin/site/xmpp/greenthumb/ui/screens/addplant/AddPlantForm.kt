@@ -200,6 +200,14 @@ public object AddPlantForm {
     public fun clearSpecies(fields: AddPlantFields): AddPlantFields =
         fields.copy(speciesId = null, speciesName = null, speciesAutoName = null, speciesWaterText = null)
 
+    /** «Узнать вид по фото» is offered only for a chosen cover and while no species is set (M11 item 5). */
+    public fun canIdentify(fields: AddPlantFields, hasCover: Boolean): Boolean =
+        hasCover && fields.speciesId == null && fields.speciesName == null
+
+    /** An error in a field under the collapsed «Ещё параметры» opens it, so the user sees why nothing was saved. */
+    public fun opensMoreOptions(errors: AddPlantErrors): Boolean =
+        errors.lastWateredDate != null || errors.advancedFrequencies
+
     private fun parseOptionalDate(date: String?): String? =
         date?.trim()?.takeIf { it.isNotEmpty() }
 }

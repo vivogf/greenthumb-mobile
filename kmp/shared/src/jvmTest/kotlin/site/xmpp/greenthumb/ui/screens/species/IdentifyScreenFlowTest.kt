@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
@@ -153,15 +154,16 @@ class IdentifyScreenFlowTest {
     }
 
     /**
-     * Taps "Find species by photo". Without a cover it opens the source sheet once: Gallery →
-     * the file picker gets the fixture JPEG → crop [done] → the cover is identified. With a
-     * cover ([pick] = false) the same photo is sent at once, with no picker.
+     * With [pick] the photo box sets the fixture JPEG as the cover first (Gallery → file → crop
+     * [done]); «Find species by photo» exists only with a cover. Then the button sends that cover,
+     * with no second picker.
      */
     private fun ComposeUiTest.identifyFromGallery(h: Harness, done: String = "Done", pick: Boolean = true) {
         val before = h.server.count()
-        clickTag("addPlant_identify")
         if (pick) {
-            clickTag("identify_gallery")
+            assertNoTag("addPlant_identify")
+            click(hasClickAction() and hasContentDescription(if (done == "Done") "Add photo" else "Добавить фото"))
+            clickTag("addPlant_photo_gallery")
             waitUntil(timeoutMillis = TIMEOUT) { FilePickBridge.pending != null }
             runOnIdle {
                 val request = FilePickBridge.pending!!
@@ -175,9 +177,11 @@ class IdentifyScreenFlowTest {
                 }
             }
             onAllNodes(doneButton)[0].performSemanticsAction(SemanticsActions.OnClick)
-        } else {
-            assertEquals(null, FilePickBridge.pending, "no picker for a chosen photo")
+            waitUntilDoesNotExist(doneButton, TIMEOUT)
+            assertEquals(before, h.server.count(), "choosing the cover sends nothing")
         }
+        clickTag("addPlant_identify")
+        assertEquals(null, FilePickBridge.pending, "no picker for a chosen photo")
         waitUntil(timeoutMillis = TIMEOUT) { h.server.count() == before + 1 }
     }
 
@@ -208,7 +212,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
             identifyFromGallery(h)
             assertTrue(h.server.identifyBodies[0].contains("\"lang\":\"en\""), h.server.identifyBodies[0])
             assertEquals("en", h.server.lang(0))
@@ -239,7 +243,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Узнать вид по фото"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Добавить фото"), TIMEOUT)
             identifyFromGallery(h, done = "Готово")
             assertEquals("ru", h.server.lang(0))
             waitUntilAtLeastOneExists(hasText("Уверенность: высокая"), TIMEOUT)
@@ -270,7 +274,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
             identifyFromGallery(h)
             waitForTag("identify_loading")
             onNodeWithText("Identifying the species…").assertExists()
@@ -298,7 +302,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Узнать вид по фото"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Добавить фото"), TIMEOUT)
             identifyFromGallery(h, done = "Готово")
             waitUntilAtLeastOneExists(hasText("Лимит распознаваний на сегодня исчерпан"), TIMEOUT)
             assertNoTag("identify_loading")
@@ -318,7 +322,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
             identifyFromGallery(h)
             waitUntilAtLeastOneExists(hasText("Identification is unavailable"), TIMEOUT)
             assertNoTag("identify_loading")
@@ -340,7 +344,7 @@ class IdentifyScreenFlowTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
             identifyFromGallery(h)
             waitForTag("identify_loading")
             h.server.gate!!.complete(Unit)

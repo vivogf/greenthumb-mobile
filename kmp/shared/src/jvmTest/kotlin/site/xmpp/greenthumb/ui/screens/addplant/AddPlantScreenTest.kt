@@ -65,6 +65,10 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.foundation.layout.width
 import org.junit.Rule
 import site.xmpp.greenthumb.core.network.SpeciesCandidateDto
 import site.xmpp.greenthumb.core.platform.FilePickBridge
@@ -377,7 +381,7 @@ class AddPlantScreenTest {
         waterSteps: Int = 0,
     ) {
         val editable = onAllNodes(isEditable())
-        assertTrue(editable.fetchSemanticsNodes().size >= 3, "поля формы присутствуют")
+        assertTrue(editable.fetchSemanticsNodes().isNotEmpty(), "name field is shown")
         editable[0].performTextInput(name)
         repeat(waterSteps) { clickUnmergedTag("addPlant_water_dec") }
         waitForIdle()
@@ -398,9 +402,9 @@ class AddPlantScreenTest {
         matcher: androidx.compose.ui.test.SemanticsMatcher,
     ) = onAllNodes(matcher).fetchSemanticsNodes()
 
-    /** Клик по кнопке submit по точному тексту (вне вьюпорта включительно). */
-    private fun androidx.compose.ui.test.ComposeUiTest.clickSubmit(label: String) {
-        clickAt(hasClickAction() and hasText(label, substring = true))
+    /** The pinned «Добавить» button (OnClick directly, outside the viewport too). */
+    private fun androidx.compose.ui.test.ComposeUiTest.clickSubmit() {
+        clickUnmergedTag("addPlant_submit")
     }
 
     // ------------------------------------------------------------------
@@ -418,7 +422,7 @@ class AddPlantScreenTest {
 
             // Пустая форма (дата дефолтная — сегодня, имя и частота пустые).
             val postsAtSubmit = graph.server.plantsCount
-            clickSubmit("Add Plant")
+            clickSubmit()
             waitForIdle()
 
             // Ошибки EN-локали (RN-хардкод рус. текстов → ключи validation.*).
@@ -457,7 +461,7 @@ class AddPlantScreenTest {
                 }
             }
             waitUntilAtLeastOneExists(hasText("Новое растение"), TIMEOUT)
-            clickSubmit("Добавить растение")
+            clickSubmit()
             waitUntilAtLeastOneExists(hasText("Введите название"), TIMEOUT)
             onNodeWithText("Введите число").assertDoesNotExist()
             onNodeWithText("Минимум 1 день").assertDoesNotExist()
@@ -475,11 +479,13 @@ class AddPlantScreenTest {
             openDashboard()
             openAddPlantForm()
 
-            waitUntilAtLeastOneExists(hasText("💧 Watering"), TIMEOUT)
             waitUntilAtLeastOneExists(hasSubText("Add photo"), TIMEOUT)
+            onNodeWithText("💧 Watering").assertDoesNotExist()
             onNodeWithText("🌱 Fertilizing").assertDoesNotExist()
+            onNodeWithText("Extra care").assertDoesNotExist()
 
-            clickAt(hasClickAction() and hasSubText("Advanced Care Schedule"))
+            clickUnmergedTag("addPlant_more")
+            waitUntilAtLeastOneExists(hasText("Extra care"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("🌱 Fertilizing"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("🪴 Repotting"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("✂️ Pruning"), TIMEOUT)
@@ -501,6 +507,8 @@ class AddPlantScreenTest {
                 }
             }
             waitUntilAtLeastOneExists(hasText("Plant Name"), TIMEOUT)
+            clickUnmergedTag("addPlant_more")
+            waitUntilAtLeastOneExists(hasText("Location"), TIMEOUT)
             val editable = onAllNodes(isEditable())
             // editable[0] = name field, [1] = location; watering is a stepper, not a text field.
             listOf("Plant Name" to 0, "Location" to 1).forEach { (label, i) ->
@@ -525,9 +533,10 @@ class AddPlantScreenTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("💧 Полив"), TIMEOUT)
             waitUntilAtLeastOneExists(hasSubText("Добавить фото"), TIMEOUT)
-            clickAt(hasClickAction() and hasSubText("Расширенный уход"))
+            onNodeWithText("💧 Полив").assertDoesNotExist()
+            clickUnmergedTag("addPlant_more")
+            waitUntilAtLeastOneExists(hasText("Дополнительный уход"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("🌱 Удобрение"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("🪴 Пересадка"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("✂️ Обрезка"), TIMEOUT)
@@ -552,7 +561,7 @@ class AddPlantScreenTest {
             // Имя, частота; дата дефолтная (сегодня) — RN defaultValues.
             fillForm(name = "Monstera", waterSteps = 2)
 
-            clickSubmit("Add Plant")
+            clickSubmit()
             // POST зафиксирован с телом формы.
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
             val body = graph.server.lastAddBody.orEmpty()
@@ -589,7 +598,7 @@ class AddPlantScreenTest {
 
             fillForm(name = "Monstera")
 
-            clickSubmit("Add Plant")
+            clickSubmit()
             // Алерт ошибки загрузки (RN showAlert uploadFailed).
             waitUntilAtLeastOneExists(hasText("Upload failed"), TIMEOUT)
             // Форма осталась открытой (не ушли назад).
@@ -616,7 +625,7 @@ class AddPlantScreenTest {
 
             fillForm(name = "ValOffline")
 
-            clickSubmit("Add Plant")
+            clickSubmit()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
             waitUntilDoesNotExist(hasText("Add New Plant"), TIMEOUT)
             waitUntilAtLeastOneExists(hasSubText("ValOffline"), TIMEOUT)
@@ -654,6 +663,7 @@ class AddPlantScreenTest {
             // ресурса datePicker_fieldDescription (en «Date field …»). Клик — открытие диалога.
             val today = pickerToday()
             val todayLabel = formatPickerDate(today.toString(), "en")
+            clickUnmergedTag("addPlant_more")
             waitUntilAtLeastOneExists(
                 hasContentDescription("Date field $todayLabel"),
                 TIMEOUT,
@@ -776,15 +786,18 @@ class AddPlantScreenTest {
         val file = photoFile()
         runDesktopComposeUiTest {
             setAddPlant(graph, identifier, "en")
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
-            onNodeWithText("The photo goes to Pl@ntNet. You can skip this.").assertExists()
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
+            assertEquals(0, unmergedCount("addPlant_identify"), "no identify button without a photo")
+            onNodeWithText("The photo goes to Pl@ntNet. You can skip this.").assertDoesNotExist()
             chooseCover(file, addPhoto = "Add photo", done = "Done")
             waitUntilAtLeastOneExists(hasContentDescription("Plant Photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            onNodeWithText("The photo goes to Pl@ntNet. You can skip this.").assertExists()
             assertEquals(0, identifier.calls.get(), "a chosen photo is only the cover")
             onNodeWithText("Species").assertDoesNotExist()
 
             onAllNodes(isEditable())[0].performTextInput("Snake plant")
-            clickSubmit("Add Plant")
+            clickSubmit()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
             val body = graph.server.lastAddBody.orEmpty()
             assertTrue(body.contains("\"photo_url\":\"data:image/jpeg;base64,"), "cover saved")
@@ -802,7 +815,7 @@ class AddPlantScreenTest {
         val file = photoFile()
         runDesktopComposeUiTest {
             setAddPlant(graph, identifier, "en")
-            waitUntilAtLeastOneExists(hasText("Find species by photo"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasContentDescription("Add photo"), TIMEOUT)
             chooseCover(file, addPhoto = "Add photo", done = "Done")
             waitUntilAtLeastOneExists(hasContentDescription("Plant Photo"), TIMEOUT)
 
@@ -825,7 +838,7 @@ class AddPlantScreenTest {
             name.performTextClearance()
             name.performTextInput("Щучий хвост")
             waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_nameFromSpecies") == 0 }
-            clickSubmit("Add Plant")
+            clickSubmit()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
             val body = graph.server.lastAddBody.orEmpty()
             assertTrue(body.contains("\"name\":\"Щучий хвост\""), body)
@@ -836,22 +849,239 @@ class AddPlantScreenTest {
     }
 
     @Test
-    fun identifyWithoutPhotoPicksOnceThenIdentifies() {
+    fun identifyAppearsOnlyWithPhoto_andRemovingThePhotoHidesIt() {
         val graph = newHarness()
         val identifier = CountingIdentifier()
         val file = photoFile()
         runDesktopComposeUiTest {
             setAddPlant(graph, identifier, "ru")
+            waitUntilAtLeastOneExists(hasContentDescription("Добавить фото"), TIMEOUT)
+            assertEquals(0, unmergedCount("addPlant_identify"))
+            onNodeWithText("Узнать вид по фото").assertDoesNotExist()
+            onNodeWithText("Фото уйдёт в Pl@ntNet. Можно не нажимать.").assertDoesNotExist()
+
+            chooseCover(file, addPhoto = "Добавить фото", done = "Готово")
             waitUntilAtLeastOneExists(hasText("Узнать вид по фото"), TIMEOUT)
             onNodeWithText("Фото уйдёт в Pl@ntNet. Можно не нажимать.").assertExists()
+            val photoBottom = onNode(hasContentDescription("Фото растения")).getBoundsInRoot().bottom
+            val identifyTop = onNodeWithTag("addPlant_identify", useUnmergedTree = true).getBoundsInRoot().top
+            assertTrue(identifyTop >= photoBottom, "the button sits under the photo")
+
+            clickAt(hasClickAction() and hasContentDescription("Фото растения"))
+            clickUnmergedTag("addPlant_photo_remove")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_identify") == 0 }
+            onNodeWithText("Фото уйдёт в Pl@ntNet. Можно не нажимать.").assertDoesNotExist()
+            assertEquals(0, identifier.calls.get(), "pick and remove send nothing")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // M11 item 5 (variant A): one short screen, the rest under «Ещё параметры»
+    // ------------------------------------------------------------------
+
+    private fun ComposeUiTest.setScaledAddPlant(graph: Harness, locale: String, fontScale: Float, widthDp: Int = 384) {
+        setContent {
+            site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = locale) {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = androidx.compose.ui.Modifier.width(widthDp.dp),
+                        ) {
+                            AddPlantScreen(userId = "73", opener = graph.opener, onBack = {}, identifier = CountingIdentifier())
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun ComposeUiTest.lineCountOf(text: String): Int {
+        val node = onNode(hasText(text), useUnmergedTree = true).fetchSemanticsNode()
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results)
+        return results.first().lineCount
+    }
+
+    private fun shortFormCase(locale: String, more: String, add: String, fontScale: Float) {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, locale, fontScale)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            // Above «Ещё параметры»: photo box, name, watering stepper (7). Nothing else.
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("7")
+            assertEquals(1, onAllNodes(isEditable()).fetchSemanticsNodes().size, "only the name field is shown")
+            listOf("addPlant_identify", "addPlant_pickSpecies", "addPlant_location", "addPlant_lastWatered", "addPlant_notes")
+                .forEach { tag -> assertEquals(0, unmergedCount(tag), "$tag is hidden while collapsed") }
+            val photo = onNode(hasClickAction() and hasContentDescription(if (locale == "ru") "Добавить фото" else "Add photo"))
+                .getBoundsInRoot()
+            val name = onAllNodes(isEditable())[0].getBoundsInRoot()
+            val stepper = onNodeWithTag("addPlant_water_inc", useUnmergedTree = true).getBoundsInRoot()
+            val moreRow = onNodeWithTag("addPlant_more", useUnmergedTree = true).getBoundsInRoot()
+            val submit = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
+            assertTrue(photo.bottom <= name.top && name.bottom <= stepper.top, "photo, name, stepper from top to bottom")
+            assertTrue(stepper.bottom <= moreRow.top && moreRow.bottom <= submit.top, "«$more» above «$add»")
+            val root = onRoot().getBoundsInRoot()
+            assertTrue(submit.bottom <= root.bottom, "«$add» is on screen without scrolling: $submit in $root")
+            onNodeWithTag("addPlant_submit").assertTextEquals(add)
+            assertEquals(1, lineCountOf(more), "«$more» is one line at $fontScale")
+            assertEquals(1, lineCountOf(add), "«$add» is one line at $fontScale")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun shortForm_ru_showsOnlyPhotoNameWatering_andAddAtTheBottom() =
+        shortFormCase(locale = "ru", more = "Ещё параметры", add = "Добавить", fontScale = 1.3f)
+
+    @Test
+    fun shortForm_en_showsOnlyPhotoNameWatering_andAddAtTheBottom() =
+        shortFormCase(locale = "en", more = "More options", add = "Add", fontScale = 1.15f)
+
+    @Test
+    fun addButtonStaysPinnedWhileTheFormScrolls() {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, "en", fontScale = 1.3f)
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_notes") == 1 }
+            val submitBefore = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
+            val moreBefore = onNodeWithTag("addPlant_more", useUnmergedTree = true).getBoundsInRoot()
+            repeat(4) { onNodeWithTag("addPlant_form").performTouchInput { swipeUp() } }
+            waitForIdle()
+            val submitAfter = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
+            val moreAfter = onNodeWithTag("addPlant_more", useUnmergedTree = true).getBoundsInRoot()
+            assertTrue(moreAfter.top < moreBefore.top, "the form scrolled: $moreBefore → $moreAfter")
+            assertEquals(submitBefore, submitAfter, "«Add» does not move")
+            val root = onRoot().getBoundsInRoot()
+            assertTrue(submitAfter.bottom <= root.bottom && submitAfter.top >= root.top, "«Add» stays on screen")
+            assertTrue(submitAfter.bottom - submitAfter.top >= 48.dp, "«Add» is at least 48 dp high")
+
+            // An empty name sends nothing and says why.
+            val posts = graph.server.plantsCount
+            clickSubmit()
+            waitUntilAtLeastOneExists(hasText("Enter a name"), TIMEOUT)
+            assertEquals(posts, graph.server.plantsCount)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun moreOptions_isCollapsed_andKeepsTypedValuesAcrossToggles() {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier = null, locale = "ru")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_more") == 1 }
+            onNodeWithText("Ещё параметры").assertExists()
+            onNodeWithText("место, вид из списка, последний полив, уход, заметки").assertExists()
+            assertEquals(0, unmergedCount("addPlant_location"))
+
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 1 }
             onNodeWithText("или выбрать вид из списка").assertExists()
-            clickUnmergedTag("addPlant_identify")
-            clickUnmergedTag("identify_gallery")
-            answerPickerAndCrop(file, done = "Готово")
-            waitUntil(timeoutMillis = TIMEOUT) { identifier.calls.get() == 1 }
-            waitUntilAtLeastOneExists(hasContentDescription("Фото растения"), TIMEOUT)
-            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("identify_candidate_0") > 0 }
-            assertEquals(1, identifier.calls.get())
+            onNodeWithText("Дата последнего полива").assertExists()
+            onNodeWithText("Дополнительный уход").assertExists()
+            onNodeWithText("🌱 Удобрение").assertExists()
+            onNodeWithText("🪴 Пересадка").assertExists()
+            onNodeWithText("✂️ Обрезка").assertExists()
+            val today = formatPickerDate(pickerToday().toString(), "ru")
+            waitUntilAtLeastOneExists(hasText(today), TIMEOUT)
+
+            onNodeWithTag("addPlant_location").performTextInput("Kitchen")
+            onNodeWithTag("addPlant_notes").performTextInput("North window")
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 0 }
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 1 }
+            onNodeWithTag("addPlant_location").assertTextEquals("Kitchen", includeEditableText = true)
+            onNodeWithTag("addPlant_notes").assertTextEquals("North window", includeEditableText = true)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun nameOnlyPlant_savesWateringSevenAndToday() {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier = CountingIdentifier(), locale = "en")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onAllNodes(isEditable())[0].performTextInput("Fern")
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"Fern\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":7"), body)
+            assertTrue(body.contains("\"last_watered_date\":\"${pickerToday()}\""), body)
+            listOf("species_", "fertilize", "repot_", "prune_", "data:image").forEach { key ->
+                assertTrue(!body.contains(key), "no $key in a name-only plant: $body")
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun fieldsUnderMoreOptions_areSaved_andTheTypedNameIsKept() {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setAddPlant(graph, identifier = null, locale = "en")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onAllNodes(isEditable())[0].performTextInput("Big leaf")
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 1 }
+            onNodeWithTag("addPlant_location").performTextInput("Kitchen")
+            clickUnmergedTag("addPlant_pickSpecies")
+            val search = isEditable() and hasText("Name or scientific name", substring = true)
+            waitUntilAtLeastOneExists(search, TIMEOUT)
+            onAllNodes(search)[0].performTextInput("Monstera deliciosa")
+            clickAt(hasClickAction() and hasText("Swiss cheese plant"))
+            waitUntilDoesNotExist(search, TIMEOUT)
+            onNodeWithTag("addPlant_fertilize").performTextClearance()
+            onNodeWithTag("addPlant_fertilize").performTextInput("14")
+            onNodeWithTag("addPlant_notes").performTextInput("North window")
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"Big leaf\""), "the typed name is kept: $body")
+            assertTrue(body.contains("\"location\":\"Kitchen\""), body)
+            assertTrue(body.contains("\"species_id\":\"monstera-deliciosa\""), body)
+            assertTrue(body.contains("\"species_name\":\"Monstera deliciosa\""), body)
+            assertTrue(body.contains("\"fertilize_frequency_days\":14"), body)
+            assertTrue(body.contains("\"notes\":\"North window\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":8"), "the stepper value from the species: $body")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /** Every clickable node of the form, collapsed, expanded and with a photo, is at least 48 dp each way. */
+    @Test
+    fun touchTargets_areAtLeast48dp() {
+        val graph = newHarness()
+        val file = photoFile()
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, "ru", fontScale = 1.3f)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            fun check(state: String) {
+                waitForIdle()
+                val px = 48 * density.density - 0.5f
+                val small = onAllNodes(hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes()
+                    .filter { it.size.width < px || it.size.height < px }
+                    .map { node ->
+                        val label = node.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.Text) { emptyList() }
+                            .joinToString { it.text } + node.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) { emptyList() }
+                        "$label ${node.size}"
+                    }
+                assertTrue(small.isEmpty(), "$state: targets below 48 dp: $small")
+            }
+            check("collapsed")
+            chooseCover(file, addPhoto = "Добавить фото", done = "Готово")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_identify") == 1 }
+            check("with photo")
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_notes") == 1 }
+            check("expanded")
             runOnIdle { graph.close() }
         }
     }
@@ -873,6 +1103,7 @@ class AddPlantScreenTest {
         }
     }
 
-    private companion object {        const val TIMEOUT: Long = 10_000L
+    private companion object {
+        const val TIMEOUT: Long = 10_000L
     }
 }

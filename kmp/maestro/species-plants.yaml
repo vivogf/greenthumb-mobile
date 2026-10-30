@@ -20,17 +20,15 @@ name: GreenThumb species catalog — saved plants (${STEP})
       true: ${STEP == 'add-ru'}
     commands:
       - tapOn: "Добавить новое растение|Добавить растение"
-      - tapOn: "Выбрать вид"
+      - tapOn: "Ещё параметры"
+      - tapOn: "или выбрать вид из списка"
       - tapOn: "Название или латинское имя"
       - inputText: "Swiss cheese"
       - tapOn: "Monstera deliciosa"
       - extendedWaitUntil:
           visible: "Монстера деликатесная"
           timeout: 2000
-      - scrollUntilVisible:
-          element: "Добавить растение"
-          direction: DOWN
-      - tapOn: "Добавить растение"
+      - tapOn: "Добавить"
       - extendedWaitUntil:
           visible: "Открыть карточку растения Монстера деликатесная"
           timeout: 15000

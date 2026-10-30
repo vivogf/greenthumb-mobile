@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
+import androidx.compose.ui.unit.dp
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
@@ -662,6 +663,30 @@ class ProfileScreenTest {
     // ------------------------------------------------------------------
     // Регенерация ключа (VAL-PROFILE-001, desktop-ветка: диалог + сохранение)
     // ------------------------------------------------------------------
+
+    @Test
+    fun keyActionRows_areAtLeast48dpHigh() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        graph.server.initialKey = "key-profile-81"
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab(pushSubscribed = true)
+            waitUntilAtLeastOneExists(hasText("Generate New Key"), TIMEOUT)
+            val minPx = with(density) { 48.dp.toPx() } - 0.5f
+            val rows = allNodes(hasClickAction() and (hasText("Generate New Key") or hasText("Show key as QR code")))
+            assertEquals(2, rows.size, "both key action rows are shown")
+            val small = rows.filter { node ->
+                node.size.width < minPx || node.size.height < minPx
+            }.map { node ->
+                val label = node.config.getOrNull(SemanticsProperties.Text)?.joinToString()
+                    ?: node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
+                "$label ${node.size}"
+            }
+            assertTrue(small.isEmpty(), "key action rows under 48 dp: $small")
+            runOnIdle { graph.close() }
+        }
+    }
 
     @Test
     fun regenerateKey_cancelDialogDoesNotRegenerate_confirmPersistsNewKey() {

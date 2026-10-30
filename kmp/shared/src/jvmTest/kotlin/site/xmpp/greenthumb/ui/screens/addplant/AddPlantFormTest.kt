@@ -481,4 +481,48 @@ class AddPlantFormTest {
         assertTrue(AddPlantForm.waterFromSpecies(fields))
         assertEquals("2026-10-30", fields.lastWateredDate)
     }
+
+    // ------------------------------------------------------------------
+    // M11 item 5: one short form, the rest under «Ещё параметры»
+    // ------------------------------------------------------------------
+
+    @Test
+    fun nameOnly_savesDefaultWateringAndToday() {
+        val dto = AddPlantForm.toInsertPlantDto(AddPlantFields(name = " Fern ", lastWateredDate = "2026-10-31"))
+        assertEquals("Fern", dto.name)
+        assertEquals(7, dto.waterFrequencyDays, "the untouched stepper saves 7")
+        assertEquals("2026-10-31", dto.lastWateredDate, "the default date is the form's today")
+        assertEquals(null, dto.speciesId)
+        assertEquals(null, dto.speciesName)
+        assertEquals("", dto.location)
+        assertEquals("", dto.notes)
+        assertEquals("", dto.photoUrl)
+        assertEquals(null, dto.fertilizeFrequencyDays)
+        assertEquals(null, dto.repotFrequencyMonths)
+        assertEquals(null, dto.pruneFrequencyMonths)
+        assertTrue(AddPlantForm.validate(AddPlantFields(name = "Fern", lastWateredDate = "2026-10-31"), texts).canSubmit)
+    }
+
+    @Test
+    fun identifyIsOfferedOnlyForACoverWithoutSpecies() {
+        val fresh = AddPlantFields(lastWateredDate = "2026-10-31")
+        assertFalse(AddPlantForm.canIdentify(fresh, hasCover = false), "no photo, no identify button")
+        assertTrue(AddPlantForm.canIdentify(fresh, hasCover = true))
+        val withSpecies = AddPlantForm.applySpecies(fresh, monstera, "en")
+        assertFalse(AddPlantForm.canIdentify(withSpecies, hasCover = true), "a chosen species hides it")
+        assertTrue(AddPlantForm.canIdentify(AddPlantForm.clearSpecies(withSpecies), hasCover = true))
+    }
+
+    @Test
+    fun errorsUnderMoreOptionsOpenTheSection() {
+        val nameOnlyError = AddPlantForm.validate(AddPlantFields(lastWateredDate = "2026-10-31"), texts)
+        assertFalse(AddPlantForm.opensMoreOptions(nameOnlyError), "the name sits above the section")
+        val badFertilize = AddPlantForm.validate(
+            AddPlantFields(name = "Fern", lastWateredDate = "2026-10-31", fertilizeFrequencyText = "0"),
+            texts,
+        )
+        assertTrue(AddPlantForm.opensMoreOptions(badFertilize), "an invalid care interval must become visible")
+        val noDate = AddPlantForm.validate(AddPlantFields(name = "Fern", lastWateredDate = null), texts)
+        assertTrue(AddPlantForm.opensMoreOptions(noDate))
+    }
 }

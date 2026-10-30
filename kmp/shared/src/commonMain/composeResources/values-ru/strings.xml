@@ -130,6 +130,10 @@
     <string name="addPlant_nameHint">Не то растение? Впишите своё название</string>
     <string name="addPlant_fromSpecies">по виду</string>
     <string name="addPlant_waterEvery">Поливать каждые</string>
+    <string name="addPlant_submit">Добавить</string>
+    <string name="addPlant_moreOptions">Ещё параметры</string>
+    <string name="addPlant_moreOptionsHint">место, вид из списка, последний полив, уход, заметки</string>
+    <string name="addPlant_extraCare">Дополнительный уход</string>
     <string name="addPlant_everyDays">Каждые %1$d дн.</string>
     <string name="addPlant_lastWateredLabel">Дата последнего полива</string>
     <string name="addPlant_lastWateredHint">Выберите, когда вы последний раз поливали это растение</string>
@@ -160,7 +164,6 @@
     <string name="addPlant_validation_frequencyInvalidNumber">Введите число</string>
     <string name="addPlant_validation_frequencyMinimum">Минимум 1 день</string>
     <string name="addPlant_validation_dateRequired">Выберите дату</string>
-    <string name="addPlant_sectionWatering">💧 Полив</string>
     <string name="addPlant_sectionFertilizing">🌱 Удобрение</string>
     <string name="addPlant_sectionRepotting">🪴 Пересадка</string>
     <string name="addPlant_sectionPruning">✂️ Обрезка</string>
@@ -453,7 +456,6 @@
     <string name="species_prefilledHint">Интервалы ухода заполнены по виду. Их можно изменить.</string>
     <string name="species_identify">Определить по фото</string>
     <string name="species_identifyTitle">Определение вида</string>
-    <string name="species_identifySourceTitle">Фото растения</string>
     <string name="species_identifyLoading">Определяем вид…</string>
     <string name="species_identifyChooseHint">Нажмите на вид, чтобы заполнить форму.</string>
     <string name="species_identifyConfidence">Уверенность: %1$s</string>

@@ -77,15 +77,9 @@ name: M10 EXIF guard (${STEP})
       - tapOn: "e.g., Monstera Deliciosa|например, Монстера деликатесная"
       - inputText: "ExifFern"
       - hideKeyboard
-      # The "7" in the frequency field is a placeholder; the form needs a typed value.
-      - tapOn: "7"
-      - inputText: "7"
-      - hideKeyboard
       - takeScreenshot: exif-cover-form
-      - scrollUntilVisible:
-          element: "Add Plant|Добавить растение"
-          direction: DOWN
-      - tapOn: "Add Plant|Добавить растение"
+      # «Добавить» is pinned under the short form (M11 item 5); watering defaults to 7.
+      - tapOn: "Add|Добавить"
       - extendedWaitUntil:
           visible: "Open plant card ExifFern|Открыть карточку растения ExifFern"
           timeout: 40000

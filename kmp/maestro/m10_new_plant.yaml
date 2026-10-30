@@ -1,19 +1,24 @@
-# New plant form (feature m10-new-plant; VAL-CAM-007, VAL-CAM-013..017, VAL-CROSS-020).
+# New plant form, M11 variant A (feature m11-add-plant-short; VAL-FIX11-012..017; M10 VAL-CAM-013..017).
 # Keyless: the app is already signed in (m10_smartcam.yaml STEP=login through render-smoke.sh). The caller pushes a
 # Monstera JPEG to /sdcard/Pictures + media scan and passes PHOTO (content description regex of that photo in the
 # picker). STEP selects one stage; between stages the caller reads `api_usage` and GET /api/plants.
-#   form      open Add Plant from the dashboard: stepper 7 «дней», «Поливать каждые», «Узнать вид по фото» with
-#             its note and «или выбрать вид из списка», no «по виду» mark; stays open
-#   nophoto   (form open, no photo) «Узнать вид по фото» opens the photo source sheet once; «Отмена» closes it,
-#             nothing is sent
-#   photo     (form open) the photo box → «Галерея» → ${PHOTO} → crop «Готово»: the cover is set, no candidates
-#             appear (0 Pl@ntNet calls)
-#   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, save → dashboard shows ${NAME}
+#   form      open Add Plant from the dashboard: photo box, name, stepper 7, «Ещё параметры» and «Добавить» on one
+#             screen; no «Узнать вид по фото», no note, no species entry while there is no photo; stays open
+#   more      (form open) «Ещё параметры» opens place, species list, last watering, extra care, notes; closing
+#             hides them again
+#   photo     (form open) the photo box → «Галерея» → ${PHOTO} → crop «Готово»: the cover is set, «Узнать вид по
+#             фото» and the Pl@ntNet note appear, no candidates (0 Pl@ntNet calls)
+#   unphoto   (form open with a photo) photo box → «Удалить фото»: identify button and note are gone
+#   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, «Добавить» → dashboard shows ${NAME}
+#   expanded  (form open) name ${NAME}; «Ещё параметры»: place ${PLACE}, species from the list (search ${SEARCH},
+#             pick ${SPECIES}),
+#             last watering = the day cell labelled ${DAY} (e.g. «Wednesday, October 28, 2026»), fertilize every ${FERT}, notes ${NOTES}; collapse and reopen
+#             keeps them; «Добавить» → dashboard shows ${NAME}
 #   identify  (form open with a photo) «Узнать вид по фото» → candidates (1 Pl@ntNet call) → first candidate →
 #             name and watering marked «по виду», name hint shown; the name is replaced by ${NAME}; save
 #   draft     (smart camera plant result on screen) «Добавить к моим растениям» → Add Plant with the photo and
 #             the species marked «по виду» → save
-# NAME must be Latin: Maestro inputText drops Cyrillic in the Add Plant fields on elt_test.
+# NAME, PLACE, NOTES must be Latin: Maestro inputText drops Cyrillic in the Add Plant fields on elt_test.
 # Selectors are bilingual ru|en. Do not call hideKeyboard inside a sheet (Back closes it).
 appId: com.greenthumbplantcare.debug
 name: GreenThumb new plant (${STEP})
@@ -31,39 +36,47 @@ name: GreenThumb new plant (${STEP})
       - extendedWaitUntil:
           visible: "Новое растение|Add New Plant"
           timeout: 10000
-      - assertVisible: "Узнать вид по фото|Find species by photo"
-      - assertVisible: "Фото уйдёт в Pl@ntNet. Можно не нажимать.|The photo goes to Pl@ntNet. You can skip this."
-      - assertVisible: "или выбрать вид из списка|or pick a species from the list"
-      - assertNotVisible: "по виду|from species"
-      - takeScreenshot: form-top
-      - scrollUntilVisible:
-          element:
-            text: "Поливать каждые|Water every"
-          direction: DOWN
+      - waitForAnimationToEnd
+      - assertVisible: "Добавить фото|Add photo"
+      - assertVisible: "Название растения|Plant Name"
+      - assertVisible: "Поливать каждые|Water every"
       - assertVisible: "7"
       - assertVisible: "дней|days"
-      - takeScreenshot: form-water
-      - scrollUntilVisible:
-          element:
-            text: "Узнать вид по фото|Find species by photo"
-          direction: UP
+      - assertVisible: "Ещё параметры|More options"
+      - assertVisible: "Добавить|Add"
+      - assertNotVisible: "Узнать вид по фото|Find species by photo"
+      - assertNotVisible: "Фото уйдёт в Pl@ntNet. Можно не нажимать.|The photo goes to Pl@ntNet. You can skip this."
+      - assertNotVisible: "или выбрать вид из списка|or pick a species from the list"
+      - assertNotVisible: "Заметки \\(необязательно\\)|Notes \\(Optional\\)"
+      - assertNotVisible: "по виду|from species"
+      - takeScreenshot: form-short
 
 - runFlow:
     when:
-      true: ${STEP == 'nophoto'}
+      true: ${STEP == 'more'}
     commands:
-      - tapOn: "Узнать вид по фото|Find species by photo"
+      - tapOn: "Ещё параметры|More options"
       - extendedWaitUntil:
-          visible: "Фото растения|Photo of the plant"
-          timeout: 10000
-      - assertVisible: "Камера|Camera"
-      - assertVisible: "Галерея|Gallery"
-      - takeScreenshot: nophoto-sheet
-      - tapOn: "Отмена|Cancel"
-      - extendedWaitUntil:
-          notVisible: "Камера|Camera"
+          visible: "или выбрать вид из списка|or pick a species from the list"
           timeout: 5000
-      - assertVisible: "Добавить фото|Add photo"
+      - assertVisible: "Расположение|Location"
+      - assertVisible: "Добавить|Add"
+      - takeScreenshot: more-open
+      - scrollUntilVisible:
+          element:
+            text: "Заметки \\(необязательно\\)|Notes \\(Optional\\)"
+          direction: DOWN
+      - assertVisible: "Добавить|Add"
+      - takeScreenshot: more-open-bottom
+      - scrollUntilVisible:
+          element:
+            text: "Ещё параметры|More options"
+          direction: UP
+      - tapOn: "Ещё параметры|More options"
+      - extendedWaitUntil:
+          notVisible: "или выбрать вид из списка|or pick a species from the list"
+          timeout: 5000
+      - takeScreenshot: more-closed
 
 - runFlow:
     when:
@@ -87,9 +100,26 @@ name: GreenThumb new plant (${STEP})
           visible: "Узнать вид по фото|Find species by photo"
           timeout: 15000
       - waitForAnimationToEnd
+      - assertVisible: "Фото уйдёт в Pl@ntNet. Можно не нажимать.|The photo goes to Pl@ntNet. You can skip this."
       - assertNotVisible: "Monstera deliciosa"
       - assertNotVisible: "по виду|from species"
       - takeScreenshot: photo-set
+
+- runFlow:
+    when:
+      true: ${STEP == 'unphoto'}
+    commands:
+      - tapOn: "Фото растения|Plant Photo"
+      - extendedWaitUntil:
+          visible: "Удалить фото|Remove photo"
+          timeout: 10000
+      - tapOn: "Удалить фото|Remove photo"
+      - extendedWaitUntil:
+          notVisible: "Узнать вид по фото|Find species by photo"
+          timeout: 5000
+      - assertNotVisible: "Фото уйдёт в Pl@ntNet. Можно не нажимать.|The photo goes to Pl@ntNet. You can skip this."
+      - assertVisible: "Добавить фото|Add photo"
+      - takeScreenshot: photo-removed
 
 - runFlow:
     when:
@@ -97,10 +127,6 @@ name: GreenThumb new plant (${STEP})
     commands:
       - tapOn: "например, Монстера Деликатесная|e.g., Monstera Deliciosa"
       - inputText: ${NAME}
-      - scrollUntilVisible:
-          element:
-            text: "Поливать каждые|Water every"
-          direction: DOWN
       - runFlow:
           when:
             true: ${PLUS != '0'}
@@ -110,16 +136,87 @@ name: GreenThumb new plant (${STEP})
                 commands:
                   - tapOn: "Полив: больше|Watering: increase"
       - takeScreenshot: manual-form
-      - scrollUntilVisible:
-          element:
-            text: "Добавить растение|Add Plant"
-          direction: DOWN
-      - tapOn: "Добавить растение|Add Plant"
+      - tapOn: "Добавить|Add"
       - extendedWaitUntil:
           visible: ${NAME}
           timeout: 40000
       - assertVisible: "Мои растения|My Plants"
       - takeScreenshot: manual-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'expanded'}
+    commands:
+      - tapOn: "например, Монстера Деликатесная|e.g., Monstera Deliciosa"
+      - inputText: ${NAME}
+      - hideKeyboard
+      - tapOn: "Ещё параметры|More options"
+      - extendedWaitUntil:
+          visible: "или выбрать вид из списка|or pick a species from the list"
+          timeout: 5000
+      - tapOn:
+          below: "Расположение|Location"
+          above: "или выбрать вид из списка|or pick a species from the list"
+      - inputText: ${PLACE}
+      - hideKeyboard
+      - tapOn: "или выбрать вид из списка|or pick a species from the list"
+      - tapOn: "Название или латинское имя|Name or scientific name"
+      - inputText: ${SEARCH}
+      - extendedWaitUntil:
+          visible: ${SPECIES}
+          timeout: 15000
+      - tapOn: ${SPECIES}
+      - extendedWaitUntil:
+          visible: "Сменить|Change"
+          timeout: 10000
+      - assertVisible: ${NAME}
+      - takeScreenshot: expanded-species
+      - scrollUntilVisible:
+          element:
+            text: "Дата последнего полива|Last Watered Date"
+          direction: DOWN
+      # The field shows today's date: en 10/31/2026, ru 31.10.2026.
+      - tapOn: "\\d{1,2}/\\d{1,2}/\\d{4}|\\d{2}\\.\\d{2}\\.\\d{4}"
+      - extendedWaitUntil:
+          visible: ${DAY}
+          timeout: 10000
+      - tapOn: ${DAY}
+      - tapOn: "Готово|Done|OK"
+      - scrollUntilVisible:
+          element:
+            text: "Заметки \\(необязательно\\)|Notes \\(Optional\\)"
+          direction: DOWN
+      # The species may prefill the interval: tap the right end of the field and replace the value.
+      - tapOn:
+          below: "Удобрять каждые \\(дней\\)|Fertilize Every \\(days\\)"
+          point: "95%,50%"
+      - eraseText: 10
+      - inputText: ${FERT}
+      - hideKeyboard
+      - tapOn:
+          below: "Заметки \\(необязательно\\)|Notes \\(Optional\\)"
+      - inputText: ${NOTES}
+      - hideKeyboard
+      - takeScreenshot: expanded-filled
+      - scrollUntilVisible:
+          element:
+            text: "Ещё параметры|More options"
+          direction: UP
+      - tapOn: "Ещё параметры|More options"
+      - extendedWaitUntil:
+          notVisible: "Сменить|Change"
+          timeout: 5000
+      - tapOn: "Ещё параметры|More options"
+      - extendedWaitUntil:
+          visible: ${PLACE}
+          timeout: 5000
+      - takeScreenshot: expanded-reopened
+      - tapOn: "Добавить|Add"
+      - extendedWaitUntil:
+          visible: "Мои растения|My Plants"
+          timeout: 40000
+      - assertVisible: ${NAME}
+      - takeScreenshot: expanded-dashboard
 
 - runFlow:
     when:
@@ -137,15 +234,6 @@ name: GreenThumb new plant (${STEP})
           timeout: 10000
       - assertVisible: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
       - takeScreenshot: identify-filled
-      - scrollUntilVisible:
-          element:
-            text: "Поливать каждые|Water every"
-          direction: DOWN
-      - takeScreenshot: identify-filled-water
-      - scrollUntilVisible:
-          element:
-            text: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
-          direction: UP
       # eraseText deletes only the text before the cursor, and a tap in the middle of the field leaves the
       # cursor mid-name: tap the right end of the field so the cursor lands after the whole name.
       - tapOn:
@@ -157,11 +245,7 @@ name: GreenThumb new plant (${STEP})
       - inputText: ${NAME}
       - assertVisible: ${NAME}
       - takeScreenshot: identify-own-name
-      - scrollUntilVisible:
-          element:
-            text: "Добавить растение|Add Plant"
-          direction: DOWN
-      - tapOn: "Добавить растение|Add Plant"
+      - tapOn: "Добавить|Add"
       - extendedWaitUntil:
           visible: ${NAME}
           timeout: 40000
@@ -184,12 +268,7 @@ name: GreenThumb new plant (${STEP})
       - assertVisible: "по виду|from species"
       - assertVisible: "Фото растения|Plant Photo"
       - takeScreenshot: draft-form
-      - scrollUntilVisible:
-          element:
-            text: "Добавить растение|Add Plant"
-          direction: DOWN
-      - takeScreenshot: draft-form-water
-      - tapOn: "Добавить растение|Add Plant"
+      - tapOn: "Добавить|Add"
       - extendedWaitUntil:
           visible: "Мои растения|My Plants"
           timeout: 40000

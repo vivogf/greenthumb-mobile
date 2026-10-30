@@ -122,6 +122,10 @@
     <string name="addPlant_nameHint">Wrong plant? Type your own name</string>
     <string name="addPlant_fromSpecies">from species</string>
     <string name="addPlant_waterEvery">Water every</string>
+    <string name="addPlant_submit">Add</string>
+    <string name="addPlant_moreOptions">More options</string>
+    <string name="addPlant_moreOptionsHint">place, species from the list, last watering, care, notes</string>
+    <string name="addPlant_extraCare">Extra care</string>
     <string name="addPlant_everyDays">Every %1$d days</string>
     <string name="addPlant_lastWateredLabel">Last Watered Date</string>
     <string name="addPlant_lastWateredHint">Select when you last watered this plant</string>
@@ -152,7 +156,6 @@
     <string name="addPlant_validation_frequencyInvalidNumber">Enter a number</string>
     <string name="addPlant_validation_frequencyMinimum">Minimum 1 day</string>
     <string name="addPlant_validation_dateRequired">Pick a date</string>
-    <string name="addPlant_sectionWatering">💧 Watering</string>
     <string name="addPlant_sectionFertilizing">🌱 Fertilizing</string>
     <string name="addPlant_sectionRepotting">🪴 Repotting</string>
     <string name="addPlant_sectionPruning">✂️ Pruning</string>
@@ -443,7 +446,6 @@
     <string name="species_prefilledHint">Care intervals are filled in from the species. You can change them.</string>
     <string name="species_identify">Identify by photo</string>
     <string name="species_identifyTitle">Identify species</string>
-    <string name="species_identifySourceTitle">Photo of the plant</string>
     <string name="species_identifyLoading">Identifying the species…</string>
     <string name="species_identifyChooseHint">Tap a species to fill in the form.</string>
     <string name="species_identifyConfidence">Confidence: %1$s</string>
