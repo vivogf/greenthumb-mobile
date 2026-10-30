@@ -888,6 +888,34 @@ class SessionManagerTest {
     }
 
     @Test
+    fun `sign-in marks the intro as seen so sign-out opens the login screen`() = runBlocking {
+        val manager = newManager()
+        assertFalse(settings.isIntroSeen(), "fresh install path without the intro (e.g. Key not found → login)")
+
+        assertSignedIn(manager.signInWithRecoveryKey("typed-key"))
+        assertTrue(settings.isIntroSeen(), "a signed-in user has passed the first launch")
+
+        manager.signOut()
+        assertTrue(settings.isIntroSeen(), "sign-out keeps the flag: the next start route is Login, not Welcome")
+        assertEquals(
+            site.xmpp.greenthumb.ui.nav.StartRoute.Login,
+            site.xmpp.greenthumb.ui.nav.resolveStartRoute(SessionState.SignedOut, settings.isIntroSeen()),
+        )
+    }
+
+    @Test
+    fun `account creation and stored-key sign-in mark the intro as seen`() = runBlocking {
+        val manager = newManager()
+        assertSignedIn(manager.createAnonymousAccount())
+        assertTrue(settings.isIntroSeen(), "after create-anonymous")
+
+        settings.values.remove(AppSettingsKeys.INTRO_SEEN)
+        secure.map[SecureStoreKeys.RECOVERY_KEY] = "stored-key"
+        assertSignedIn(newManager().initSession())
+        assertTrue(settings.isIntroSeen(), "after startup sign-in with the stored key")
+    }
+
+    @Test
     fun `createAnonymous persists server key and cached user`() = runBlocking {
         val manager = newManager()
 

@@ -48,11 +48,8 @@ name: GreenThumb push enable (debug, ru/en)
     element:
       text: "Напоминания о поливе|Watering Reminders"
     direction: DOWN
-# Подпись строки и сам переключатель несут один и тот же текст (у GtSwitch
-# contentDescription = profile_notifications); переключатель — последний узел.
-- tapOn:
-    text: "Напоминания о поливе|Watering Reminders"
-    index: 1
+# The whole reminders row is one switch node: tapping its title toggles it.
+- tapOn: "Напоминания о поливе|Watering Reminders"
 # Системный диалог POST_NOTIFICATIONS (API 33+); на повторном прогоне его нет.
 - runFlow:
     when:

@@ -256,7 +256,8 @@ private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
                     modifier = Modifier
                         .testTag(LoginTags.PRIVACY_LINK)
                         .heightIn(min = Sizes.touch)
-                        .clickable(role = Role.Button) { uriHandler.openUri(PRIVACY_POLICY_URL) }
+                        // No browser on the device: openUri throws ActivityNotFoundException; the tap does nothing.
+                        .clickable(role = Role.Button) { runCatching { uriHandler.openUri(PRIVACY_POLICY_URL) } }
                         .wrapContentHeight(Alignment.CenterVertically),
                 )
                 Text(

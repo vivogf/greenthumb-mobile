@@ -34,7 +34,7 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="meta">Effective date: 2026-10-29</p>
+<p class="meta">Effective date: 2026-10-30</p>
 
 <p>
   This privacy policy applies to the <strong>GreenThumb — Plant Care</strong> app
@@ -53,11 +53,11 @@
   <li><strong>Recovery key and account number</strong> — an anonymous random key created when you create an account, and an internal account number on the Service Provider's server. The key is your account key instead of an email and password. The server never stores the key itself: it stores only a one-way SHA-256 hash of it, which is enough to check the key when you sign in but cannot be turned back into the key. The Service Provider cannot recover this key if you lose it.</li>
   <li><strong>Display name (optional)</strong> — a name you may enter when you create an account. It can be any nickname, it is shown only to you in the Application, and you can leave it empty.</li>
   <li><strong>Plant data</strong> — plant names, species, care schedules, care dates and notes that you enter.</li>
-  <li><strong>Plant photos</strong> — the cover photo of a plant and the timeline photos you add to a plant, with their captions. They are stored in Cloudflare R2 object storage in the European Union (see "Service providers" below).</li>
+  <li><strong>Plant photos</strong> — the cover photo of a plant and the timeline photos you add to a plant, with their captions. A plant check (diagnosis) that you save to a plant's journal is also a timeline photo of that plant (see below). They are stored in Cloudflare R2 object storage in the European Union (see "Service providers" below).</li>
   <li><strong>Care journal</strong> — the care events you record for a plant (watering, fertilizing, repotting, pruning) and the journal notes you write. Achievements and streaks are calculated from this journal and stored with your account.</li>
   <li><strong>Account settings</strong> — reminder time, language, seasonal watering mode and your device's time zone. The server stores the time zone as an IANA time zone name (for example <code>Europe/Berlin</code>) so that reminders and "today" are calculated in your local time. The time zone is not a precise or approximate location.</li>
   <li><strong>Push notification token</strong> — issued by Firebase Cloud Messaging (FCM) and stored on the Service Provider's server only if you turn on watering reminders. It is used only to deliver reminders to your device.</li>
-  <li><strong>Photos you send for species identification or plant diagnosis</strong> — these are sent through the Service Provider's server to the providers described below. The server does not store them for these features, and it does not store identification or diagnosis results. A photo is stored only if you also save it as a plant photo.</li>
+  <li><strong>Photos you send for species identification or plant diagnosis</strong> — these are sent through the Service Provider's server to the providers described below. The server does not store them for these features, and it does not store identification or diagnosis results. A photo is stored only if you also save it as a plant photo. A diagnosis photo and its short result are stored only when you tap <em>Save to plant journal</em> [<em>Сохранить в журнал растения</em>] on the result for one of your own plants: the photo then becomes a timeline photo of that plant in Cloudflare R2, and the short result (the likely causes with their likelihood words) becomes its caption in the database. A check of a plant that is not in your list is not saved unless you choose one of your plants for it.</li>
   <li><strong>Crash reports and diagnostics</strong> — when the Application crashes or stops responding (an "ANR", Application Not Responding), a report is sent to Firebase Crashlytics so defects can be found and fixed. A report contains the stack trace, device model, operating system version, app version, free memory and a random installation identifier. In addition, when the Application starts, Crashlytics sends a session event (a random session identifier, the random installation identifier, the time, the app version and the device and operating system details), so the share of sessions with a crash can be calculated. Reports and session events do not contain your plants, photos, display name or recovery key, and they are not linked to your account.</li>
   <li><strong>Server logs</strong> — the Service Provider's server keeps no logs about people: the web server and the application server keep no access logs and no error logs, so your IP address, your requests and your account number are not recorded. Only automated maintenance jobs (backups and reminders) write a status line, such as a response code or "backup ok", and the database writes short technical messages (for example, maintenance checkpoints) without your data.</li>
 </ul>
@@ -80,7 +80,10 @@
     <strong>Species identification (Pl@ntNet).</strong> The photos you choose are sent through
     the Service Provider's server to the Pl@ntNet identification service. Pl@ntNet processes the
     photos transiently to return a list of possible species. No account information is sent to
-    Pl@ntNet.
+    Pl@ntNet. A photo goes to Pl@ntNet only after you ask for it: in the smart camera, after you
+    pick the <em>Plant</em> [<em>Растение</em>] mode and take or select a photo; when you add a plant,
+    only when you tap <em>Find species by photo</em> [<em>Узнать вид по фото</em>]. Choosing a cover photo for a new plant never
+    sends that photo to Pl@ntNet by itself.
   </li>
   <li>
     <strong>Plant diagnosis (OpenAI).</strong> The photo you choose, the plant context (species, or
@@ -91,6 +94,14 @@
     data for up to 30 days for abuse monitoring, and then deletes it. OpenAI does not use API data to
     train its models. No recovery key or account number is sent to OpenAI. The result is advice,
     not a guarantee.
+  </li>
+  <li>
+    <strong>Plant check from the smart camera (OpenAI).</strong> In the smart camera's
+    <em>Problem</em> [<em>Болезнь</em>] mode you can check a plant that is not in your list, for example
+    a plant in the street. Then only the photo, your optional description of the problem and the
+    language of the Application are sent through the Service Provider's server to the OpenAI API, with
+    the same <code>store: false</code> terms as above. No plant data, care history, recovery key or
+    account number is sent.
   </li>
 </ul>
 
@@ -155,7 +166,7 @@
 
 <ul>
   <li>Watering reminders can be turned off in the Application's <em>Profile</em> tab. The push token is then removed from the server.</li>
-  <li>Species identification, plant diagnosis and saving the key to your password manager run only when you start them.</li>
+  <li>Species identification, plant diagnosis, saving a plant check to a plant's journal and saving the key to your password manager run only when you start them.</li>
   <li>You can delete your account and data at any time (see below).</li>
 </ul>
 
@@ -181,7 +192,7 @@
 <p>
   If you cannot open the Application or have lost the recovery key, you can request deletion by
   contacting the Service Provider at
-  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>.
+  <a href="mailto:greenthumbapp@proton.me">greenthumbapp@proton.me</a>.
 </p>
 
 <h2>Children</h2>
@@ -191,7 +202,7 @@
   Provider does not knowingly collect personally identifiable information from
   children under 13. If you are a parent or guardian and you are aware that your child
   has provided personal information, please contact the Service Provider at
-  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>
+  <a href="mailto:greenthumbapp@proton.me">greenthumbapp@proton.me</a>
   so the Service Provider can take the necessary actions.
 </p>
 
@@ -233,7 +244,7 @@
 <p>
   If you have any questions about this privacy policy or the Application's data
   practices, contact the Service Provider at
-  <a href="mailto:greenthumb.taunt861@passmail.net">greenthumb.taunt861@passmail.net</a>.
+  <a href="mailto:greenthumbapp@proton.me">greenthumbapp@proton.me</a>.
 </p>
 
 </body>

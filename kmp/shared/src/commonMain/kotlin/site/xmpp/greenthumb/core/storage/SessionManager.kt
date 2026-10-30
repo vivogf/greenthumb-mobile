@@ -1386,6 +1386,14 @@ public class SessionManager(
         hadSession = true
         activeUserId = user.id
         if (settings.isSessionEnded()) writeSessionEnded(false)
+        // The intro is for the first launch: a user who got in without it (Key not found → login,
+        // update install) must not meet it after a later sign-out. A failed write only shows it again.
+        try {
+            if (!settings.isIntroSeen()) settings.setIntroSeen()
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (_: Exception) {
+        }
         val serverKey = if (acceptServerKey) user.recoveryKey?.takeIf { it.isNotBlank() } else null
         // The key first: a failing cached_user write must not skip it. The lock keeps a slow
         // concurrent applyUser (refreshUser) from writing a stale storage read over a newer key.

@@ -13,9 +13,7 @@
 #   ru       after switching the app to Russian: the sheet in Russian (left open)
 # SHOT_PREFIX must be relative: Maestro writes screenshots under ~/.maestro/tests/<run>/…/takeScreenshot/.
 # Selectors are texts and content descriptions: Compose test tags are not resource ids on the device.
-# A switch carries its title as content description, so the title text and the switch both match the title.
-# Match order is not stable; pick the switch by position: the match right of the match that has another match
-# on its right (the title).
+# A care type's title row is one switch node (title, on/off text and the switch): tapping the title toggles it.
 appId: com.greenthumbplantcare.debug
 name: GreenThumb care cards (${STEP})
 ---
@@ -120,11 +118,7 @@ name: GreenThumb care cards (${STEP})
           element: "Pruning"
           direction: DOWN
       - assertNotVisible: "Pruning: increase"
-      - tapOn:
-          text: "Pruning"
-          rightOf:
-            text: "Pruning"
-            leftOf: "Pruning"
+      - tapOn: "Pruning"
       - scrollUntilVisible:
           element: "Pruning: increase"
           direction: DOWN
@@ -148,11 +142,7 @@ name: GreenThumb care cards (${STEP})
       - scrollUntilVisible:
           element: "Repotting: decrease"
           direction: DOWN
-      - tapOn:
-          text: "Repotting"
-          rightOf:
-            text: "Repotting"
-            leftOf: "Repotting"
+      - tapOn: "Repotting"
       - assertNotVisible: "Repotting: decrease"
       - takeScreenshot: ${SHOT_PREFIX}-save-before
       - tapOn: "Save"

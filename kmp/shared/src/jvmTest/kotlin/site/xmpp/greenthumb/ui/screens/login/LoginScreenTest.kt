@@ -264,6 +264,39 @@ class LoginScreenTest {
     }
 
     @Test
+    fun privacy_link_without_a_browser_does_not_crash() = try {
+        rememberLocale()
+        var attempts = 0
+        // AndroidUriHandler.openUri throws when no app can open https links (ActivityNotFoundException).
+        val uriHandler = object : androidx.compose.ui.platform.UriHandler {
+            override fun openUri(uri: String) {
+                attempts++
+                throw IllegalArgumentException("No Activity found to handle Intent { act=android.intent.action.VIEW }")
+            }
+        }
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "en") {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.ui.platform.LocalUriHandler provides uriHandler,
+                    ) {
+                        GreenThumbTheme(darkTheme = true) {
+                            LoginScreen(session = newSession())
+                        }
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("More about data →"), TIMEOUT)
+            onNode(hasText("More about data →") and hasClickAction()).performClick()
+            waitForIdle()
+            kotlin.test.assertEquals(1, attempts)
+            onNode(hasText("Create New Account")).assertExists()
+        }
+    } finally {
+        restoreLocale()
+    }
+
+    @Test
     fun card_fills_width_minus_outer_padding() = try {
         rememberLocale()
         runDesktopComposeUiTest {

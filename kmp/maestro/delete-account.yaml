@@ -3,7 +3,7 @@
 #
 # Сценарий: вход по recovery key тест-аккаунта → дашборд с растениями
 # (созданы curl до прогона) → Profile → «Delete Account» → экран
-# подтверждения (последствия) → «Delete my account» → интро-карусель.
+# подтверждения (последствия) → «Delete my account» → выбор входа (интро не показывается).
 # Скриншоты — ПОСЛЕ шагов с ключом (правило: takeScreenshot/дампы запрещены,
 # пока на экране поле ключа).
 #
@@ -111,14 +111,14 @@ name: GreenThumb account deletion (Stage 12 — VAL-REL-003)
 # 4.1. Скриншот подтверждения — ключа на экране нет (правило шапки).
 - takeScreenshot: delete-confirm-screen
 
-# 5. Подтверждение → DELETE /api/auth/account → локальная чистка → интро-
-#    карусель (граф пересобран по SignedOut, intro_seen сброшен). Регэкспы
-#    ru|en: язык UI зависит от локали устройства.
+# 5. Подтверждение → DELETE /api/auth/account → локальная чистка → выбор
+#    входа (SignedOut; интро уже отмечено при входе, поэтому не показывается).
+#    Регэкспы ru|en: язык UI зависит от локали устройства.
 - tapOn: "Delete my account"
 - extendedWaitUntil:
-    visible: "Your plants, organized|Все растения в одном месте"
+    visible: "I Have a Key|У меня есть ключ"
     timeout: 30000
-- assertVisible: "Skip|Пропустить"
+- assertNotVisible: "Skip|Пропустить"
 
-# 5.1. Скриншот интро после удаления.
-- takeScreenshot: intro-after-delete
+# 5.1. Скриншот экрана входа после удаления.
+- takeScreenshot: login-after-delete

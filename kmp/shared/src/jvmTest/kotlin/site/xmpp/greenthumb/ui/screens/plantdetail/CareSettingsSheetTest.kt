@@ -248,6 +248,30 @@ class CareSettingsSheetTest {
     }
 
     @Test
+    fun each_switch_is_one_node_with_its_title() {
+        val repo = openRepo()
+        runDesktopComposeUiTest {
+            showPlant(repo)
+            openSheet()
+            val isSwitch = SemanticsMatcher.expectValue(SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Switch)
+            val switches = onAllNodes(isSwitch, useUnmergedTree = true).fetchSemanticsNodes()
+            assertEquals(3, switches.size, "fertilize, repot and prune: one switch node each")
+            for ((type, title) in listOf(CareType.Fertilize to "Fertilizing", CareType.Repot to "Repotting", CareType.Prune to "Pruning")) {
+                val node = onAllNodes(hasTestTag(CareTags.switch(type)), useUnmergedTree = true).fetchSemanticsNodes().single()
+                assertTrue(isSwitch.matches(node), "$type tag is the switch node")
+                assertTrue(SemanticsActions.OnClick in node.config, "$type switch node is clickable")
+                assertTrue(
+                    androidx.compose.ui.test.hasAnyDescendant(hasText(title)).matches(node),
+                    "$type switch node holds its title text",
+                )
+                val twins = onAllNodes(androidx.compose.ui.test.hasContentDescription(title), useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                assertEquals(0, twins.size, "$type: no second node named by a content description")
+            }
+        }
+    }
+
+    @Test
     fun switching_a_type_on_starts_at_the_default() {
         prune = null
         val repo = openRepo()

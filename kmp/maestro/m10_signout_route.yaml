@@ -1,0 +1,39 @@
+# Sign-out start route (feature m10-docs-privacy). Keyless: the caller signs in first on a device where the
+# intro was never shown, e.g. `pm clear` on an update install → «Key not found» → «Enter recovery key» →
+# sign in with a throwaway key. A sign-in marks the intro as seen, so after Sign Out the app opens the login
+# choice (Create New Account / I Have a Key), not the intro pager — also after a cold restart.
+appId: com.greenthumbplantcare.debug
+name: Sign-out opens the login choice, not the intro
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "My Plants|Мои растения"
+    timeout: 30000
+- tapOn: "Profile|Профиль"
+- extendedWaitUntil:
+    visible: "My Profile|Мой профиль"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Sign Out|Выйти"
+    direction: DOWN
+- tapOn: "Sign Out|Выйти"
+- extendedWaitUntil:
+    visible: "Sign out\\?|Выйти из аккаунта\\?"
+    timeout: 10000
+- tapOn: "Sign Out|Выйти"
+- extendedWaitUntil:
+    visible: "I Have a Key|У меня есть ключ"
+    timeout: 30000
+- assertNotVisible: "Skip|Пропустить"
+- assertVisible: "Create New Account|Создать аккаунт"
+- takeScreenshot: signout-login-choice
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "I Have a Key|У меня есть ключ"
+    timeout: 30000
+- assertNotVisible: "Skip|Пропустить"
+- assertNotVisible: "Key not found|Ключ не найден"
+- takeScreenshot: signout-relaunch-login-choice

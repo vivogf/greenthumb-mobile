@@ -86,7 +86,8 @@ import site.xmpp.greenthumb.ui.components.GtSendMark
 import site.xmpp.greenthumb.ui.components.GtSignOutMark
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtSunMark
-import site.xmpp.greenthumb.ui.components.GtSwitch
+import site.xmpp.greenthumb.ui.components.GtSwitchIndicator
+import site.xmpp.greenthumb.ui.components.gtSwitchRow
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.screens.login.SaveKeyToPasswordManager
@@ -388,10 +389,63 @@ public fun ProfileScreen(
         }
 
         // Уведомления (RN SectionCard 2: тумблер, время, тест).
+        val onPushToggle: (Boolean) -> Unit = onPushToggle@{ value ->
+            if (pushToggling) return@onPushToggle
+            scope.launch {
+                pushToggling = true
+                try {
+                    if (value) {
+                        // RN-ветка enable: разрешение + подписка.
+                        // Каркас: исход решает PushTokens (M9).
+                        when (val outcome = push.requestSubscribe(pushLanguage())) {
+                            is PushOutcome.Subscribed -> {
+                                pushEnabled = true
+                                // RN notificationAsync(Success)
+                                // (profile.tsx:95).
+                                Haptics.success()
+                                success = SuccessEvent.NotificationsEnabled
+                            }
+                            is PushOutcome.Denied -> errorText = permissionDeniedText
+                            is PushOutcome.Error -> errorText = outcome.message
+                        }
+                    } else {
+                        push.unsubscribe()
+                        pushEnabled = false
+                        // RN impactAsync(Light) на отключение
+                        // (profile.tsx:101).
+                        Haptics.light()
+                        success = SuccessEvent.NotificationsDisabled
+                    }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (e: ApiError) {
+                    errorText = e.message
+                } catch (other: Throwable) {
+                    // M9 (реальный actual): неожиданный сбой
+                    // платформенного шва — локализованное
+                    // состояние ошибки, не краш UI
+                    // (RN-паритет catch(error: any) → message).
+                    errorText = other.message ?: other.toString()
+                } finally {
+                    pushToggling = false
+                }
+            }
+        }
         SectionCard {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (pushLoading) {
+                            Modifier
+                        } else {
+                            Modifier.gtSwitchRow(
+                                checked = pushEnabled,
+                                enabled = !pushToggling,
+                                onCheckedChange = onPushToggle,
+                            )
+                        },
+                    )
                     .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -415,53 +469,7 @@ public fun ProfileScreen(
                         modifier = Modifier.size(Spacing.xl),
                     )
                 } else {
-                    GtSwitch(
-                        checked = pushEnabled,
-                        onCheckedChange = { value ->
-                            if (pushToggling) return@GtSwitch
-                            scope.launch {
-                                pushToggling = true
-                                try {
-                                    if (value) {
-                                        // RN-ветка enable: разрешение + подписка.
-                                        // Каркас: исход решает PushTokens (M9).
-                                        when (val outcome = push.requestSubscribe(pushLanguage())) {
-                                            is PushOutcome.Subscribed -> {
-                                                pushEnabled = true
-                                                // RN notificationAsync(Success)
-                                                // (profile.tsx:95).
-                                                Haptics.success()
-                                                success = SuccessEvent.NotificationsEnabled
-                                            }
-                                            is PushOutcome.Denied -> errorText = permissionDeniedText
-                                            is PushOutcome.Error -> errorText = outcome.message
-                                        }
-                                    } else {
-                                        push.unsubscribe()
-                                        pushEnabled = false
-                                        // RN impactAsync(Light) на отключение
-                                        // (profile.tsx:101).
-                                        Haptics.light()
-                                        success = SuccessEvent.NotificationsDisabled
-                                    }
-                                } catch (cancellation: CancellationException) {
-                                    throw cancellation
-                                } catch (e: ApiError) {
-                                    errorText = e.message
-                                } catch (other: Throwable) {
-                                    // M9 (реальный actual): неожиданный сбой
-                                    // платформенного шва — локализованное
-                                    // состояние ошибки, не краш UI
-                                    // (RN-паритет catch(error: any) → message).
-                                    errorText = other.message ?: other.toString()
-                                } finally {
-                                    pushToggling = false
-                                }
-                            }
-                        },
-                        enabled = !pushToggling,
-                        contentDescription = stringResource(Res.string.profile_notifications),
-                    )
+                    GtSwitchIndicator(checked = pushEnabled)
                 }
             }
             RowDivider()

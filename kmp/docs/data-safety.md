@@ -2,7 +2,7 @@
 
 Source of truth for the Data Safety form. Keep it consistent with
 [`docs/privacy.html`](../../docs/privacy.html) and
-[`docs/account-deletion.html`](../../docs/account-deletion.html). Last checked against the code and the server configuration: 2026-10-29.
+[`docs/account-deletion.html`](../../docs/account-deletion.html). Last checked against the code and the server configuration: 2026-10-30.
 
 Filling the form in Play Console is the user's step.
 
@@ -35,8 +35,8 @@ Filling the form in Play Console is the user's step.
 |---|---|---|---|---|---|---|
 | Personal info → **Name** | Optional display name entered at account creation (any nickname; shown only to the user) | Yes | No | No | Optional | App functionality |
 | Personal info → **User IDs** | Recovery key (the server stores only its SHA-256 hash) and internal account number | Yes | No | No | Required | App functionality, Account management |
-| Photos and videos → **Photos** | Plant cover photos and timeline photos (stored in Cloudflare R2, EU); photos sent for species identification (Pl@ntNet) and diagnosis (OpenAI) | Yes | No (service providers) | No (stored photos); identification/diagnosis photos are not stored by the server | Optional | App functionality |
-| App activity → **Other user-generated content** | Plant data (names, species, care schedules, care dates, notes); care journal (watering, fertilizing, repotting, pruning, journal notes); timeline photo captions; diagnosis problem description; achievements and streaks derived from the journal | Yes | No (service providers) | No | Required (plant data); journal, captions and diagnosis note optional | App functionality |
+| Photos and videos → **Photos** | Plant cover photos and timeline photos (stored in Cloudflare R2, EU), including saved diagnosis photos (only when the user taps «Сохранить в журнал растения» for one of their own plants; the short result is the photo caption); photos sent for species identification (Pl@ntNet, only after the user asks for it) and diagnosis (OpenAI), including the smart camera check of a plant outside the user's list (street plant) | Yes | No (service providers) | No (stored photos); identification/diagnosis photos are not stored by the server | Optional | App functionality |
+| App activity → **Other user-generated content** | Plant data (names, species, care schedules, care dates, notes); care journal (watering, fertilizing, repotting, pruning, journal notes); timeline photo captions (incl. the short result of a saved diagnosis); diagnosis problem description; achievements and streaks derived from the journal | Yes | No (service providers) | No | Required (plant data); journal, captions and diagnosis note optional | App functionality |
 | App info and performance → **Crash logs** | Firebase Crashlytics crash and ANR (app not responding) reports (stack trace, app version) | Yes | No (service provider) | No | Required (no in-app switch) | Analytics (crash diagnosis only, not usage analytics) |
 | App info and performance → **Diagnostics** | Device model, OS version, free memory in crash and ANR reports; the Crashlytics session event at app start (random session ID, installation ID, time, app version, device and OS) | Yes | No (service provider) | No | Required | Same as Crash logs |
 | Device or other IDs → **Device or other IDs** | FCM push token (only with reminders on); Firebase installation ID used by Crashlytics, Remote Config and FCM | Yes | No (service provider) | No | Optional (push token); Firebase installation ID required | App functionality (reminders, minimum-version check), crash reporting |
@@ -58,12 +58,18 @@ web browsing, app interactions, in-app search history, installed apps, other act
 | Push notification token | Device or other IDs |
 | Photos for species identification (Pl@ntNet, transient) | Photos (processed ephemerally by the provider) |
 | Photos and context for diagnosis (OpenAI, `store:false`, up to 30 days abuse monitoring, no training) | Photos + Other user-generated content |
+| Smart camera check of a plant outside the list (street plant): only the photo, the optional note and the language go to OpenAI, no plant data | Photos + Other user-generated content (same processor, no new type) |
+| Saved diagnosis (user taps «Сохранить в журнал растения»): the photo becomes a timeline photo in R2, the short result its caption | Photos (optional) + Other user-generated content; no new type |
 | Crash and ANR reports, session event (Crashlytics) | Crash logs + Diagnostics |
 | Firebase installation ID (Crashlytics, Remote Config, FCM) | Device or other IDs |
 | Saving the key to the device's password manager (optional; Google Password Manager, or on Android 14+ another password manager the user selected; stored by that provider) | User IDs (user-initiated transfer; not sharing) |
 | Server logs | No logs about people: pm2 output goes to /dev/null, the GreenThumb nginx site has `access_log off` and `error_log /dev/null`, Postgres `log_error_verbosity = terse` with `log_statement = none` and `log_connections = off`. Cron jobs log only time and status. Nothing to declare |
 
 ## Notes for the form
+
+- M10 (smart camera, saved diagnoses, street-plant check) adds no new data type: saved diagnosis photos fall
+  under the existing optional Photos answer, their captions under Other user-generated content, and OpenAI and
+  Pl@ntNet stay service providers as declared before. Nothing in the form changes.
 
 - No analytics SDK and no advertising ID (`AD_ID` permission not requested). Answer "No" in the Ads and
   Advertising ID declarations.

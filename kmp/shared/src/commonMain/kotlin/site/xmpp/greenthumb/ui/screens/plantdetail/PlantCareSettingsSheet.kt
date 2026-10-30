@@ -30,9 +30,10 @@ import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.GtPotMark
 import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtStepper
-import site.xmpp.greenthumb.ui.components.GtSwitch
+import site.xmpp.greenthumb.ui.components.GtSwitchIndicator
 import site.xmpp.greenthumb.ui.components.GtWaterDropMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
+import site.xmpp.greenthumb.ui.components.gtSwitchRow
 import site.xmpp.greenthumb.ui.components.STEPPER_DEC
 import site.xmpp.greenthumb.ui.components.STEPPER_INC
 import site.xmpp.greenthumb.ui.components.STEPPER_UNIT
@@ -241,7 +242,17 @@ private fun CareTypeCard(
     val title = careTitle(type)
     GtCard(modifier = Modifier.fillMaxWidth().testTag(CareTags.card(type))) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (type.switchable) {
+                        Modifier
+                            .gtSwitchRow(checked = on) { onFormChange(form.setOn(type, it)) }
+                            .testTag(CareTags.switch(type))
+                    } else {
+                        Modifier
+                    },
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
@@ -261,12 +272,7 @@ private fun CareTypeCard(
                 )
             }
             if (type.switchable) {
-                GtSwitch(
-                    checked = on,
-                    onCheckedChange = { onFormChange(form.setOn(type, it)) },
-                    contentDescription = title,
-                    modifier = Modifier.minimumInteractiveComponentSize().testTag(CareTags.switch(type)),
-                )
+                GtSwitchIndicator(checked = on, modifier = Modifier.minimumInteractiveComponentSize())
             }
         }
         if (on) {

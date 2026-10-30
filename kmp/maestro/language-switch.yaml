@@ -66,6 +66,6 @@ name: GreenThumb language switch and account deletion
     direction: DOWN
 - tapOn: "Удалить аккаунт"
 - extendedWaitUntil:
-    visible: "Все растения в одном месте"
+    visible: "У меня есть ключ"
     timeout: 30000
-- takeScreenshot: intro-after-delete
+- takeScreenshot: login-after-delete
