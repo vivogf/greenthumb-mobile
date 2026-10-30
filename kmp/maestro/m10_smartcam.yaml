@@ -232,6 +232,11 @@ name: GreenThumb smart camera (${STEP})
     when:
       true: ${STEP == 'disease' || STEP == 'dcheck'}
     commands:
+      # dcheck re-reads a result that an earlier stage left scrolled down.
+      - scrollUntilVisible:
+          element:
+            text: "Возможные причины|Possible causes"
+          direction: UP
       - assertVisible: "Возможные причины|Possible causes"
       - assertNotVisible: ".*\\d+ ?%.*"
       - assertNotVisible: ".*(осталось|left today).*"
@@ -242,6 +247,10 @@ name: GreenThumb smart camera (${STEP})
             text: "Это моё растение\\?|Is this my plant\\?"
           direction: DOWN
       - assertVisible: "Растение не из вашего списка, поэтому результат не сохранён.|This plant is not from your list, so the result is not saved."
+      - scrollUntilVisible:
+          element:
+            text: "Готово|Done"
+          direction: DOWN
       - assertVisible: "Готово|Done"
       - assertNotVisible: "Сохранить в журнал растения|Save to plant journal"
       - takeScreenshot: disease-result-bottom
@@ -274,6 +283,10 @@ name: GreenThumb smart camera (${STEP})
           timeout: 30000
       - assertNotVisible: "Это моё растение\\?|Is this my plant\\?"
       - takeScreenshot: mine-saved
+      - scrollUntilVisible:
+          element:
+            text: "Готово|Done"
+          direction: DOWN
       - tapOn: "Готово|Done"
       - extendedWaitUntil:
           visible: "Умная камера|Smart camera"

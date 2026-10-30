@@ -42,6 +42,10 @@ internal const val GT_MODAL_SCRIM_TAG = "gt_modal_scrim"
 /** Full-width edge-to-edge dialog window whose content receives system-bar and keyboard insets (see [GtModal]). */
 internal expect fun gtModalDialogProperties(): DialogProperties
 
+/** Removes the platform's own dim behind the dialog window, so the scrim [GtModal] draws is the only one. */
+@Composable
+internal expect fun GtModalClearWindowDim()
+
 @Composable
 internal fun GtModal(
     onDismissRequest: () -> Unit,
@@ -54,6 +58,7 @@ internal fun GtModal(
         onDismissRequest = onDismissRequest,
         properties = gtModalDialogProperties(),
     ) {
+        GtModalClearWindowDim()
         // Read inside the dialog: insets belong to the view they are read in, and the
         // screen's (non-edge-to-edge) activity view reports none.
         val insets = safeInsets ?: WindowInsets.safeDrawing

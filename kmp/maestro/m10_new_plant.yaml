@@ -146,9 +146,12 @@ name: GreenThumb new plant (${STEP})
           element:
             text: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
           direction: UP
+      # eraseText deletes only the text before the cursor, and a tap in the middle of the field leaves the
+      # cursor mid-name: tap the right end of the field so the cursor lands after the whole name.
       - tapOn:
           below: "Название растения|Plant Name"
           above: "Не то растение\\? Впишите своё название|Wrong plant\\? Type your own name"
+          point: "95%,50%"
       # eraseText under-erases Cyrillic (a catalog name is Cyrillic in ru): erase far past its length.
       - eraseText: 200
       - inputText: ${NAME}

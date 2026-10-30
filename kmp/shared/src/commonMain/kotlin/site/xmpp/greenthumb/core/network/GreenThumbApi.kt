@@ -99,9 +99,21 @@ class GreenThumbApi(private val client: ApiClient) {
     suspend fun getPlants(): List<PlantDto> =
         request<List<PlantDto>>(HttpMethod.Get, "/api/plants")
 
-    /** POST /api/plants → созданное растение (user_id ставит сервер). */
+    /**
+     * POST /api/plants → созданное растение (user_id ставит сервер). A base64 cover gets the photo
+     * upload deadline: timing out after the server already created the plant makes the queue replay it.
+     */
     suspend fun addPlant(plant: InsertPlantDto): PlantDto =
-        request<PlantDto, InsertPlantDto>(HttpMethod.Post, "/api/plants", plant)
+        json.decodeFromString(
+            decodeBody(
+                client.request(
+                    HttpMethod.Post,
+                    "/api/plants",
+                    json.encodeToString(plant),
+                    timeoutMillis = if (plant.photoUrl.isEmpty()) null else PHOTO_UPLOAD_TIMEOUT_MILLIS,
+                ),
+            ),
+        )
 
     /** PATCH /api/plants/:id — частичное обновление (Patch: Absent/Value/Null). */
     suspend fun updatePlant(id: String, patch: PatchPlantDto): PlantDto =
