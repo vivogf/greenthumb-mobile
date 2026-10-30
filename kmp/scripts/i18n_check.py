@@ -47,6 +47,10 @@ RES_DIR = (
 # Ключи KMP, которых нет в RN-локалях (не пропуск — осознанное расширение).
 # Каждое имя обязано присутствовать в ОБОИХ strings.xml.
 KMP_ONLY_KEYS = {
+    # M11 owner fixes: short dashboard filter label, reminders time row in the same card.
+    "dashboard.waterFilter",
+    "profile.notificationEveryDay",
+    "profile.notificationLocalTime",
     # journal.* — care journal on plant detail (architecture §5.5); RN has none.
     "journal.title",
     "journal.typeWater",

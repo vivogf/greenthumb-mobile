@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -68,9 +69,9 @@ import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
 import site.xmpp.greenthumb.ui.components.GtBellOutlineMark
 import site.xmpp.greenthumb.ui.components.GtCheckMark
+import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
 import site.xmpp.greenthumb.ui.components.GtLeafMark
-import site.xmpp.greenthumb.ui.components.GtClockMark
 import site.xmpp.greenthumb.ui.components.GtContrastMark
 import site.xmpp.greenthumb.ui.components.GtCopyMark
 import site.xmpp.greenthumb.ui.components.GtGlobeMark
@@ -113,14 +114,14 @@ import site.xmpp.greenthumb.ui.res.profile_language
 import site.xmpp.greenthumb.ui.res.profile_languageEnglish
 import site.xmpp.greenthumb.ui.res.profile_languageRussian
 import site.xmpp.greenthumb.ui.res.profile_notificationTime
-import site.xmpp.greenthumb.ui.res.profile_notificationTimeHint
+import site.xmpp.greenthumb.ui.res.profile_notificationEveryDay
+import site.xmpp.greenthumb.ui.res.profile_notificationLocalTime
 import site.xmpp.greenthumb.ui.res.profile_notificationTimeUpdated
 import site.xmpp.greenthumb.ui.res.profile_notifications
 import site.xmpp.greenthumb.ui.res.profile_notificationsDisabled
 import site.xmpp.greenthumb.ui.res.profile_notificationsDisabledHint
 import site.xmpp.greenthumb.ui.res.profile_notificationsEnabled
 import site.xmpp.greenthumb.ui.res.profile_notificationsEnabledHint
-import site.xmpp.greenthumb.ui.res.profile_notificationsHint
 import site.xmpp.greenthumb.ui.res.profile_pushPermissionDenied
 import site.xmpp.greenthumb.ui.res.profile_keyChangeNotStored
 import site.xmpp.greenthumb.ui.res.profile_keyChangeRetry
@@ -431,10 +432,14 @@ public fun ProfileScreen(
                 }
             }
         }
+        // One card (M11 owner variant B): title + switch on one line, then «Каждый день в HH:00 ›».
+        // Rows carry no horizontal padding of their own: SectionCard already insets 16 dp, so the
+        // content edges match «Язык» and «Тема».
         SectionCard {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = Sizes.touch)
                     .then(
                         if (pushLoading) {
                             Modifier
@@ -445,24 +450,17 @@ public fun ProfileScreen(
                                 onCheckedChange = onPushToggle,
                             )
                         },
-                    )
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 GtBellOutlineMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(Res.string.profile_notifications),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(Res.string.profile_notificationsHint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = stringResource(Res.string.profile_notifications),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
                 if (pushLoading) {
                     CircularProgressIndicator(
                         color = scheme.secondary,
@@ -472,47 +470,50 @@ public fun ProfileScreen(
                     GtSwitchIndicator(checked = pushEnabled)
                 }
             }
-            RowDivider()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = Sizes.touch)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         role = Role.Button,
                         enabled = pushEnabled && !savingTime,
-                    ) { if (pushEnabled) showTimePicker = true }
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                    ) { if (pushEnabled) showTimePicker = true },
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                GtClockMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
+                // Same width as the bell, so the time text starts under the title.
+                Spacer(modifier = Modifier.size(Spacing.xl))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(Res.string.profile_notificationTime),
+                        text = if (savingTime) {
+                            stringResource(Res.string.profile_saving)
+                        } else {
+                            stringResource(Res.string.profile_notificationEveryDay, currentTimeLabel)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (pushEnabled) scheme.onSurface else scheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (pushEnabled) greenThumbExtendedColors().accentText else scheme.onSurfaceVariant,
                     )
                     Text(
-                        text = stringResource(Res.string.profile_notificationTimeHint),
+                        text = stringResource(Res.string.profile_notificationLocalTime),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
                 }
-                Text(
-                    text = if (savingTime) stringResource(Res.string.profile_saving) else currentTimeLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurfaceVariant,
+                GtChevronMark(
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(Spacing.lg),
+                    direction = GtChevronDirection.Right,
                 )
-                if (pushEnabled) {
-                    GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
-                }
             }
             if (pushEnabled) {
                 RowDivider()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(min = Sizes.touch)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -539,10 +540,9 @@ public fun ProfileScreen(
                                     testSending = false
                                 }
                             }
-                        }
-                        .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                        },
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     GtSendMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
                     Text(
@@ -1327,12 +1327,12 @@ private fun PickerRow(
     }
 }
 
-/** Разделитель строк карточки (RN Divider marginLeft 50 → отступ [Spacing.xl]). */
+/** Разделитель строк карточки: начинается под текстом строки (иконка [Spacing.xl] + зазор [Spacing.sm]). */
 @Composable
 private fun RowDivider() {
     HorizontalDivider(
         color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.padding(start = Spacing.xxl + Spacing.xs + Spacing.xxs),
+        modifier = Modifier.padding(start = Spacing.xl + Spacing.sm),
     )
 }
 

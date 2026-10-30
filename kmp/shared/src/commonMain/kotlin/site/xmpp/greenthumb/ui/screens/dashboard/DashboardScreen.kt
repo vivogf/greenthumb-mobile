@@ -121,12 +121,9 @@ import site.xmpp.greenthumb.ui.res.a11y_waterAll
 import site.xmpp.greenthumb.ui.res.a11y_waterPlant
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.dashboard_addPlant
-import site.xmpp.greenthumb.ui.res.dashboard_all
 import site.xmpp.greenthumb.ui.res.dashboard_databaseError
-import site.xmpp.greenthumb.ui.res.dashboard_healthy
 import site.xmpp.greenthumb.ui.res.dashboard_lastSynced
 import site.xmpp.greenthumb.ui.res.dashboard_myPlants
-import site.xmpp.greenthumb.ui.res.dashboard_needsWater
 import site.xmpp.greenthumb.ui.res.dashboard_noPlants
 import site.xmpp.greenthumb.ui.res.dashboard_noPlantsFound
 import site.xmpp.greenthumb.ui.res.dashboard_plantsWatered
@@ -669,31 +666,11 @@ public fun DashboardScreen(
                     Spacer(modifier = Modifier.height(Spacing.sm))
 
                     // Фильтр-чипы (FilterTab): счётчик — только у needsWater.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.xl),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        GtChip(
-                            label = stringResource(Res.string.dashboard_all),
-                            selected = filter == DashboardFilter.All,
-                            onClick = { filter = DashboardFilter.All },
-                        )
-                        GtChip(
-                            label = needsWaterChipLabel(
-                                baseLabel = stringResource(Res.string.dashboard_needsWater),
-                                dueCount = dueCount,
-                            ),
-                            selected = filter == DashboardFilter.NeedsWater,
-                            onClick = { filter = DashboardFilter.NeedsWater },
-                        )
-                        GtChip(
-                            label = stringResource(Res.string.dashboard_healthy),
-                            selected = filter == DashboardFilter.Healthy,
-                            onClick = { filter = DashboardFilter.Healthy },
-                        )
-                    }
+                    DashboardFilterRow(
+                        filter = filter,
+                        dueCount = dueCount,
+                        onSelect = { filter = it },
+                    )
                     Spacer(modifier = Modifier.height(Spacing.sm))
 
                     // Кнопки массовых действий: только needsWaterCount>0 И
@@ -929,10 +906,6 @@ private fun RefreshableEmptyState(
         }
     }
 }
-
-/** Подпись needsWater-чипа: RN `{label} (${count})` при count > 0. */
-private fun needsWaterChipLabel(baseLabel: String, dueCount: Int): String =
-    if (dueCount > 0) "$baseLabel ($dueCount)" else baseLabel
 
 /**
  * Кнопка переключателя вида (RN ViewModeButton 34×34): фон primary-альфа при

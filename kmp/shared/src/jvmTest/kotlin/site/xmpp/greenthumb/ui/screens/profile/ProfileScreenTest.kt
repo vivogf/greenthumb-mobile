@@ -543,7 +543,7 @@ class ProfileScreenTest {
 
             // Пикер открывается с 24 целыми часами; на текущем (09:00)
             // чекмарк — semantics selected.
-            clickByLabel("Notification Time")
+            clickByLabel("Every day at 09:00")
             waitUntilAtLeastOneExists(hasSubText("09:00"), TIMEOUT)
             assertTrue(allNodes(hasText("23:00")).isNotEmpty(), "23:00 в списке")
             assertTrue(allNodes(hasText("00:00")).isNotEmpty(), "00:00 в списке")
@@ -566,6 +566,33 @@ class ProfileScreenTest {
         }
     }
 
+    /**
+     * VAL-FIX11-004/-007: one reminders card — the title row is the one switch node, the time row
+     * «Every day at HH:00» is a separate button in the same card, the long hint and the separate
+     * «Notification Time» row are gone.
+     */
+    @Test
+    fun remindersCard_titleSwitch_andEveryDayRow_withoutOldTexts() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab(pushSubscribed = true)
+
+            val isSwitch = hasAnyDescendantOrSelfRole(Role.Switch)
+            waitUntilAtLeastOneExists(isSwitch and hasText("Watering Reminders"), TIMEOUT)
+            assertEquals(1, allNodes(hasText("Watering Reminders")).size, "the title is not a second node")
+            assertEquals(1, allNodes(isSwitch).size, "one switch node")
+            val timeRow = allNodes(hasClickAction() and hasText("Every day at 09:00") and hasAnyDescendantOrSelfRole(Role.Button))
+            assertEquals(1, timeRow.size, "the time row is its own button")
+            assertTrue(allNodes(hasSubText("Get notified when your plants need watering")).isEmpty(), "long hint removed")
+            assertTrue(allNodes(hasText("Notification Time")).isEmpty(), "separate time row removed")
+            assertTrue(allNodes(hasSubText("Choose when you want to receive daily reminders")).isEmpty(), "time hint removed")
+
+            runOnIdle { graph.close() }
+        }
+    }
+
     @Test
     fun notificationTimeSelect_sendsPatchHH00_andUpdatesUser() {
         val graph = newHarness()
@@ -574,14 +601,14 @@ class ProfileScreenTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openProfileTab(pushSubscribed = true)
 
-            clickByLabel("Notification Time")
+            clickByLabel("Every day at 09:00")
             waitUntilAtLeastOneExists(hasSubText("14:00"), TIMEOUT)
             clickByExactLabel("14:00")
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.timePatchCount == 1 }
             // user обновлён: пикер закрыт (23:00 — только внутри открытого
             // пикера), строка времени показывает новый час.
             waitUntilDoesNotExist(hasSubText("23:00"), TIMEOUT)
-            onNodeWithText("14:00").assertExists()
+            onNodeWithText("Every day at 14:00").assertExists()
 
             runOnIdle { graph.close() }
         }
@@ -595,9 +622,9 @@ class ProfileScreenTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openProfileTab(pushSubscribed = true)
 
-            clickByLabel("Notification Time")
+            clickByLabel("Every day at 09:00")
             waitUntilAtLeastOneExists(hasSubText("09:00"), TIMEOUT)
-            clickAt(hasClickAction() and hasText("09:00") and hasAnyDescendantOrSelfRole(Role.Button), index = 1)
+            clickAt(hasClickAction() and hasText("09:00") and hasAnyDescendantOrSelfRole(Role.Button))
             // Модалка закрылась (23:00 — только внутри открытого пикера),
             // PATCH не отправлен (тот же час).
             waitUntilDoesNotExist(hasSubText("23:00"), TIMEOUT)
@@ -616,7 +643,7 @@ class ProfileScreenTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openProfileTab(pushSubscribed = true)
 
-            clickByLabel("Notification Time")
+            clickByLabel("Every day at 09:00")
             waitUntilAtLeastOneExists(hasSubText("14:00"), TIMEOUT)
             clickByExactLabel("14:00")
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.timePatchCount == 1 }

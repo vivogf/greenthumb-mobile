@@ -82,9 +82,9 @@ import site.xmpp.greenthumb.ui.components.pickerToday
  *
  * Сценарии:
  * - открытие: заголовок/имя пользователя, поиск, чипы фильтров со счётчиком
- *   «Needs Water (2)», карточки со статус-пилюлями; массовые кнопки на фильтре
+ *   «Water (2)», карточки со статус-пилюлями; массовые кнопки на фильтре
  *   All отсутствуют (RN-паритет — только на needsWater);
- * - фильтры (ключевое действие): «Needs Water (2)» → массовые кнопки видны,
+ * - фильтры (ключевое действие): «Water (2)» → массовые кнопки видны,
  *   healthy-растение скрыто; «Healthy» → только Monstera, массовых нет;
  * - полив (ключевое действие): тап по «Water plant Fern» → PATCH
  *   /api/plants/fern с last_watered_date = сегодня → пилюля «7 days left»,
@@ -418,7 +418,7 @@ class DashboardScreenTest {
             // Поиск и три фильтр-чипа; счётчик needsWater — на чипе (RN-паритет).
             waitUntilAtLeastOneExists(hasText("Search plants..."), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("All"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("Needs Water (2)"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Water (2)"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Healthy"), TIMEOUT)
             // Карточки с пилюлями статуса (сортировка по срочности —
             // DashboardLogicTest; здесь — само наличие).
@@ -454,7 +454,7 @@ class DashboardScreenTest {
             openDashboard()
 
             // Needs Water: overdue + today, healthy скрыт; массовые кнопки видны.
-            clickAt(hasClickAction() and hasText("Needs Water (2)"))
+            clickAt(hasClickAction() and hasText("Water (2)"))
             waitUntilAtLeastOneExists(hasText("Water All"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Postpone All"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)

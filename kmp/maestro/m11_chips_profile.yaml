@@ -1,0 +1,120 @@
+# Maestro flow (M11a, VAL-FIX11-001/-004/-006/-007): dashboard filter chip «Полить (N)» on one line,
+# and the one-card reminders block in Profile: title + switch, then «Каждый день в HH:00 ›» opening the
+# hour picker. Throwaway account with 3 due plants (Basil, Mint, Fern) and 2 not due (Cactus, Aloe),
+# seeded with curl. Selectors are «ru|en» regexes (Maestro matches the whole text).
+#
+# SECRET. `${GT_RECOVERY_KEY}` is a placeholder. Run only through the renderer:
+#   GT_FLOW=m11_chips_profile.yaml GT_KEY_FILE=<key-file> GT_DEVICE=emulator-5554 \
+#     bash kmp/maestro/render-smoke.sh run
+appId: com.greenthumbplantcare.debug
+name: GreenThumb M11 chips and reminders card (debug, ru/en)
+---
+- launchApp:
+    clearState: true
+- repeat:
+    times: 15
+    while:
+      notVisible: "С возвращением|Welcome Back"
+    commands:
+      - runFlow:
+          when:
+            visible: "Все растения в одном месте|Your plants, organized"
+          commands:
+            - tapOn: "Пропустить|Skip"
+      - runFlow:
+          when:
+            visible: "Ключ не найден|Key not found"
+          commands:
+            - tapOn: "Ввести ключ|Enter recovery key"
+      - runFlow:
+          when:
+            visible: "У меня есть ключ|I Have a Key"
+          commands:
+            - tapOn: "У меня есть ключ|I Have a Key"
+- assertVisible: "С возвращением|Welcome Back"
+- tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- inputText: ${GT_RECOVERY_KEY}
+- hideKeyboard
+- tapOn: "Войти|Sign In"
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Не сейчас|Maybe later"
+    commands:
+      - tapOn: "Не сейчас|Maybe later"
+# Filter chips: the short label with the count, the old label is gone.
+- extendedWaitUntil:
+    visible: "Полить \\(3\\)|Water \\(3\\)"
+    timeout: 20000
+- assertVisible: "Все|All"
+- assertVisible: "В порядке|Healthy"
+- assertNotVisible: "Нужен полив.*|Needs Water.*"
+- takeScreenshot: m11-chips
+- tapOn: "Полить \\(3\\)|Water \\(3\\)"
+- assertVisible: "Basil"
+- assertVisible: "Mint"
+- assertVisible: "Fern"
+- assertNotVisible: "Cactus"
+- assertNotVisible: "Aloe"
+- takeScreenshot: m11-chips-water
+- tapOn: "Все|All"
+- assertVisible: "Cactus"
+# Profile: one reminders card, no long hint, no separate «Время уведомлений» row.
+- tapOn: "Профиль|Profile"
+- extendedWaitUntil:
+    visible: "Мой профиль|My Profile"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Каждый день в 09:00|Every day at 09:00"
+    direction: DOWN
+- assertVisible: "Напоминания о поливе|Watering Reminders"
+- assertNotVisible: "Время уведомлений|Notification Time"
+- assertNotVisible: "Получайте уведомления.*|Get notified.*"
+- takeScreenshot: m11-reminders-off
+# The whole title row is one switch node: tapping the title toggles it.
+- tapOn: "Напоминания о поливе|Watering Reminders"
+- runFlow:
+    when:
+      visible: "Разрешить|Allow"
+    commands:
+      - tapOn: "Разрешить|Allow"
+- extendedWaitUntil:
+    visible: "Уведомления включены|Notifications enabled"
+    timeout: 30000
+- tapOn: "OK"
+- takeScreenshot: m11-reminders-on
+# The time row opens the hour picker; 21:00 is saved on the server.
+- tapOn: "Каждый день в 09:00|Every day at 09:00"
+- scrollUntilVisible:
+    element:
+      text: "21:00"
+    direction: DOWN
+- takeScreenshot: m11-hour-picker
+- tapOn: "21:00"
+- extendedWaitUntil:
+    visible: "Время уведомлений обновлено.*|Notification time updated.*"
+    timeout: 20000
+- tapOn: "OK"
+- assertVisible: "Каждый день в 21:00|Every day at 21:00"
+- takeScreenshot: m11-reminders-21
+# Relaunch keeps 21:00 (it comes from the server user).
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Мои растения|My Plants"
+    timeout: 30000
+- tapOn: "Профиль|Profile"
+- scrollUntilVisible:
+    element:
+      text: "Каждый день в 21:00|Every day at 21:00"
+    direction: DOWN
+# Back closes the picker without a change.
+- tapOn: "Каждый день в 21:00|Every day at 21:00"
+- assertVisible: "00:00"
+- back
+- assertNotVisible: "00:00"
+- assertVisible: "Каждый день в 21:00|Every day at 21:00"
+- takeScreenshot: m11-reminders-relaunch

@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
@@ -27,6 +28,8 @@ import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
  * fill with the accent border and accent text, never a solid primary fill (white text on the accent
  * fill is below 4.5:1 in Light «Лес»).
  * [leading] gets the label colour and draws a 20 dp mark before the label.
+ * The label is always one line: a parent that is too narrow gets «…» at the end; a row that must show
+ * whole labels scrolls (dashboard filters).
  */
 @Composable
 fun GtChip(
@@ -64,6 +67,9 @@ fun GtChip(
             color = foreground,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (on) FontWeight.SemiBold else null,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -59,6 +59,7 @@
     <string name="dashboard_search">Search plants...</string>
     <string name="dashboard_all">All</string>
     <string name="dashboard_needsWater">Needs Water</string>
+    <string name="dashboard_waterFilter">Water</string>
     <string name="dashboard_healthy">Healthy</string>
     <string name="dashboard_addFirstPlant">Add your first plant</string>
     <string name="dashboard_noPlants">No plants yet</string>
@@ -274,6 +275,8 @@
     <string name="profile_notificationsHint">Get notified when your plants need watering.</string>
     <string name="profile_notificationTime">Notification Time</string>
     <string name="profile_notificationTimeHint">Choose when you want to receive daily reminders (your local time).</string>
+    <string name="profile_notificationEveryDay">Every day at %1$s</string>
+    <string name="profile_notificationLocalTime">in your local time</string>
     <string name="profile_save">Save</string>
     <string name="profile_saving">Saving...</string>
     <string name="profile_seasonTitle">Seasonal watering</string>

@@ -59,6 +59,7 @@
     <string name="dashboard_search">Поиск растений...</string>
     <string name="dashboard_all">Все</string>
     <string name="dashboard_needsWater">Нужен полив</string>
+    <string name="dashboard_waterFilter">Полить</string>
     <string name="dashboard_healthy">В порядке</string>
     <string name="dashboard_addFirstPlant">Добавьте первое растение</string>
     <string name="dashboard_noPlants">Пока нет растений</string>
@@ -290,6 +291,8 @@
     <string name="profile_notificationsHint">Получайте уведомления, когда растения нужно полить.</string>
     <string name="profile_notificationTime">Время уведомлений</string>
     <string name="profile_notificationTimeHint">Выберите время для ежедневных напоминаний (ваше местное время).</string>
+    <string name="profile_notificationEveryDay">Каждый день в %1$s</string>
+    <string name="profile_notificationLocalTime">по вашему местному времени</string>
     <string name="profile_save">Сохранить</string>
     <string name="profile_saving">Сохранение...</string>
     <string name="profile_seasonTitle">Сезонный полив</string>
