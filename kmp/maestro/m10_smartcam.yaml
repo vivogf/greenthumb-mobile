@@ -11,6 +11,15 @@
 #   retake    on a result: «Снять ещё раз» → mode choice with «Растение» (Pl@ntNet hint)
 #   addmine   on a result: «Добавить к моим растениям» → Add Plant prefilled (name, photo); Back saves nothing
 #   justlook  on a result: «Просто узнать» → dashboard
+# Disease mode (feature m10-standalone-diagnosis; VAL-CAM-009/010/012). The account needs plants, one named ${PLANT}.
+#   disease   open the smart camera → «Болезнь» → gallery → ${PHOTO} → diagnosis result (1 live OpenAI call):
+#             «Растение не из вашего списка…», «Это моё растение?», «Готово», no «Сохранить в журнал растения»
+#   dcheck    the same result checks without a new request (the result is already on screen)
+#   mine      «Это моё растение?» → «Какое из ваших растений?» → ${PLANT} → «Сохраним в журнал растения…» →
+#             «Сохранить в журнал растения» → «Сохранено в журнал» (no second diagnosis), «Это моё растение?»
+#             gone; «Готово» → dashboard
+#   dcancel   open the smart camera → «Болезнь» → «Сделать фото» (system camera); the caller shoots and
+#             gets a network error with airplane mode on; Back closes the smart camera
 appId: com.greenthumbplantcare.debug
 name: GreenThumb smart camera (${STEP})
 ---
@@ -194,3 +203,94 @@ name: GreenThumb smart camera (${STEP})
           timeout: 10000
       - assertVisible: "Profile|Профиль"
       - takeScreenshot: justlook-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'disease'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - extendedWaitUntil:
+          visible: "Болезнь|Problem"
+          timeout: 10000
+      - tapOn: "Болезнь|Problem"
+      - assertVisible: ".*OpenAI.*"
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Возможные причины|Possible causes"
+          timeout: 80000
+
+- runFlow:
+    when:
+      true: ${STEP == 'disease' || STEP == 'dcheck'}
+    commands:
+      - assertVisible: "Возможные причины|Possible causes"
+      - assertNotVisible: ".*\\d+ ?%.*"
+      - assertNotVisible: ".*(осталось|left today).*"
+      - assertNotVisible: ".*\\d+ (из|of) \\d+.*"
+      - takeScreenshot: disease-result-top
+      - scrollUntilVisible:
+          element:
+            text: "Это моё растение\\?|Is this my plant\\?"
+          direction: DOWN
+      - assertVisible: "Растение не из вашего списка, поэтому результат не сохранён.|This plant is not from your list, so the result is not saved."
+      - assertVisible: "Готово|Done"
+      - assertNotVisible: "Сохранить в журнал растения|Save to plant journal"
+      - takeScreenshot: disease-result-bottom
+
+- runFlow:
+    when:
+      true: ${STEP == 'mine'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Это моё растение\\?|Is this my plant\\?"
+          direction: DOWN
+      - tapOn: "Это моё растение\\?|Is this my plant\\?"
+      - extendedWaitUntil:
+          visible: "Какое из ваших растений\\?|Which of your plants\\?"
+          timeout: 10000
+      - takeScreenshot: mine-picker
+      - tapOn: ${PLANT}
+      - extendedWaitUntil:
+          visible: ".*${PLANT}.*"
+          timeout: 10000
+      - scrollUntilVisible:
+          element:
+            text: "Сохранить в журнал растения|Save to plant journal"
+          direction: DOWN
+      - takeScreenshot: mine-chosen
+      - tapOn: "Сохранить в журнал растения|Save to plant journal"
+      - extendedWaitUntil:
+          visible: "Сохранено в журнал|Saved to journal"
+          timeout: 30000
+      - assertNotVisible: "Это моё растение\\?|Is this my plant\\?"
+      - takeScreenshot: mine-saved
+      - tapOn: "Готово|Done"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'dcancel'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - extendedWaitUntil:
+          visible: "Болезнь|Problem"
+          timeout: 10000
+      - tapOn: "Болезнь|Problem"
+      - tapOn: "Сделать фото|Take photo"

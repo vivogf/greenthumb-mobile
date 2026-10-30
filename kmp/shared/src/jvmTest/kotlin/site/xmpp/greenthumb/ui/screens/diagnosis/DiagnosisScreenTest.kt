@@ -178,6 +178,25 @@ class DiagnosisScreenTest {
     fun en_429_shows_the_daily_limit() =
         assertErrorState("en", status(HttpStatusCode.TooManyRequests, limit429), "Daily diagnosis limit reached. Try again tomorrow.", retry = false)
 
+    private val userLimit429 = """{"error":"Daily diagnosis limit reached","code":"daily_limit","scope":"user"}"""
+    private val globalLimit429 = """{"error":"Daily diagnosis limit reached","code":"daily_limit","scope":"global"}"""
+
+    @Test
+    fun ru_429_user_scope_shows_the_personal_daily_limit() =
+        assertErrorState("ru", status(HttpStatusCode.TooManyRequests, userLimit429), "Дневной лимит диагностик исчерпан. Попробуйте завтра.", retry = false)
+
+    @Test
+    fun en_429_user_scope_shows_the_personal_daily_limit() =
+        assertErrorState("en", status(HttpStatusCode.TooManyRequests, userLimit429), "Daily diagnosis limit reached. Try again tomorrow.", retry = false)
+
+    @Test
+    fun ru_429_global_scope_shows_the_service_limit() =
+        assertErrorState("ru", status(HttpStatusCode.TooManyRequests, globalLimit429), "Сегодня проверки у сервиса закончились. Попробуйте завтра.", retry = false)
+
+    @Test
+    fun en_429_global_scope_shows_the_service_limit() =
+        assertErrorState("en", status(HttpStatusCode.TooManyRequests, globalLimit429), "The service has used up today's checks. Try again tomorrow.", retry = false)
+
     @Test
     fun ru_timeout_shows_the_network_error_with_retry() =
         assertErrorState("ru", PlantDiagnoser { _, _, _, _ -> throw ApiError.Timeout }, "Нет связи с сервером. Проверьте интернет и повторите.", retry = true)

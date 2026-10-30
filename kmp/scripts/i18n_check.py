@@ -353,6 +353,10 @@ KMP_ONLY_KEYS = {
     "smartcam.justLook",
     "smartcam.retake",
     "smartcam.noMatch",
+    "smartcam.notInList",
+    "smartcam.isMine",
+    "smartcam.pickPlant",
+    "smartcam.chosenPlant",
     "a11y.smartCamera",
 }
 

@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,7 +27,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.savedstate.read
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.AppLocalizedContent
 import site.xmpp.greenthumb.core.platform.Connectivity
@@ -60,7 +64,9 @@ import site.xmpp.greenthumb.ui.screens.profile.DeleteAccountScreen
 import site.xmpp.greenthumb.ui.screens.profile.ProfileScreen
 import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
 import site.xmpp.greenthumb.ui.screens.progress.ProgressScreen
+import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraft
 import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraMode
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraPlant
 import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraScreen
 import site.xmpp.greenthumb.ui.screens.smartcam.StandaloneDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
@@ -329,7 +335,9 @@ public fun GtAppNavGraph(
             ) { entry ->
                 val mode = SmartCameraMode.fromWire(entry.arguments?.read { getStringOrNull(NavRoutes.SMART_CAMERA_MODE_ARG) })
                 AppLocalizedContent {
-                    SmartCameraScreen(
+                    SmartCameraRoute(
+                        userId = sessionUserId,
+                        plants = plants,
                         initialMode = mode,
                         identifier = speciesIdentifier,
                         diagnoser = plantDiagnoser as? StandaloneDiagnoser,
@@ -553,6 +561,41 @@ private fun PlaceholderHeader(
  * [ProfileScreen] (Stage 7 п.4, фича screen-profile): пикеры языка/темы,
  * recovery key, время уведомления, пуши-секция, выход.
  */
+
+/**
+ * Smart camera with this account's plants for «Это моё растение?»: the list comes from the local
+ * cache, and the save goes through the plant timeline like the plant diagnosis route.
+ */
+@Composable
+private fun SmartCameraRoute(
+    userId: String?,
+    plants: PlantRepositoryOpener,
+    initialMode: SmartCameraMode,
+    identifier: SpeciesIdentifier?,
+    diagnoser: StandaloneDiagnoser?,
+    onClose: () -> Unit,
+    onAddToMine: (AddPlantDraft) -> Unit,
+) {
+    val repo = remember(userId) { userId?.let { plants.open(it) } }
+    val myPlants by remember(repo) {
+        val source = repo?.observePlants() ?: flowOf(emptyList())
+        source
+            .map { list -> list.map { SmartCameraPlant(it.id, it.name, it.photoUrl) }.sortedBy { it.name.lowercase() } }
+            .catch { emit(emptyList()) }
+    }.collectAsState(initial = emptyList())
+    val journal = remember(repo) {
+        repo?.let { r -> DiagnosisJournalSaver { id, uri, caption -> r.timeline.addPhoto(id, uri, caption) } }
+    }
+    SmartCameraScreen(
+        initialMode = initialMode,
+        identifier = identifier,
+        diagnoser = diagnoser,
+        onClose = onClose,
+        onAddToMine = onAddToMine,
+        myPlants = myPlants,
+        journal = journal,
+    )
+}
 
 /** The diagnosed plant as found in this account's cache; null plant = not one of its plants. */
 private data class DiagnosisPlantLookup(val plant: PlantDto?)

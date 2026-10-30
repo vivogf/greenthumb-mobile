@@ -17,8 +17,10 @@ import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisError
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResult
+import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
 import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
@@ -39,6 +41,13 @@ public enum class SmartCameraMode(public val wire: String) {
 public fun interface StandaloneDiagnoser {
     public suspend fun diagnose(photoDataUri: String, note: String?, language: String): DiagnosisResponse
 }
+
+/** One of the user's plants in the «Какое из ваших растений?» picker. */
+public data class SmartCameraPlant(
+    public val id: String,
+    public val name: String,
+    public val photoUrl: String,
+)
 
 public sealed interface SmartCameraFailure {
     /** Pl@ntNet found nothing. */
@@ -65,7 +74,9 @@ public sealed interface SmartCameraPhase {
 /**
  * State of the smart camera screen (D§ item 9a). Opening it and switching the mode send nothing;
  * one photo makes one request in the chosen mode. The photo lives only in memory and is dropped
- * on [retake] and [close]; a cancelled request never publishes its answer.
+ * on [retake] and [close]; a kept camera shot is deleted then too. A cancelled request never
+ * publishes its answer. A disease result can be saved to one of the user's plants through
+ * [journal] («Это моё растение?») without another diagnosis request.
  */
 public class SmartCameraController(
     initialMode: SmartCameraMode,
@@ -78,6 +89,8 @@ public class SmartCameraController(
     private val prepareDisease: (ByteArray) -> ByteArray,
     private val catalog: () -> CatalogRepository?,
     private val workContext: CoroutineContext = EmptyCoroutineContext,
+    private val journal: DiagnosisJournalSaver? = null,
+    private val deleteCapture: (String) -> Unit = {},
 ) {
     public var mode: SmartCameraMode by mutableStateOf(initialMode)
         private set
@@ -102,7 +115,22 @@ public class SmartCameraController(
     public var pickErrorMessage: String? by mutableStateOf(null)
         private set
 
+    /** The plant chosen with «Это моё растение?»; null until the user picks one. */
+    public var journalPlantId: String? by mutableStateOf(null)
+        private set
+
+    public var journalSave: JournalSaveState by mutableStateOf(JournalSaveState.Idle)
+        private set
+
+    /** The «Какое из ваших растений?» sheet is open. */
+    public var plantPickerOpen: Boolean by mutableStateOf(false)
+        private set
+
+    public val canSaveToJournal: Boolean get() = journal != null
+
     private var job: Job? = null
+    private var journalJob: Job? = null
+    private var capturePath: String? = null
     private var attempt = 0
     private var closed = false
 
@@ -131,6 +159,7 @@ public class SmartCameraController(
             } finally {
                 picking = false
             }
+            if (picked is PickResult.Picked && picked.capturePath != null) keepCapture(id, picked.capturePath)
             if (id != attempt) return@launch
             when (picked) {
                 null, PickResult.Cancelled -> Unit
@@ -138,6 +167,21 @@ public class SmartCameraController(
                 is PickResult.Picked -> send(id, current, picked.bytes, language)
             }
         }
+    }
+
+    /** The newest shot replaces the kept one; a shot of a stale attempt or a closed screen is deleted at once. */
+    private fun keepCapture(id: Int, path: String) {
+        if (closed || id != attempt) {
+            deleteCapture(path)
+            return
+        }
+        capturePath?.takeIf { it != path }?.let(deleteCapture)
+        capturePath = path
+    }
+
+    private fun dropCapture() {
+        capturePath?.let(deleteCapture)
+        capturePath = null
     }
 
     private suspend fun send(id: Int, current: SmartCameraMode, raw: ByteArray, language: String) {
@@ -204,13 +248,62 @@ public class SmartCameraController(
     public fun chosenCandidate(): IdentifyCandidate? =
         (phase as? SmartCameraPhase.PlantResult)?.candidates?.getOrNull(selectedCandidate)
 
+    private val savingOrSaved: Boolean
+        get() = journalSave == JournalSaveState.Saving || journalSave == JournalSaveState.Saved
+
+    /** «Это моё растение?»: only on a disease result that is not saved yet. */
+    public fun openPlantPicker() {
+        if (journal != null && phase is SmartCameraPhase.DiseaseResult && !savingOrSaved) plantPickerOpen = true
+    }
+
+    public fun dismissPlantPicker() {
+        plantPickerOpen = false
+    }
+
+    /** Sets the plant the result is saved to; a failed save is reset, a saved result keeps its plant. */
+    public fun choosePlant(plantId: String) {
+        plantPickerOpen = false
+        if (journal == null || phase !is SmartCameraPhase.DiseaseResult || savingOrSaved) return
+        journalPlantId = plantId
+        journalSave = JournalSaveState.Idle
+    }
+
+    /**
+     * «Сохранить в журнал растения» for the chosen plant: one upload of the diagnosed photo with
+     * [caption]. Further taps while saving or after success do nothing; a failure can be retried.
+     */
+    public fun saveToJournal(scope: CoroutineScope, caption: String) {
+        val saver = journal ?: return
+        val plantId = journalPlantId ?: return
+        val jpeg = photo ?: return
+        if (closed || phase !is SmartCameraPhase.DiseaseResult || savingOrSaved) return
+        journalSave = JournalSaveState.Saving
+        journalJob = scope.launch {
+            journalSave = try {
+                val dataUri = withContext(workContext) { photoDataUri(jpeg) }
+                saver.save(plantId, dataUri, caption)
+                JournalSaveState.Saved
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                JournalSaveState.Failed
+            }
+        }
+    }
+
     /** Stops a running request and returns to the mode choice; the mode stays. */
     public fun cancel() {
         attempt++
         job?.cancel()
         job = null
+        journalJob?.cancel()
+        journalJob = null
         picking = false
         photo = null
+        journalPlantId = null
+        journalSave = JournalSaveState.Idle
+        plantPickerOpen = false
+        dropCapture()
         phase = SmartCameraPhase.Choose
     }
 

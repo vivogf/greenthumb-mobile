@@ -109,6 +109,8 @@ internal fun DiagnosisResultView(
     onSave: () -> Unit,
     onDone: () -> Unit,
     onAgain: () -> Unit,
+    /** Shown between the disclaimer and the actions (the smart camera's «Это моё растение?»). */
+    beforeActions: @Composable () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val bitmap: ImageBitmap? = remember(photo) { photo?.let { runCatching { it.decodeToImageBitmap() }.getOrNull() } }
@@ -193,6 +195,7 @@ internal fun DiagnosisResultView(
         color = scheme.onSurfaceVariant,
         modifier = Modifier.testTag("diagnosis_disclaimer"),
     )
+    beforeActions()
     if (saveState != null) {
         if (saveState == JournalSaveState.Failed) {
             Text(

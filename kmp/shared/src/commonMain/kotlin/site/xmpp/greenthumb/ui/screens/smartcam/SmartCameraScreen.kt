@@ -51,12 +51,18 @@ import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.cropSquareJpeg
-import site.xmpp.greenthumb.core.platform.pickImage
+import site.xmpp.greenthumb.core.platform.deleteCaptureFile
+import site.xmpp.greenthumb.core.platform.pickImageKeepingCapture
 import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
+import site.xmpp.greenthumb.ui.components.GtModal
+import site.xmpp.greenthumb.ui.components.GtPlantPhoto
+import site.xmpp.greenthumb.ui.components.GtSheetRow
+import site.xmpp.greenthumb.ui.components.GtSheetRowRole
+import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.GtSmartCameraMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
@@ -69,16 +75,21 @@ import site.xmpp.greenthumb.ui.res.common_cancel
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
+import site.xmpp.greenthumb.ui.res.diagnosis_journalCaptionPrefix
 import site.xmpp.greenthumb.ui.res.diagnosis_loading
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.smartcam_addToMine
 import site.xmpp.greenthumb.ui.res.smartcam_choosePhoto
+import site.xmpp.greenthumb.ui.res.smartcam_chosenPlant
 import site.xmpp.greenthumb.ui.res.smartcam_hintDisease
 import site.xmpp.greenthumb.ui.res.smartcam_hintPlant
+import site.xmpp.greenthumb.ui.res.smartcam_isMine
 import site.xmpp.greenthumb.ui.res.smartcam_justLook
 import site.xmpp.greenthumb.ui.res.smartcam_modeDisease
 import site.xmpp.greenthumb.ui.res.smartcam_modePlant
 import site.xmpp.greenthumb.ui.res.smartcam_noMatch
+import site.xmpp.greenthumb.ui.res.smartcam_notInList
+import site.xmpp.greenthumb.ui.res.smartcam_pickPlant
 import site.xmpp.greenthumb.ui.res.smartcam_retake
 import site.xmpp.greenthumb.ui.res.smartcam_takePhoto
 import site.xmpp.greenthumb.ui.res.smartcam_title
@@ -87,9 +98,14 @@ import site.xmpp.greenthumb.ui.res.species_identifyLoading
 import site.xmpp.greenthumb.ui.res.species_identifyQuota
 import site.xmpp.greenthumb.ui.res.species_identifyUnavailable
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraft
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournal
+import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResultView
+import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
+import site.xmpp.greenthumb.ui.screens.diagnosis.Likelihood
 import site.xmpp.greenthumb.ui.screens.diagnosis.diagnosisErrorText
+import site.xmpp.greenthumb.ui.screens.diagnosis.likelihoodWord
 import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
 import site.xmpp.greenthumb.ui.screens.species.PlantNetAttribution
@@ -109,7 +125,9 @@ private const val PLANT_PHOTO_QUALITY = 0.85
  * «Умная камера» (D§ item 9a, variant B): mode choice «Растение | Болезнь», a photo from the
  * system camera or the gallery, then the plant candidates with Pl@ntNet attribution or the
  * diagnosis. «Добавить к моим растениям» hands the photo and species to Add Plant through
- * [onAddToMine]; «Просто узнать» and back save nothing.
+ * [onAddToMine]; «Просто узнать» and back save nothing. A disease result is for a plant outside
+ * the list; «Это моё растение?» picks one of [myPlants] and saves the result to its journal
+ * through [journal].
  */
 @Composable
 public fun SmartCameraScreen(
@@ -118,11 +136,14 @@ public fun SmartCameraScreen(
     diagnoser: StandaloneDiagnoser?,
     onClose: () -> Unit,
     onAddToMine: (AddPlantDraft) -> Unit,
-    pick: suspend (PickSource) -> PickResult = { pickImage(it) },
+    myPlants: List<SmartCameraPlant> = emptyList(),
+    journal: DiagnosisJournalSaver? = null,
+    pick: suspend (PickSource) -> PickResult = { pickImageKeepingCapture(it) },
+    deleteCapture: (String) -> Unit = ::deleteCaptureFile,
 ) {
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
-    val controller = remember(identifier, diagnoser) {
+    val controller = remember(identifier, diagnoser, journal) {
         SmartCameraController(
             initialMode = initialMode,
             identifier = identifier,
@@ -132,10 +153,12 @@ public fun SmartCameraScreen(
             prepareDisease = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
             catalog = { currentCatalog },
             workContext = Dispatchers.Default,
+            journal = journal,
+            deleteCapture = deleteCapture,
         )
     }
     DisposableEffect(controller) { onDispose { controller.close() } }
-    SmartCameraContent(controller = controller, onClose = onClose, onAddToMine = onAddToMine)
+    SmartCameraContent(controller = controller, onClose = onClose, onAddToMine = onAddToMine, myPlants = myPlants)
 }
 
 /** Square cover of the identified photo for Add Plant; the full photo when it cannot be decoded. */
@@ -149,9 +172,12 @@ internal fun SmartCameraContent(
     controller: SmartCameraController,
     onClose: () -> Unit,
     onAddToMine: (AddPlantDraft) -> Unit,
+    myPlants: List<SmartCameraPlant> = emptyList(),
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val captionPrefix = stringResource(Res.string.diagnosis_journalCaptionPrefix)
+    val words = Likelihood.entries.associateWith { likelihoodWord(it) }
     val language = IdentifyLogic.wireLanguage(LocalAppLocale.current)
     val backLabel = stringResource(Res.string.a11y_back)
     val phase = controller.phase
@@ -247,14 +273,31 @@ internal fun SmartCameraContent(
                     modifier = Modifier.gtButtonWidth().testTag("smartcam_retake"),
                 )
             }
-            is SmartCameraPhase.DiseaseResult -> DiagnosisResultView(
-                result = phase.result,
-                photo = controller.photo,
-                saveState = null,
-                onSave = {},
-                onDone = onClose,
-                onAgain = controller::retake,
-            )
+            is SmartCameraPhase.DiseaseResult -> {
+                val chosen = myPlants.firstOrNull { it.id == controller.journalPlantId }
+                DiagnosisResultView(
+                    result = phase.result,
+                    photo = controller.photo,
+                    saveState = if (chosen != null) controller.journalSave else null,
+                    onSave = {
+                        controller.saveToJournal(
+                            scope,
+                            DiagnosisJournal.caption(captionPrefix, phase.result.causes) { words.getValue(it) },
+                        )
+                    },
+                    onDone = onClose,
+                    onAgain = controller::retake,
+                    beforeActions = {
+                        OwnPlantChoice(
+                            chosen = chosen,
+                            canChoose = controller.canSaveToJournal && myPlants.isNotEmpty() &&
+                                controller.journalSave != JournalSaveState.Saving &&
+                                controller.journalSave != JournalSaveState.Saved,
+                            onChoose = controller::openPlantPicker,
+                        )
+                    },
+                )
+            }
             is SmartCameraPhase.Failed -> {
                 PhotoPreview(controller.photo)
                 Text(
@@ -273,6 +316,13 @@ internal fun SmartCameraContent(
         }
     }
 
+    if (controller.plantPickerOpen) {
+        PlantPickerSheet(
+            plants = myPlants,
+            onPick = controller::choosePlant,
+            onDismiss = controller::dismissPlantPicker,
+        )
+    }
     controller.deniedSource?.let { source ->
         GtAlertDialog(
             title = stringResource(Res.string.common_permissionDeniedTitle),
@@ -290,6 +340,82 @@ internal fun SmartCameraContent(
             title = stringResource(Res.string.common_error),
             message = pickErrorText(message),
             onDismissRequest = controller::dismissPickError,
+        )
+    }
+}
+
+/** «Не из вашего списка» (or the chosen plant) and «Это моё растение?» on a disease result. */
+@Composable
+private fun OwnPlantChoice(chosen: SmartCameraPlant?, canChoose: Boolean, onChoose: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    if (chosen == null) {
+        Text(
+            text = stringResource(Res.string.smartcam_notInList),
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.testTag("smartcam_notInList"),
+        )
+    } else {
+        Text(
+            text = stringResource(Res.string.smartcam_chosenPlant, chosen.name),
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurface,
+            modifier = Modifier.testTag("smartcam_chosenPlant"),
+        )
+    }
+    if (canChoose) {
+        SecondaryButton(
+            text = stringResource(Res.string.smartcam_isMine),
+            onClick = onChoose,
+            modifier = Modifier.gtButtonWidth().testTag("smartcam_isMine"),
+        )
+    }
+}
+
+/** «Какое из ваших растений?»: one row per plant with its photo and name, then «Отмена». */
+@Composable
+private fun PlantPickerSheet(plants: List<SmartCameraPlant>, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    GtModal(onDismissRequest = onDismiss) {
+        Box(modifier = Modifier.testTag("smartcam_pickPlantTitle")) {
+            GtSheetTitle(text = stringResource(Res.string.smartcam_pickPlant))
+        }
+        Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            plants.forEach { plant ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = Sizes.sheetRow)
+                        .clickable(role = Role.Button) { onPick(plant.id) }
+                        .testTag("smartcam_plant_${plant.id}")
+                        .padding(horizontal = Spacing.xxl, vertical = Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+                ) {
+                    GtPlantPhoto(
+                        photoUrl = plant.photoUrl,
+                        leafSize = Sizes.iconSlot,
+                        modifier = Modifier
+                            .size(Sizes.journalThumb)
+                            .clip(RoundedCornerShape(Radii.md))
+                            .background(scheme.surfaceVariant)
+                            .testTag("smartcam_plantThumb_${plant.id}"),
+                    )
+                    Text(
+                        text = plant.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = scheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        GtSheetRow(
+            label = stringResource(Res.string.common_cancel),
+            icon = null,
+            onClick = onDismiss,
+            role = GtSheetRowRole.Cancel,
+            modifier = Modifier.testTag("smartcam_pickPlantCancel"),
         )
     }
 }

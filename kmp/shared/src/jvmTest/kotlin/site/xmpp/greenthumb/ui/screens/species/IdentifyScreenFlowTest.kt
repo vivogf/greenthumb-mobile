@@ -270,6 +270,26 @@ class IdentifyScreenFlowTest {
     }
 
     @Test
+    fun ru_quota_429_shows_the_daily_identification_limit() {
+        val h = newHarness()
+        h.server.status = HttpStatusCode.TooManyRequests
+        h.server.body = """{"error":"Daily identification limit reached","code":"quota_exceeded"}"""
+        runDesktopComposeUiTest {
+            setContent {
+                AppEnvironment(customAppLocale = "ru") {
+                    GreenThumbTheme(darkTheme = false) {
+                        AddPlantScreen(userId = "73", opener = h.opener, onBack = {}, identifier = h.identifier)
+                    }
+                }
+            }
+            waitUntilAtLeastOneExists(hasText("Определить по фото"), TIMEOUT)
+            identifyFromGallery(h)
+            waitUntilAtLeastOneExists(hasText("Лимит распознаваний на сегодня исчерпан"), TIMEOUT)
+            assertNoTag("identify_loading")
+        }
+    }
+
+    @Test
     fun unavailable_503_shows_en_text_and_catalog_search() {
         val h = newHarness()
         h.server.status = HttpStatusCode.ServiceUnavailable
