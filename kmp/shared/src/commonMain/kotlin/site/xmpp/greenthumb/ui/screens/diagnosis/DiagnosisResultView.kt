@@ -43,6 +43,7 @@ import site.xmpp.greenthumb.ui.res.diagnosis_saveFailed
 import site.xmpp.greenthumb.ui.res.diagnosis_saveToJournal
 import site.xmpp.greenthumb.ui.res.diagnosis_savedToJournal
 import site.xmpp.greenthumb.ui.theme.GreenThumbExtendedColors
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -137,7 +138,7 @@ internal fun DiagnosisResultView(
             if (result.summary.isNotEmpty()) {
                 Text(
                     text = result.summary,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.testTag("diagnosis_summary"),
                 )
@@ -157,7 +158,7 @@ internal fun DiagnosisResultView(
                     if (cause.explanation.isNotEmpty()) {
                         Text(
                             text = cause.explanation,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                             color = scheme.onSurfaceVariant,
                         )
                     }
@@ -180,7 +181,7 @@ internal fun DiagnosisResultView(
                         GtCheckMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.lg).padding(top = Spacing.xxs))
                         Text(
                             text = tip,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                             color = scheme.onSurface,
                             modifier = Modifier.weight(1f),
                         )
@@ -191,7 +192,7 @@ internal fun DiagnosisResultView(
     }
     Text(
         text = stringResource(Res.string.diagnosis_disclaimer),
-        style = MaterialTheme.typography.bodySmall,
+        style = GtParagraph.of(MaterialTheme.typography.bodySmall),
         color = scheme.onSurfaceVariant,
         modifier = Modifier.testTag("diagnosis_disclaimer"),
     )

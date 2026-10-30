@@ -95,6 +95,7 @@ import site.xmpp.greenthumb.ui.res.login_welcomeBack
 import site.xmpp.greenthumb.ui.res.privacy_contactLead
 import site.xmpp.greenthumb.ui.res.privacy_loginHint
 import site.xmpp.greenthumb.ui.res.privacy_moreLink
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.GtType
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
@@ -246,7 +247,7 @@ private fun ChooseMode(onChoose: () -> Unit, onLogin: () -> Unit) {
             Column {
                 Text(
                     text = stringResource(Res.string.privacy_loginHint),
-                    style = GtType.loginHint,
+                    style = GtParagraph.of(GtType.loginHint),
                     color = scheme.onSurfaceVariant,
                 )
                 Text(

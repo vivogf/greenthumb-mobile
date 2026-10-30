@@ -3,6 +3,8 @@ package site.xmpp.greenthumb.ui.theme
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -50,6 +52,18 @@ object GtType {
     /** Smallest size the watering line may shrink to so the longest form stays whole on one line. */
     val waterDueMinSize = 14.sp
     val waterDueStep = 0.5.sp
+}
+
+/**
+ * The one paragraph style for long texts of 3+ lines (M11 owner item 4A): justified, never hyphenated.
+ * The last line stays start-aligned (platform default). Android justifies from API 26; on API 24-25 the
+ * text stays start-aligned. Titles, labels, buttons, chips, short hints and centred texts do not use it.
+ */
+object GtParagraph {
+    // Letter spacing is reset: Android's inter-word justification leaves the M3 body tracking (0.25-0.4 sp) out of
+    // the line width, so justified lines stopped about 14 dp short of the right edge (Samsung 384 dp, font 1.15).
+    fun of(base: TextStyle): TextStyle =
+        base.copy(textAlign = TextAlign.Justify, hyphens = Hyphens.None, letterSpacing = 0.sp)
 }
 
 /**

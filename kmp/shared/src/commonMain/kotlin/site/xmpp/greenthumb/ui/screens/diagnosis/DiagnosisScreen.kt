@@ -84,6 +84,7 @@ import site.xmpp.greenthumb.ui.res.diagnosis_submit
 import site.xmpp.greenthumb.ui.res.diagnosis_takePhoto
 import site.xmpp.greenthumb.ui.res.diagnosis_title
 import site.xmpp.greenthumb.ui.res.diagnosis_unavailable
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -242,7 +243,7 @@ internal fun DiagnosisContent(controller: DiagnosisController, onBack: () -> Uni
             DiagnosisPhase.Input -> {
                 Text(
                     text = stringResource(Res.string.diagnosis_intro),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                     color = scheme.onSurfaceVariant,
                 )
                 PhotoPreview(controller.photo)

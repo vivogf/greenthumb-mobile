@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -85,6 +86,7 @@ import site.xmpp.greenthumb.ui.components.GtPersonMark
 import site.xmpp.greenthumb.ui.components.GtRefreshMark
 import site.xmpp.greenthumb.ui.components.GtSendMark
 import site.xmpp.greenthumb.ui.components.GtSignOutMark
+import site.xmpp.greenthumb.ui.components.GtTitleWithAction
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtSunMark
 import site.xmpp.greenthumb.ui.components.GtSwitchIndicator
@@ -155,6 +157,7 @@ import site.xmpp.greenthumb.ui.res.progress_entry
 import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
 import site.xmpp.greenthumb.ui.res.session_keyNotStored
 import site.xmpp.greenthumb.ui.theme.GreenThumbColors
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -363,27 +366,32 @@ public fun ProfileScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                // Compact avatar and gap so «GreenThumb — Уход за растениями» fits one line at 384 dp and font 1.15.
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(Spacing.xxl * 2)
+                        .size(Spacing.xl * 2)
                         .background(scheme.primaryContainer, RoundedCornerShape(percent = 50)),
                     contentAlignment = Alignment.Center,
                 ) {
                     GtPersonMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl))
                 }
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = user?.name?.takeIf { it.isNotBlank() }
                             ?: stringResource(Res.string.profile_anonymous),
                         style = MaterialTheme.typography.titleMedium,
                         color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = stringResource(Res.string.profile_appDescription),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -585,30 +593,40 @@ public fun ProfileScreen(
         // Recovery key (RN SectionCard 4).
         SectionCard {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                    Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
-                    Text(
-                        text = stringResource(Res.string.profile_recoveryKey),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = scheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = stringResource(
-                            if (keyVisible) Res.string.profile_hide else Res.string.profile_show,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.tertiary,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                role = Role.Button,
-                            ) { keyVisible = !keyVisible }
-                            .padding(Spacing.xxs),
-                    )
-                }
+                // The title keeps one line at large font scales; «Показать» moves under it when the line is full.
+                GtTitleWithAction(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
+                            Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
+                            Text(
+                                text = stringResource(Res.string.profile_recoveryKey),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = scheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                    action = {
+                        Text(
+                            text = stringResource(
+                                if (keyVisible) Res.string.profile_hide else Res.string.profile_show,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.tertiary,
+                            modifier = Modifier
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    role = Role.Button,
+                                ) { keyVisible = !keyVisible }
+                                .padding(Spacing.xxs),
+                        )
+                    },
+                    // Icon + gap minus the action's own 4 dp padding: the wrapped text starts under the title text.
+                    wrappedActionIndent = Spacing.xl + Spacing.xs,
+                )
                 Text(
                     text = stringResource(Res.string.profile_recoveryKeyHint),
                     style = MaterialTheme.typography.bodySmall,
@@ -617,7 +635,7 @@ public fun ProfileScreen(
                 if (user != null && storedKey is StoredRecoveryKey.Present && !storedKey.savedOnDevice) {
                     Text(
                         text = stringResource(Res.string.session_keyNotStored),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
                     )
                 }
@@ -625,14 +643,14 @@ public fun ProfileScreen(
                     // NotStored: the new key is only in memory; the old key still works.
                     Text(
                         text = stringResource(Res.string.profile_keyChangeNotStored),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
                     )
                 }
                 if (user != null && keyChangePending) {
                     Text(
                         text = stringResource(Res.string.profile_keyChangeUnfinished),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
                     )
                     Text(
@@ -851,7 +869,7 @@ public fun ProfileScreen(
                 }
                 Text(
                     text = stringResource(Res.string.privacy_aboutBody),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                     color = scheme.onSurfaceVariant,
                 )
                 HorizontalHairline()

@@ -45,6 +45,7 @@ import site.xmpp.greenthumb.ui.res.profile_keyChangeNotStored
 import site.xmpp.greenthumb.ui.res.profile_keyChangeUnfinished
 import site.xmpp.greenthumb.ui.res.profile_newKeyLabel
 import site.xmpp.greenthumb.ui.res.session_keyNotFoundTitle
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
@@ -97,14 +98,14 @@ public fun RecoveryKeyQrScreen(
         Spacer(modifier = Modifier.height(Spacing.sm))
         Text(
             text = stringResource(Res.string.keyQr_hint),
-            style = MaterialTheme.typography.bodyMedium,
+            style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
             color = scheme.onSurfaceVariant,
         )
         if (unconfirmedKey != null && !keyChangePending) {
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = stringResource(Res.string.profile_keyChangeNotStored),
-                style = MaterialTheme.typography.bodyMedium,
+                style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                 color = scheme.error,
             )
         }
@@ -112,7 +113,7 @@ public fun RecoveryKeyQrScreen(
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = stringResource(Res.string.profile_keyChangeUnfinished),
-                style = MaterialTheme.typography.bodyMedium,
+                style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
                 color = scheme.error,
             )
         }

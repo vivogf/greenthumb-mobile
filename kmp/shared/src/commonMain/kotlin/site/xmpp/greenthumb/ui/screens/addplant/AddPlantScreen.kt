@@ -138,6 +138,7 @@ import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifyDialog
 import site.xmpp.greenthumb.ui.screens.species.SpeciesPickerDialog
 import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.GtTypography
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -416,7 +417,7 @@ public fun AddPlantScreen(
                         if (chosenSpecies != null) {
                             Text(
                                 text = stringResource(Res.string.species_prefilledHint),
-                                style = MaterialTheme.typography.bodySmall,
+                                style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                                 color = scheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = Spacing.xs),
                             )
@@ -479,7 +480,7 @@ public fun AddPlantScreen(
                 FormLabel(text = stringResource(Res.string.addPlant_lastWateredLabel))
                 Text(
                     text = stringResource(Res.string.addPlant_lastWateredHint),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                     color = scheme.onSurfaceVariant,
                 )
                 GtDatePickerField(
@@ -515,7 +516,7 @@ public fun AddPlantScreen(
                     )
                     Text(
                         text = stringResource(Res.string.addPlant_additionalCareHint),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.onSurfaceVariant,
                     )
                 }
