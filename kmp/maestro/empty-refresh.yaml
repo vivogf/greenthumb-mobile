@@ -23,6 +23,22 @@ name: Pull-to-refresh on empty dashboard states (VAL-APP-018)
           commands:
             - clearState
       - launchApp
+      # On elt_test the first launch after clearState sometimes leaves Maestro with an empty app hierarchy
+      # (the screen shows «Key not found», Maestro sees only the status bar) until the app is launched again.
+      - repeat:
+          times: 4
+          while:
+            notVisible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+          commands:
+            - extendedWaitUntil:
+                visible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  notVisible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+                commands:
+                  - launchApp
       - repeat:
           times: 15
           while:
@@ -30,7 +46,7 @@ name: Pull-to-refresh on empty dashboard states (VAL-APP-018)
           commands:
             - runFlow:
                 when:
-                  visible: "Your plants, organized|Все растения в одном месте"
+                  visible: "Skip|Пропустить"
                 commands:
                   - tapOn: "Skip|Пропустить"
             - runFlow:
@@ -43,6 +59,9 @@ name: Pull-to-refresh on empty dashboard states (VAL-APP-018)
                   visible: "I Have a Key|У меня есть ключ"
                 commands:
                   - tapOn: "I Have a Key|У меня есть ключ"
+      - extendedWaitUntil:
+          visible: "Welcome Back|С возвращением"
+          timeout: 10000
       - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
       - inputText: ${GT_RECOVERY_KEY}
       - hideKeyboard

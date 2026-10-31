@@ -27,12 +27,12 @@ name: GreenThumb camera zoom (${STEP})
           commands:
             - tapOn: "While using the app|При использовании приложения"
       - extendedWaitUntil:
-          visible: "Сфотографировать растение|Photograph the plant"
+          visible: "Снять растение|Photograph the plant"
           timeout: 15000
       - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
       - assertNotVisible: "\\d\\.\\d×"
       - takeScreenshot: zoom-open-1x
-      - tapOn: "Сфотографировать растение|Photograph the plant"
+      - tapOn: "Снять растение|Photograph the plant"
       - extendedWaitUntil:
           visible: "Узнать вид|Identify species"
           timeout: 15000
@@ -42,7 +42,7 @@ name: GreenThumb camera zoom (${STEP})
           direction: DOWN
       - tapOn: "Переснять|Retake"
       - extendedWaitUntil:
-          visible: "Сфотографировать растение|Photograph the plant"
+          visible: "Снять растение|Photograph the plant"
           timeout: 15000
       - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
 
@@ -89,7 +89,7 @@ name: GreenThumb camera zoom (${STEP})
           timeout: 10000
       - tapOn: "Умная камера|Smart camera"
       - extendedWaitUntil:
-          visible: "Сфотографировать растение|Photograph the plant"
+          visible: "Снять растение|Photograph the plant"
           timeout: 15000
       - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
       - takeScreenshot: zoom-reopen-1x
