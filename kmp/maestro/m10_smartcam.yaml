@@ -39,6 +39,23 @@ name: GreenThumb smart camera (${STEP})
     commands:
       - launchApp:
           clearState: true
+      # On elt_test the first launch after clearState sometimes leaves Maestro with an empty app hierarchy
+      # (the screen shows «Key not found», Maestro sees only the status bar) until the app is launched again.
+      # The quick loop below then ran out without a tap and the key field was never reached.
+      - repeat:
+          times: 4
+          while:
+            notVisible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+          commands:
+            - extendedWaitUntil:
+                visible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  notVisible: "Skip|Пропустить|Key not found|Ключ не найден|I Have a Key|У меня есть ключ|Welcome Back|С возвращением"
+                commands:
+                  - launchApp
       - repeat:
           times: 15
           while:
@@ -51,7 +68,7 @@ name: GreenThumb smart camera (${STEP})
                   - tapOn: "Skip|Пропустить"
             - runFlow:
                 when:
-                  visible: "Enter recovery key|Ввести ключ"
+                  visible: "Key not found|Ключ не найден"
                 commands:
                   - tapOn: "Enter recovery key|Ввести ключ"
             - runFlow:
@@ -59,6 +76,9 @@ name: GreenThumb smart camera (${STEP})
                   visible: "I Have a Key|У меня есть ключ"
                 commands:
                   - tapOn: "I Have a Key|У меня есть ключ"
+      - extendedWaitUntil:
+          visible: "Welcome Back|С возвращением"
+          timeout: 10000
       - tapOn: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
       - inputText: ${GT_RECOVERY_KEY}
       - hideKeyboard
@@ -163,6 +183,11 @@ name: GreenThumb smart camera (${STEP})
       - assertVisible: "Переснять|Retake"
       - assertNotVisible: "Что вас беспокоит.*|What worries you.*"
       - takeScreenshot: shot-aftershot
+      # The 3:4 after-shot (M11c) can push «Переснять» below the fold.
+      - scrollUntilVisible:
+          element:
+            text: "Переснять|Retake"
+          direction: DOWN
       - tapOn: "Переснять|Retake"
       - extendedWaitUntil:
           visible: "Снять растение|Photograph the plant"
@@ -180,6 +205,10 @@ name: GreenThumb smart camera (${STEP})
       - assertVisible: "Что вас беспокоит.*|What worries you.*"
       - assertVisible: ".*OpenAI.*"
       - takeScreenshot: dshot-aftershot
+      - scrollUntilVisible:
+          element:
+            text: "Переснять|Retake"
+          direction: DOWN
       - tapOn: "Переснять|Retake"
       - extendedWaitUntil:
           visible: "Снять больное место|Photograph the sick spot"
@@ -199,23 +228,34 @@ name: GreenThumb smart camera (${STEP})
       true: ${STEP == 'gallery'}
     commands:
       - tapOn: "Выбрать из галереи|Choose from gallery"
-      - extendedWaitUntil:
-          visible: ${PHOTO}
-          timeout: 15000
+      # The picker sheet can open half-height with ${PHOTO} below its fold.
+      - scrollUntilVisible:
+          element:
+            text: ${PHOTO}
+          direction: DOWN
+          timeout: 20000
       - tapOn: ${PHOTO}
       - extendedWaitUntil:
           visible: "Узнать вид|Identify species"
           timeout: 15000
       - takeScreenshot: gallery-aftershot
       - tapOn: "Узнать вид|Identify species"
+      # The 3:4 photo (M11c) leaves only the candidates on the first screen; the attribution and the
+      # actions are below the fold.
       - extendedWaitUntil:
-          visible: "Добавить к моим растениям|Add to my plants"
+          visible: "Monstera deliciosa"
           timeout: 40000
-      - assertVisible: "Monstera deliciosa"
-      - assertVisible: ".*Pl@ntNet.*"
       - assertNotVisible: ".*\\d+ ?%.*"
       - assertNotVisible: ".*\\d+ (из|of) \\d+.*"
       - takeScreenshot: gallery-result-top
+      - scrollUntilVisible:
+          element:
+            text: ".*Pl@ntNet.*"
+          direction: DOWN
+      - scrollUntilVisible:
+          element:
+            text: "Добавить к моим растениям|Add to my plants"
+          direction: DOWN
       - scrollUntilVisible:
           element:
             text: "Снять ещё раз|Take another"
@@ -247,7 +287,9 @@ name: GreenThumb smart camera (${STEP})
       - extendedWaitUntil:
           visible: "Новое растение|Add New Plant"
           timeout: 10000
-      - assertVisible: "Monstera deliciosa"
+      # The short form (M11) shows the common name with «по виду»; the Latin name stays in «Ещё параметры».
+      - assertVisible: ".*(Монстера|Monstera).*"
+      - assertVisible: ".*(по виду|from species).*"
       - takeScreenshot: addmine-form
       - back
       - waitForAnimationToEnd
@@ -287,9 +329,12 @@ name: GreenThumb smart camera (${STEP})
           timeout: 15000
       - tapOn: "Болезнь|Problem"
       - tapOn: "Выбрать из галереи|Choose from gallery"
-      - extendedWaitUntil:
-          visible: ${PHOTO}
-          timeout: 15000
+      # The picker sheet can open half-height with ${PHOTO} below its fold.
+      - scrollUntilVisible:
+          element:
+            text: ${PHOTO}
+          direction: DOWN
+          timeout: 20000
       - tapOn: ${PHOTO}
       - extendedWaitUntil:
           visible: "Проверить растение|Check the plant"
