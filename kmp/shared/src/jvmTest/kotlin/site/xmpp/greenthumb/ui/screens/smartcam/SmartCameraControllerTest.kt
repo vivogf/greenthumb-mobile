@@ -335,9 +335,58 @@ class SmartCameraControllerTest {
             assertEquals(SmartCameraPhase.Viewfinder, c.phase)
             assertEquals(mode, c.mode)
             assertNull(c.photo)
-            assertEquals("", c.note)
+            assertEquals("note", c.note, "«Переснять» keeps the note of this camera session")
             assertEquals(0, f.sends)
         }
+    }
+
+    @Test
+    fun theNoteIsKeptOnRetakeAndClearedAfterAResultOrOnClose() = runTest {
+        val f = Fakes()
+        val c = f.controller(mode = SmartCameraMode.Disease)
+        c.ready()
+        c.shutter(this)
+        advanceUntilIdle()
+        c.updateNote("Yellow leaves")
+        c.retake()
+        // A late text commit of the field that just left the screen does not change anything.
+        c.updateNote("Yellow leaves, typed late")
+        assertEquals("Yellow leaves", c.note)
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        assertEquals("Yellow leaves", c.note, "the next photo of the session keeps the note")
+        c.send(this, "en")
+        advanceUntilIdle()
+        assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
+        assertEquals("Yellow leaves", f.diagnoseCalls.single().second)
+        assertEquals("", c.note, "a shown result clears the note")
+        c.updateNote("Yellow leaves")
+        assertEquals("", c.note, "the result screen has no note field")
+        c.retake()
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        assertEquals(SmartCameraPhase.Captured, c.phase)
+        assertEquals("", c.note, "the next new disease photo starts without the old note")
+
+        c.updateNote("Spots")
+        c.close()
+        assertEquals("", c.note, "closing the camera clears the note")
+        val reopened = f.controller(mode = SmartCameraMode.Disease)
+        assertEquals("", reopened.note)
+    }
+
+    @Test
+    fun aFailedSendKeepsTheNote() = runTest {
+        val f = Fakes()
+        f.diagnoseAnswer = { throw ApiError.Network }
+        val c = f.controller(mode = SmartCameraMode.Disease)
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.updateNote("Spots")
+        c.send(this, "ru")
+        advanceUntilIdle()
+        assertIs<SmartCameraPhase.Failed>(c.phase)
+        assertEquals("Spots", c.note, "a failure is no result: the note stays for the next try")
     }
 
     @Test

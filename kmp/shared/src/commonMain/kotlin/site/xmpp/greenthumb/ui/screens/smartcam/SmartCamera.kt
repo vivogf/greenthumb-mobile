@@ -172,7 +172,10 @@ public class SmartCameraController(
     public var photo: ByteArray? by mutableStateOf(null)
         private set
 
-    /** «Что вас беспокоит?» of the disease mode, at most [DiagnosisLogic.MAX_NOTE_LENGTH] characters. */
+    /**
+     * «Что вас беспокоит?» of the disease mode, at most [DiagnosisLogic.MAX_NOTE_LENGTH] characters. It stays across
+     * «Переснять» of one camera session and is cleared when a result is shown and when the camera closes.
+     */
     public var note: String by mutableStateOf("")
         private set
 
@@ -202,6 +205,11 @@ public class SmartCameraController(
         private set
 
     public val canSaveToJournal: Boolean get() = journal != null
+
+    /** «Это моё растение?» is offered on a plant-less disease result until a plant is chosen. */
+    public val canChooseOwnPlant: Boolean
+        get() = journal != null && diagnosedPlant == null && journalPlantId == null &&
+            phase is SmartCameraPhase.DiseaseResult && !savingOrSaved
 
     private var job: Job? = null
     private var journalJob: Job? = null
@@ -355,6 +363,9 @@ public class SmartCameraController(
     }
 
     public fun updateNote(value: String) {
+        // The IME may commit the text again after the field has left the screen (retake, send); only the
+        // after-shot screen edits the note.
+        if (closed || (phase != SmartCameraPhase.Captured && phase != SmartCameraPhase.PhotoLoading)) return
         note = DiagnosisLogic.clampNote(value)
     }
 
@@ -384,6 +395,7 @@ public class SmartCameraController(
                 diagnosedPlant = checked
                 journalPlantId = checked.id
             }
+            if (outcome !is SmartCameraPhase.Failed) note = ""
             phase = outcome
         }
     }
@@ -499,7 +511,6 @@ public class SmartCameraController(
         journalJob = null
         picking = false
         photo = null
-        note = ""
         journalPlantId = null
         diagnosedPlant = null
         journalSave = JournalSaveState.Idle
@@ -518,6 +529,7 @@ public class SmartCameraController(
     /** The screen is gone: stop work and drop the photo. */
     public fun close() {
         closed = true
+        note = ""
         retake()
     }
 

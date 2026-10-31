@@ -233,7 +233,7 @@ class SmartCameraPlantDiagnosisTest {
         advanceUntilIdle()
         assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.Network)), c.phase)
         c.retake()
-        assertEquals("", c.note, "retake starts a new attempt")
+        assertEquals("Spots", c.note, "a failed send is no result: «Снять ещё раз» keeps the note of this session")
         shoot(c)
         c.send(this, "ru")
         advanceUntilIdle()

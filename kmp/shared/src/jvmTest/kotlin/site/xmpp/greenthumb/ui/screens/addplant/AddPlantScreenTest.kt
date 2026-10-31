@@ -880,7 +880,13 @@ class AddPlantScreenTest {
     // M11 item 5 (variant A): one short screen, the rest under «Ещё параметры»
     // ------------------------------------------------------------------
 
-    private fun ComposeUiTest.setScaledAddPlant(graph: Harness, locale: String, fontScale: Float, widthDp: Int = 384) {
+    private fun ComposeUiTest.setScaledAddPlant(
+        graph: Harness,
+        locale: String,
+        fontScale: Float,
+        widthDp: Int = 384,
+        draft: AddPlantDraft? = null,
+    ) {
         setContent {
             site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = locale) {
                 val base = androidx.compose.ui.platform.LocalDensity.current
@@ -891,7 +897,13 @@ class AddPlantScreenTest {
                         androidx.compose.foundation.layout.Box(
                             modifier = androidx.compose.ui.Modifier.width(widthDp.dp),
                         ) {
-                            AddPlantScreen(userId = "73", opener = graph.opener, onBack = {}, identifier = CountingIdentifier())
+                            AddPlantScreen(
+                                userId = "73",
+                                opener = graph.opener,
+                                onBack = {},
+                                identifier = CountingIdentifier(),
+                                draft = draft,
+                            )
                         }
                     }
                 }
@@ -1102,6 +1114,72 @@ class AddPlantScreenTest {
             runOnIdle { graph.close() }
         }
     }
+
+    // ------------------------------------------------------------------
+    // M11b: the draft from the camera opens as the same short form
+    // ------------------------------------------------------------------
+
+    private val monstera = site.xmpp.greenthumb.catalog.SpeciesEntry(
+        id = "monstera-deliciosa",
+        scientificName = "Monstera deliciosa",
+        synonyms = emptyList(),
+        names = site.xmpp.greenthumb.catalog.SpeciesText(ru = "Монстера деликатесная", en = "Swiss cheese plant"),
+        aliases = site.xmpp.greenthumb.catalog.SpeciesAliases(),
+        waterIntervalDays = 8,
+        fertilizeIntervalDays = 21,
+        repotIntervalMonths = 24,
+        light = site.xmpp.greenthumb.catalog.SpeciesLight.BrightIndirect,
+        tip = site.xmpp.greenthumb.catalog.SpeciesText(ru = "Совет", en = "Tip"),
+    )
+
+    private fun cameraDraft() = AddPlantDraft(
+        candidate = site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate(
+            scientificName = "Monstera deliciosa",
+            commonName = "Swiss cheese plant",
+            level = site.xmpp.greenthumb.ui.screens.species.ScoreLevel.High,
+            catalogEntry = monstera,
+        ),
+        photoJpeg = paintedJpeg(64, 64),
+    )
+
+    private fun draftFormCase(locale: String, fontScale: Float, name: String, add: String) {
+        val graph = newHarness()
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, locale, fontScale, draft = cameraDraft())
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            // Collapsed like a fresh form: none of the «Ещё параметры» fields are composed.
+            listOf("addPlant_location", "addPlant_lastWatered", "addPlant_notes", "addPlant_pickSpecies", "addPlant_fertilize")
+                .forEach { tag -> assertEquals(0, unmergedCount(tag), "$tag is hidden: the draft form is collapsed") }
+            assertEquals(1, onAllNodes(isEditable()).fetchSemanticsNodes().size, "only the name field is shown")
+            onAllNodes(isEditable())[0].assertTextEquals(name, includeEditableText = true)
+            assertEquals(1, unmergedCount("addPlant_nameFromSpecies"))
+            assertEquals(1, unmergedCount("addPlant_waterFromSpecies"), "the stepper is marked «по виду»")
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+            val submit = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
+            val root = onRoot().getBoundsInRoot()
+            assertTrue(submit.bottom <= root.bottom, "«$add» is on screen without scrolling: $submit in $root")
+            assertEquals(1, lineCountOf(add), "«$add» is one line at $fontScale")
+
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"$name\""), body)
+            assertTrue(body.contains("\"species_id\":\"monstera-deliciosa\""), "the collapsed species is saved: $body")
+            assertTrue(body.contains("\"species_name\":\"Monstera deliciosa\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":8"), body)
+            assertTrue(body.contains("\"last_watered_date\":\"${pickerToday()}\""), body)
+            assertTrue(body.contains("\"photo_url\":\"data:image/jpeg;base64,"), "the camera photo is the cover")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun draftFromCamera_ru_opensCollapsed_andSavesTheSpecies() =
+        draftFormCase(locale = "ru", fontScale = 1.15f, name = "Монстера деликатесная", add = "Добавить")
+
+    @Test
+    fun draftFromCamera_en_opensCollapsed_andSavesTheSpecies() =
+        draftFormCase(locale = "en", fontScale = 1.3f, name = "Swiss cheese plant", add = "Add")
 
     private companion object {
         const val TIMEOUT: Long = 10_000L

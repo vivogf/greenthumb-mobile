@@ -140,7 +140,6 @@ import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournal
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResultView
-import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
 import site.xmpp.greenthumb.ui.screens.diagnosis.Likelihood
 import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.diagnosis.diagnosisErrorText
@@ -605,7 +604,8 @@ private fun CameraBlocked(
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 text = stringResource(if (denied) Res.string.smartcam_cameraDenied else Res.string.smartcam_cameraUnavailable),
-                style = GtParagraph.of(MaterialTheme.typography.bodyLarge),
+                // Two lines: start-aligned; justification is only for paragraphs of three lines or more.
+                style = MaterialTheme.typography.bodyLarge,
                 color = scheme.onSurface,
                 modifier = Modifier.testTag("smartcam_cameraMessage"),
             )
@@ -850,9 +850,7 @@ private fun ResultContent(
                         // A plant check without a journal has nothing to say about saving.
                         if (diagnosed == null || controller.canSaveToJournal) OwnPlantChoice(
                             chosen = chosen,
-                            canChoose = diagnosed == null && controller.canSaveToJournal && myPlants.isNotEmpty() &&
-                                controller.journalSave != JournalSaveState.Saving &&
-                                controller.journalSave != JournalSaveState.Saved,
+                            canChoose = controller.canChooseOwnPlant && myPlants.isNotEmpty(),
                             onChoose = controller::openPlantPicker,
                         )
                     },

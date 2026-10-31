@@ -1,0 +1,199 @@
+# Camera fixes from M11b user testing round 1 (feature m11-camera-ut-fixes; VAL-CROSS-024, VAL-FIX11-015).
+# Sign in first with `GT_FLOW=m10_smartcam.yaml GT_STEP=login render-smoke.sh run`; these stages use no key.
+# The account needs a plant named ${PLANT}. The caller pushes a Monstera JPEG and a diagnosis JPEG to
+# /sdcard/Pictures, media-scans them and passes their picker labels as PHOTO (Monstera) and DPHOTO (diagnosis).
+#   draft    gallery Monstera → «Узнать вид» (1 live Pl@ntNet call) → «Добавить к моим растениям» → Add Plant
+#            with the name and «по виду», «Ещё параметры» collapsed, «Добавить» on screen without a scroll →
+#            «Добавить» → dashboard (NAME is the prefilled name, Pl@ntNet gives the common one).
+#   form     the draft checks above on an Add Plant draft that is already on screen, no new request. The caller checks species_name/species_id with GET /api/plants.
+#   note     «Болезнь» → shutter → type ${NOTE} → «Переснять» → shutter: the note is still there; ✕ → open
+#            the camera again → «Болезнь» → shutter: the note is empty. Nothing is sent.
+#   result   «Болезнь» → gallery ${DPHOTO} → type ${NOTE} → «Проверить растение» (1 live OpenAI call) →
+#            «Это моё растение?» → ${PLANT}: «Это моё растение?» is gone before saving, the save button is there →
+#            «Проверить ещё раз» → shutter: the note is empty → ✕
+#   denied   see m10_smartcam.yaml `denied`; the message is start-aligned (screenshot)
+appId: com.greenthumbplantcare.debug
+name: GreenThumb camera fixes (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'draft'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Выбрать из галереи|Choose from gallery"
+          timeout: 15000
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Узнать вид|Identify species"
+          timeout: 15000
+      - tapOn: "Узнать вид|Identify species"
+      - extendedWaitUntil:
+          visible: "Добавить к моим растениям|Add to my plants"
+          timeout: 70000
+      - assertVisible: "Monstera deliciosa"
+      - tapOn: "Добавить к моим растениям|Add to my plants"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'draft' || STEP == 'form'}
+    commands:
+      - assertVisible: "Новое растение|Add New Plant"
+      - assertVisible: ${NAME}
+      - assertVisible: ".*(по виду|from species).*"
+      - assertVisible: "Ещё параметры|More options"
+      - assertNotVisible: "Расположение|Location"
+      - assertNotVisible: "Дата последнего полива|Last Watered Date"
+      - assertVisible: "Добавить|Add"
+      - takeScreenshot: draft-form
+      - tapOn: "Добавить|Add"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - assertVisible: ${NAME}
+      - takeScreenshot: draft-saved
+
+- runFlow:
+    when:
+      true: ${STEP == 'note'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Болезнь|Problem"
+          timeout: 15000
+      - tapOn: "Болезнь|Problem"
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - tapOn: "Что вас беспокоит.*|What worries you.*"
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - assertVisible: ${NOTE}
+      - tapOn: "Переснять|Retake"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 15000
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - assertVisible: ${NOTE}
+      - takeScreenshot: note-kept-after-retake
+      - tapOn: "Закрыть камеру|Close the camera"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+      - tapOn: "Умная камера|Smart camera"
+      - extendedWaitUntil:
+          visible: "Болезнь|Problem"
+          timeout: 15000
+      - tapOn: "Болезнь|Problem"
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - assertVisible: "Что вас беспокоит.*|What worries you.*"
+      - assertNotVisible: ${NOTE}
+      - takeScreenshot: note-empty-after-reopen
+      - tapOn: "Закрыть камеру|Close the camera"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'result'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Болезнь|Problem"
+          timeout: 15000
+      - tapOn: "Болезнь|Problem"
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - extendedWaitUntil:
+          visible: ${DPHOTO}
+          timeout: 15000
+      - tapOn: ${DPHOTO}
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - tapOn: "Что вас беспокоит.*|What worries you.*"
+      - inputText: ${NOTE}
+      - hideKeyboard
+      - tapOn: "Проверить растение|Check the plant"
+      - extendedWaitUntil:
+          visible: "Возможные причины|Possible causes"
+          timeout: 90000
+      - scrollUntilVisible:
+          element:
+            text: "Это моё растение\\?|Is this my plant\\?"
+          direction: DOWN
+      - tapOn: "Это моё растение\\?|Is this my plant\\?"
+      - extendedWaitUntil:
+          visible: "Какое из ваших растений\\?|Which of your plants\\?"
+          timeout: 10000
+      - tapOn: ${PLANT}
+      - scrollUntilVisible:
+          element:
+            text: "Сохранить в журнал растения|Save to plant journal"
+          direction: DOWN
+      - assertNotVisible: "Это моё растение\\?|Is this my plant\\?"
+      - takeScreenshot: result-plant-chosen
+      - scrollUntilVisible:
+          element:
+            text: "Проверить ещё раз|Check again"
+          direction: DOWN
+      - assertNotVisible: "Это моё растение\\?|Is this my plant\\?"
+      - tapOn: "Проверить ещё раз|Check again"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 15000
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - assertVisible: "Что вас беспокоит.*|What worries you.*"
+      - assertNotVisible: ${NOTE}
+      - takeScreenshot: result-note-empty
+      - tapOn: "Закрыть камеру|Close the camera"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000

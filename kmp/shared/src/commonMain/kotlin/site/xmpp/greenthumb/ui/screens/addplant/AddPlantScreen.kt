@@ -205,8 +205,8 @@ public fun AddPlantScreen(
             draft?.let { AddPlantDraft.initialFields(it, today, locale) } ?: AddPlantFields(lastWateredDate = today),
         )
     }
-    // «Ещё параметры» (M11 item 5): closed on a fresh form; a prefilled species opens it so the user sees it.
-    var moreOpen by remember { mutableStateOf(draft != null) }
+    // «Ещё параметры» (M11 item 5): closed on every new form, the camera draft included (its species stays in [fields]).
+    var moreOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }

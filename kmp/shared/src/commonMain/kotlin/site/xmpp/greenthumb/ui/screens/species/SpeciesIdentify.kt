@@ -84,7 +84,7 @@ public object IdentifyLogic {
 /**
  * Identification flow of the add-plant screen: pick a photo, shrink it to
  * [IdentifyLogic.PHOTO_MAX_SIDE], send it, and settle in a final state.
- * Every path leaves [IdentifyState.Loading]; the 25 s client deadline bounds
+ * Every path leaves [IdentifyState.Loading]; the 60 s client deadline bounds
  * the wait.
  */
 public class IdentifyController(

@@ -171,6 +171,24 @@ class SmartCameraJournalTest {
     }
 
     @Test
+    fun isMineIsOfferedOnlyUntilAPlantIsChosen() = runTest {
+        val f = Fakes()
+        val c = f.controller()
+        assertFalse(c.canChooseOwnPlant, "nothing to choose before a result")
+        c.sendFromGallery(this, "ru")
+        assertTrue(c.canChooseOwnPlant, "a plant-less result offers «Это моё растение?»")
+        c.openPlantPicker()
+        c.choosePlant("p-2")
+        assertFalse(c.canChooseOwnPlant, "the save button for the chosen plant replaces «Это моё растение?»")
+        c.retake()
+        assertFalse(c.canChooseOwnPlant)
+
+        val none = f.controller(withJournal = false)
+        none.sendFromGallery(this, "ru")
+        assertFalse(none.canChooseOwnPlant, "no journal, no choice")
+    }
+
+    @Test
     fun retakeForgetsTheChosenPlant() = runTest {
         val f = Fakes()
         val c = f.controller()

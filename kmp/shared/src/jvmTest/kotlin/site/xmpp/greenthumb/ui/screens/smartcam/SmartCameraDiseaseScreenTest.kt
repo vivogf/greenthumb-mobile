@@ -166,6 +166,7 @@ class SmartCameraDiseaseScreenTest {
         waitFor(tagged("diagnosis_saveJournal", l.save))
         assertTrue(exists(tagged("smartcam_chosenPlant", l.chosen)), "[$locale] ${texts()}")
         assertTrue(!exists(hasTestTag("smartcam_pickPlantTitle")), "the picker closed")
+        assertTrue(!exists(hasTestTag("smartcam_isMine")), "the save button replaces «Это моё растение?»")
 
         click("diagnosis_saveJournal")
         waitFor(tagged("diagnosis_saveJournal", l.saved))

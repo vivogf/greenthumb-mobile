@@ -30,7 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * VAL-IDENT-014: identify over the real [ApiClient] stack with a MockEngine.
- * The engine runs on the test dispatcher, so the 20 s, 25 s and 10 s waits are
+ * The engine runs on the test dispatcher, so the 20 s, 45 s, 60 s and 10 s waits are
  * virtual time and the deadlines are measured on the test clock.
  */
 class IdentifyNetworkTest {
@@ -156,7 +156,7 @@ class IdentifyNetworkTest {
     }
 
     @Test
-    fun hanging_response_ends_as_unavailable_at_25_seconds() = runTest(timeout = 10.seconds) {
+    fun hanging_response_ends_as_unavailable_at_the_identify_deadline() = runTest(timeout = 10.seconds) {
         val (api, client) = api(handler = {
             delay(600_000)
             respond(okBody, HttpStatusCode.OK)
@@ -166,6 +166,26 @@ class IdentifyNetworkTest {
         c.identify("data:image/jpeg;base64,AA==", "ru") { catalog }
         assertEquals(IDENTIFY_TIMEOUT_MILLIS, testScheduler.currentTime - start)
         assertEquals(IdentifyState.Unavailable, c.state)
+        client.close()
+    }
+
+    @Test
+    fun identify_deadline_covers_the_server_plantnet_timeout_and_a_slow_upload() {
+        // The server gives Pl@ntNet 15 s (PLANTNET_TIMEOUT_MS); the rest is the photo upload and the answer on a slow link.
+        val serverPlantNetMillis = 15_000L
+        assertEquals(60_000L, IDENTIFY_TIMEOUT_MILLIS)
+        assertTrue(IDENTIFY_TIMEOUT_MILLIS >= serverPlantNetMillis + 30_000L)
+    }
+
+    @Test
+    fun response_after_45_seconds_on_a_slow_link_succeeds() = runTest(timeout = 10.seconds) {
+        val (api, client) = api(handler = {
+            delay(45_000)
+            respond(okBody, HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
+        })
+        val c = controller(api)
+        c.identify("data:image/jpeg;base64,AA==", "ru") { catalog }
+        assertIs<IdentifyState.Results>(c.state)
         client.close()
     }
 

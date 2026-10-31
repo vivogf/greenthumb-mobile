@@ -191,7 +191,7 @@ class GreenThumbApi(private val client: ApiClient) {
     // Species
     // ------------------------------------------------------------------
 
-    /** POST /api/species/identify { photos, lang } → { results, remainingToday }, 25 s deadline. */
+    /** POST /api/species/identify { photos, lang } → { results, remainingToday }, 60 s deadline. */
     suspend fun identifySpecies(photoDataUri: String, lang: String): IdentifyResponse =
         json.decodeFromString(
             decodeBody(

@@ -27,6 +27,8 @@ data class IdentifyResponse(
 
 /**
  * Client deadline for identify only (architecture §8.4). The server gives
- * Pl@ntNet 15 s; every other call keeps [REQUEST_TIMEOUT_MILLIS].
+ * Pl@ntNet 15 s; the rest covers the photo upload and the answer on a slow link
+ * (answers took 11-20 s end to end over a 370 ms RTT path). Every other call
+ * keeps [REQUEST_TIMEOUT_MILLIS].
  */
-const val IDENTIFY_TIMEOUT_MILLIS: Long = 25_000L
+const val IDENTIFY_TIMEOUT_MILLIS: Long = 60_000L
