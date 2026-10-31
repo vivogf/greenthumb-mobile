@@ -6,8 +6,8 @@
 #              shows the unsupported note (no credential provider) → continue → Maybe later.
 #              The key screen is never captured.
 #   plant      add a plant with a gallery photo (PHOTO = content-desc regex of a readable item in
-#              the system photo picker) and species search; backdate the last watering (TODAY =
-#              today's date field text MM/DD/YYYY, PAST_DAY = full label of a day in the previous
+#              the system photo picker) and species search under "More options"; backdate the last
+#              watering (TODAY = today's date field text MM/DD/YYYY, PAST_DAY = full label of a day in the previous
 #              month, e.g. "Monday, September 28, 2026") so the plant
 #              is overdue; detail shows the https photo; open the plant camera with its chip and close it; add
 #              a journal note.
@@ -77,7 +77,12 @@ name: GreenThumb release smoke (${STEP})
       - extendedWaitUntil:
           notVisible: "Crop photo"
           timeout: 15000
-      - tapOn: "Choose species"
+      # M11a short form: the species list sits under the collapsed "More options".
+      - tapOn: "More options"
+      - extendedWaitUntil:
+          visible: "or pick a species from the list"
+          timeout: 5000
+      - tapOn: "or pick a species from the list"
       - tapOn: "Name or scientific name"
       - inputText: "Swiss cheese"
       - extendedWaitUntil:
@@ -85,11 +90,8 @@ name: GreenThumb release smoke (${STEP})
           timeout: 5000
       - takeScreenshot: species-results
       - tapOn: "Monstera deliciosa"
-      - scrollUntilVisible:
-          element:
-            text: "Add Plant"
-          direction: DOWN
-      - tapOn: "Add Plant"
+      # The pinned submit button of the short form.
+      - tapOn: "Add"
       - extendedWaitUntil:
           visible: "Open plant card Swiss cheese plant"
           timeout: 60000
@@ -116,7 +118,7 @@ name: GreenThumb release smoke (${STEP})
       - tapOn: Done
       - tapOn: Save
       - extendedWaitUntil:
-          visible: ".*days overdue"
+          visible: "Overdue by \\d+ days"
           timeout: 15000
       - scrollUntilVisible:
           element: "Water Plant"
@@ -176,7 +178,7 @@ name: GreenThumb release smoke (${STEP})
       - extendedWaitUntil:
           visible: "Water Plant"
           timeout: 15000
-      - assertVisible: ".*days overdue"
+      - assertVisible: "Overdue by \\d+ days"
       - takeScreenshot: widget-opened-detail
       - tapOn: "Water Plant"
       - extendedWaitUntil:
