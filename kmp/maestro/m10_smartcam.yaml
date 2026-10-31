@@ -1,25 +1,35 @@
-# Smart camera (feature m10-smart-camera; VAL-CAM-001/003/005/006/008).
+# Smart camera: the in-app CameraX viewfinder (feature m11-camerax-viewfinder; VAL-CAM11-001..018, 023..027;
+# earlier M10 VAL-CAM-001/003/005/006/008..012).
 # Run every stage through render-smoke.sh (GT_FLOW=m10_smartcam.yaml GT_STEP=<stage> GT_KEY_FILE=<600 key file>);
 # only `login` uses the key. The caller pushes a Monstera JPEG to /sdcard/Pictures + media scan, and passes
 # PHOTO (content description regex of that photo in the picker) through the env of the gallery stages.
+# On elt_test the back camera is the emulator's virtual scene. A first open shows the system camera permission
+# dialog; the flow allows it («While using the app»). Nothing is sent before «Узнать вид» / «Проверить растение».
 #   login     clean start, sign in with the throwaway key, wait for the dashboard
 #   ru / en   Profile → language
 #   dash      dashboard: the icon-only «Умная камера» button (content description), screenshot
-#   open      open the smart camera, both modes with their hints, back to «Растение»; no request
-#   gcancel   «Выбрать из галереи» → Back in the picker → mode choice again, nothing sent
-#   gallery   «Выбрать из галереи» → ${PHOTO} → plant result (1 live Pl@ntNet call); stays on the result
-#   retake    on a result: «Снять ещё раз» → mode choice with «Растение» (Pl@ntNet hint)
+#   open      open the camera: live viewfinder, ✕, both modes with their hints and shutters, back to «Растение»
+#   shot      (viewfinder open) shutter → after-shot with «Узнать вид» and the Pl@ntNet note, no request;
+#             «Переснять» → viewfinder in «Растение»
+#   dshot     (viewfinder open) «Болезнь» → shutter → after-shot with «Проверить растение», the note field and
+#             the AI note, no request; «Переснять» → viewfinder in «Болезнь»
+#   gcancel   gallery → Back in the picker → viewfinder again, nothing sent
+#   gallery   gallery → ${PHOTO} → after-shot → «Узнать вид» → plant result (1 live Pl@ntNet call); stays on it
+#   retake    on a result: «Снять ещё раз» → viewfinder with «Растение»
 #   addmine   on a result: «Добавить к моим растениям» → Add Plant prefilled (name, photo); Back saves nothing
 #   justlook  on a result: «Просто узнать» → dashboard
+#   close     (viewfinder open) ✕ → dashboard
 # Disease mode (feature m10-standalone-diagnosis; VAL-CAM-009/010/012). The account needs plants, one named ${PLANT}.
-#   disease   open the smart camera → «Болезнь» → gallery → ${PHOTO} → diagnosis result (1 live OpenAI call):
-#             «Растение не из вашего списка…», «Это моё растение?», «Готово», no «Сохранить в журнал растения»
+#   disease   open the camera → «Болезнь» → gallery → ${PHOTO} → «Проверить растение» → diagnosis result
+#             (1 live OpenAI call): «Растение не из вашего списка…», «Это моё растение?», «Готово»
 #   dcheck    the same result checks without a new request (the result is already on screen)
 #   mine      «Это моё растение?» → «Какое из ваших растений?» → ${PLANT} → «Сохраним в журнал растения…» →
 #             «Сохранить в журнал растения» → «Сохранено в журнал» (no second diagnosis), «Это моё растение?»
 #             gone; «Готово» → dashboard
-#   dcancel   open the smart camera → «Болезнь» → «Сделать фото» (system camera); the caller shoots and
-#             gets a network error with airplane mode on; Back closes the smart camera
+#   dcancel   open the camera → «Болезнь» → shutter → «Проверить растение»; the caller has airplane mode on and
+#             the request fails with a network error; Back closes the camera
+#   denied    the caller revoked the camera permission: open the camera, refuse the dialog → message,
+#             «Выбрать из галереи» and «Открыть настройки», no shutter
 appId: com.greenthumbplantcare.debug
 name: GreenThumb smart camera (${STEP})
 ---
@@ -104,21 +114,30 @@ name: GreenThumb smart camera (${STEP})
       true: ${STEP == 'open'}
     commands:
       - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
       - extendedWaitUntil:
-          visible: "Сделать фото|Take photo"
-          timeout: 10000
+          visible: "Снять растение|Photograph the plant"
+          timeout: 15000
+      - assertVisible: "Закрыть камеру|Close the camera"
       - assertVisible: "Растение|Plant"
       - assertVisible: "Болезнь|Problem"
       - assertVisible: "Выбрать из галереи|Choose from gallery"
-      - assertVisible: ".*Pl@ntNet.*"
+      - assertVisible: "Растение целиком, при дневном свете|The whole plant, in daylight"
+      - assertNotVisible: "Сделать фото|Take photo"
       - takeScreenshot: open-plant
       - tapOn: "Болезнь|Problem"
-      - assertVisible: ".*OpenAI.*"
-      - assertVisible: "Сделать фото|Take photo"
+      - assertVisible: "Снять больное место|Photograph the sick spot"
+      - assertVisible: "Больное место крупно, в фокусе|The sick spot close up, in focus"
       - takeScreenshot: open-disease
-      - tapOn: "Растение|Plant"
-      - assertVisible: ".*Pl@ntNet.*"
-
+      - swipe:
+          direction: RIGHT
+      - extendedWaitUntil:
+          visible: "Снять растение|Photograph the plant"
+          timeout: 5000
 - runFlow:
     when:
       true: ${STEP == 'gcancel'}
@@ -128,11 +147,53 @@ name: GreenThumb smart camera (${STEP})
       - takeScreenshot: gcancel-picker
       - back
       - extendedWaitUntil:
-          visible: "Сделать фото|Take photo"
+          visible: "Снять растение|Photograph the plant|Снять больное место|Photograph the sick spot"
           timeout: 10000
-      - assertVisible: ".*Pl@ntNet.*"
       - takeScreenshot: gcancel-back
 
+- runFlow:
+    when:
+      true: ${STEP == 'shot'}
+    commands:
+      - tapOn: "Снять растение|Photograph the plant"
+      - extendedWaitUntil:
+          visible: "Узнать вид|Identify species"
+          timeout: 15000
+      - assertVisible: ".*Pl@ntNet.*"
+      - assertVisible: "Переснять|Retake"
+      - assertNotVisible: "Что вас беспокоит.*|What worries you.*"
+      - takeScreenshot: shot-aftershot
+      - tapOn: "Переснять|Retake"
+      - extendedWaitUntil:
+          visible: "Снять растение|Photograph the plant"
+          timeout: 15000
+
+- runFlow:
+    when:
+      true: ${STEP == 'dshot'}
+    commands:
+      - tapOn: "Болезнь|Problem"
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - assertVisible: "Что вас беспокоит.*|What worries you.*"
+      - assertVisible: ".*OpenAI.*"
+      - takeScreenshot: dshot-aftershot
+      - tapOn: "Переснять|Retake"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 15000
+      - tapOn: "Растение|Plant"
+
+- runFlow:
+    when:
+      true: ${STEP == 'close'}
+    commands:
+      - tapOn: "Закрыть камеру|Close the camera"
+      - extendedWaitUntil:
+          visible: "Profile|Профиль"
+          timeout: 10000
 - runFlow:
     when:
       true: ${STEP == 'gallery'}
@@ -142,6 +203,11 @@ name: GreenThumb smart camera (${STEP})
           visible: ${PHOTO}
           timeout: 15000
       - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Узнать вид|Identify species"
+          timeout: 15000
+      - takeScreenshot: gallery-aftershot
+      - tapOn: "Узнать вид|Identify species"
       - extendedWaitUntil:
           visible: "Добавить к моим растениям|Add to my plants"
           timeout: 40000
@@ -156,7 +222,6 @@ name: GreenThumb smart camera (${STEP})
           direction: DOWN
       - assertVisible: "Просто узнать|Just find out"
       - takeScreenshot: gallery-result-bottom
-
 - runFlow:
     when:
       true: ${STEP == 'retake'}
@@ -167,11 +232,9 @@ name: GreenThumb smart camera (${STEP})
           direction: DOWN
       - tapOn: "Снять ещё раз|Take another"
       - extendedWaitUntil:
-          visible: "Сделать фото|Take photo"
-          timeout: 10000
-      - assertVisible: ".*Pl@ntNet.*"
-      - takeScreenshot: retake-choice
-
+          visible: "Снять растение|Photograph the plant"
+          timeout: 15000
+      - takeScreenshot: retake-viewfinder
 - runFlow:
     when:
       true: ${STEP == 'addmine'}
@@ -214,20 +277,27 @@ name: GreenThumb smart camera (${STEP})
           visible: "Умная камера|Smart camera"
           timeout: 30000
       - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
       - extendedWaitUntil:
           visible: "Болезнь|Problem"
-          timeout: 10000
+          timeout: 15000
       - tapOn: "Болезнь|Problem"
-      - assertVisible: ".*OpenAI.*"
       - tapOn: "Выбрать из галереи|Choose from gallery"
       - extendedWaitUntil:
           visible: ${PHOTO}
           timeout: 15000
       - tapOn: ${PHOTO}
       - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - tapOn: "Проверить растение|Check the plant"
+      - extendedWaitUntil:
           visible: "Возможные причины|Possible causes"
           timeout: 80000
-
 - runFlow:
     when:
       true: ${STEP == 'disease' || STEP == 'dcheck'}
@@ -302,8 +372,45 @@ name: GreenThumb smart camera (${STEP})
           visible: "Умная камера|Smart camera"
           timeout: 30000
       - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
       - extendedWaitUntil:
           visible: "Болезнь|Problem"
-          timeout: 10000
+          timeout: 15000
       - tapOn: "Болезнь|Problem"
-      - tapOn: "Сделать фото|Take photo"
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - tapOn: "Проверить растение|Check the plant"
+      - waitForAnimationToEnd
+      - takeScreenshot: dcancel-error
+
+- runFlow:
+    when:
+      true: ${STEP == 'denied'}
+    commands:
+      # launchApp grants every permission unless told otherwise.
+      - launchApp:
+          stopApp: true
+          permissions:
+            camera: deny
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "Don.t allow|Запретить|Не разрешать"
+          commands:
+            - tapOn: "Don.t allow|Запретить|Не разрешать"
+      - extendedWaitUntil:
+          visible: "Нет доступа к камере.*|No access to the camera.*"
+          timeout: 15000
+      - assertVisible: "Выбрать из галереи|Choose from gallery"
+      - assertVisible: "Открыть настройки|Open settings"
+      - assertNotVisible: "Снять растение|Photograph the plant"
+      - takeScreenshot: denied

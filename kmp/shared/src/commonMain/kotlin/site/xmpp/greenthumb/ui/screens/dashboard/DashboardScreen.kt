@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -517,6 +518,10 @@ public fun DashboardScreen(
                             text = userName,
                             style = MaterialTheme.typography.bodyMedium,
                             color = scheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("dashboard_userName"),
                         )
                     }
                     val shown = banner
@@ -778,7 +783,7 @@ public fun DashboardScreen(
                         PullToRefreshBox(
                             isRefreshing = isManualRefreshing,
                             onRefresh = { refreshManual() },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).padding(bottom = Sizes.fabBand),
                         ) {
                             // Карточки в снап-наборе досиживают в списке, даже когда
                             // данные уже обновлены и фильтр их больше не отдаёт
@@ -1058,7 +1063,7 @@ private fun PlantsList(
         contentPadding = PaddingValues(
             start = Spacing.xl,
             end = Spacing.xl,
-            bottom = Spacing.xxl * 4 + Spacing.xs,
+            bottom = Spacing.sm,
         ),
         verticalArrangement = Arrangement.spacedBy(if (cardMode) Spacing.lg else Spacing.sm),
     ) {
@@ -1130,7 +1135,7 @@ private fun PlantsGrid(
         contentPadding = PaddingValues(
             start = Spacing.lg,
             end = Spacing.lg,
-            bottom = Spacing.xxl * 4 + Spacing.xs,
+            bottom = Spacing.sm,
         ),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),

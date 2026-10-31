@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -863,5 +864,26 @@ fun GtGridViewMark(tint: Color, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+/** Вспышка камеры: молния; при [on] = false она перечёркнута. */
+@Composable
+fun GtFlashMark(tint: Color, on: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = markStroke()
+        val bolt = Path().apply {
+            moveTo(w * 0.58f, h * 0.08f)
+            lineTo(w * 0.26f, h * 0.56f)
+            lineTo(w * 0.5f, h * 0.56f)
+            lineTo(w * 0.42f, h * 0.92f)
+            lineTo(w * 0.74f, h * 0.44f)
+            lineTo(w * 0.5f, h * 0.44f)
+            close()
+        }
+        drawPath(bolt, tint, style = stroke)
+        if (!on) drawLine(tint, Offset(w * 0.12f, h * 0.12f), Offset(w * 0.88f, h * 0.88f), stroke.width)
     }
 }

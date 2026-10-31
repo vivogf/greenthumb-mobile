@@ -86,6 +86,11 @@ kotlin {
             // (транзитивная через datastore-preferences-core не всегда поднимает
             // android-вариант в KMP-своде).
             implementation(libs.datastorePreferencesCore)
+            // In-app camera (M11, CameraCapture.android.kt): live preview + ImageCapture.
+            implementation(libs.cameraCore)
+            implementation(libs.cameraCamera2)
+            implementation(libs.cameraLifecycle)
+            implementation(libs.cameraCompose)
         }
         jvmMain.dependencies {
             implementation(libs.ktorClientCio)

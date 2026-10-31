@@ -66,6 +66,7 @@ import site.xmpp.greenthumb.ui.screens.profile.RecoveryKeyQrScreen
 import site.xmpp.greenthumb.ui.screens.progress.ProgressScreen
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraft
 import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraMode
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraModeMemory
 import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraPlant
 import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraScreen
 import site.xmpp.greenthumb.ui.screens.smartcam.StandaloneDiagnoser
@@ -329,11 +330,16 @@ public fun GtAppNavGraph(
                 arguments = listOf(
                     navArgument(NavRoutes.SMART_CAMERA_MODE_ARG) {
                         type = NavType.StringType
-                        defaultValue = SmartCameraMode.Plant.wire
+                        nullable = true
+                        defaultValue = null
                     },
                 ),
             ) { entry ->
-                val mode = SmartCameraMode.fromWire(entry.arguments?.read { getStringOrNull(NavRoutes.SMART_CAMERA_MODE_ARG) })
+                // Without an explicit mode the camera opens in the last mode the user chose.
+                val mode = remember(entry) {
+                    val explicit = entry.arguments?.read { getStringOrNull(NavRoutes.SMART_CAMERA_MODE_ARG) }
+                    SmartCameraModeMemory.App.resolve(explicit?.let(SmartCameraMode::fromWire))
+                }
                 AppLocalizedContent {
                     SmartCameraRoute(
                         userId = sessionUserId,
@@ -594,6 +600,7 @@ private fun SmartCameraRoute(
         onAddToMine = onAddToMine,
         myPlants = myPlants,
         journal = journal,
+        onModeChange = SmartCameraModeMemory.App::remember,
     )
 }
 

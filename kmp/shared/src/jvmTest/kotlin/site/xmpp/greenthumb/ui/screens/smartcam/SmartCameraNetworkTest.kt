@@ -30,13 +30,14 @@ import site.xmpp.greenthumb.core.network.ApiClient
 import site.xmpp.greenthumb.core.network.DIAGNOSE_TIMEOUT_MILLIS
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.platform.JpegSegments
+import site.xmpp.greenthumb.core.platform.CameraStatus
 import site.xmpp.greenthumb.core.platform.PickResult
-import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.carriesGpsOrMake
 import site.xmpp.greenthumb.core.platform.gpsExifJpeg
 import site.xmpp.greenthumb.core.platform.imageSize
 import site.xmpp.greenthumb.core.platform.jpegMarkerList
 import site.xmpp.greenthumb.core.platform.resizeJpeg
+import site.xmpp.greenthumb.core.platform.withExifOrientation
 import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisError
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
@@ -77,11 +78,15 @@ class SmartCameraNetworkTest {
 
     private val fixture = gpsExifJpeg()
 
+    /** A sensor-landscape 1600×1200 capture that the camera marks as rotated (EXIF Orientation 6) and geotagged. */
+    private val captureFixture = withExifOrientation(gpsExifJpeg(1600, 1200), 6)
+
     private fun controller(api: GreenThumbApi, mode: SmartCameraMode, journal: DiagnosisJournalSaver? = null) = SmartCameraController(
         initialMode = mode,
         identifier = ApiSpeciesIdentifier(api),
         diagnoser = ApiPlantDiagnoser(api),
         pick = { PickResult.Picked(fixture) },
+        capture = { PickResult.Picked(captureFixture) },
         preparePlant = { raw -> resizeJpeg(raw, maxSide = IdentifyLogic.PHOTO_MAX_SIDE, quality = 0.85) },
         prepareDisease = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
         catalog = { null },
@@ -109,7 +114,9 @@ class SmartCameraNetworkTest {
             val sent = mutableListOf<Sent>()
             val (api, client) = api(sent)
             val c = controller(api, SmartCameraMode.Disease)
-            c.shoot(this, PickSource.Gallery, DiagnosisLogic.wireLanguage(language))
+            c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.send(this, DiagnosisLogic.wireLanguage(language))
             advanceUntilIdle()
             assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
             val request = sent.single()
@@ -131,7 +138,9 @@ class SmartCameraNetworkTest {
         }
         val c = controller(api, SmartCameraMode.Disease)
         val start = testScheduler.currentTime
-        c.shoot(this, PickSource.Gallery, "ru")
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.send(this, "ru")
         advanceUntilIdle()
         assertEquals(75_000L, DIAGNOSE_TIMEOUT_MILLIS)
         assertEquals(DIAGNOSE_TIMEOUT_MILLIS, testScheduler.currentTime - start)
@@ -144,7 +153,9 @@ class SmartCameraNetworkTest {
         val sent = mutableListOf<Sent>()
         val (api, client) = api(sent)
         val c = controller(api, SmartCameraMode.Plant)
-        c.shoot(this, PickSource.Gallery, "en")
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.send(this, "en")
         advanceUntilIdle()
         assertIs<SmartCameraPhase.PlantResult>(c.phase)
         val request = sent.single()
@@ -158,7 +169,9 @@ class SmartCameraNetworkTest {
         val sent = mutableListOf<Sent>()
         val (api, client) = api(sent)
         val c = controller(api, SmartCameraMode.Disease, DiagnosisJournalSaver { id, uri, caption -> api.addPhoto(id, uri, caption) })
-        c.shoot(this, PickSource.Gallery, "ru")
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.send(this, "ru")
         advanceUntilIdle()
         c.choosePlant("p-2")
         c.saveToJournal(this, "Что с растением?: Overwatering (Скорее всего)")
@@ -174,8 +187,59 @@ class SmartCameraNetworkTest {
         client.close()
     }
 
-    private companion object {
-        val JSON = headersOf("Content-Type", "application/json")
+    @Test
+    fun aCaptureWithRotationAndGpsIsSentUprightAndCleanOnEveryRoute() = runTest {
+        val (rawWidth, rawHeight) = imageSize(captureFixture)!!
+        assertTrue(rawWidth > rawHeight, "the sensor image is landscape")
+        assertTrue(carriesGpsOrMake(captureFixture), "the fixture carries GPS")
+        for (mode in SmartCameraMode.entries) {
+            val sent = mutableListOf<Sent>()
+            val (api, client) = api(sent)
+            val c = controller(api, mode, DiagnosisJournalSaver { id, uri, caption -> api.addPhoto(id, uri, caption) })
+            c.onCameraStatus(CameraStatus.Ready(hasFlash = true))
+            c.shutter(this)
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Captured, c.phase)
+            assertTrue(sent.isEmpty(), "a shot sends nothing")
+            val (shownWidth, shownHeight) = imageSize(c.photo!!)!!
+            assertTrue(shownHeight > shownWidth, "the after-shot photo is upright: $shownWidth×$shownHeight")
+            c.send(this, "ru")
+            advanceUntilIdle()
+            val routes = mutableListOf(sent.single())
+            if (mode == SmartCameraMode.Disease) {
+                c.choosePlant("p-2")
+                c.saveToJournal(this, "caption")
+                advanceUntilIdle()
+                routes += sent[1]
+            }
+            for (request in routes) {
+                val json = body(request)
+                val photo = json["photo"]?.jsonPrimitive?.content ?: json["photos"]!!.jsonArray.single().jsonPrimitive.content
+                assertCleanPhoto("capture ${request.path}", photo)
+                val (width, height) = imageSize(Base64.decode(photo.removePrefix("data:image/jpeg;base64,")))!!
+                assertTrue(height > width, "${request.path} photo is upright: $width×$height")
+            }
+            client.close()
+        }
+    }
+
+    @Test
+    fun theDiseaseNoteGoesWithTheDiagnoseRequest() = runTest {
+        val sent = mutableListOf<Sent>()
+        val (api, client) = api(sent)
+        val c = controller(api, SmartCameraMode.Disease)
+        c.chooseFromGallery(this)
+        advanceUntilIdle()
+        c.updateNote("Жёлтые пятна")
+        c.send(this, "ru")
+        advanceUntilIdle()
+        val json = body(sent.single())
+        assertEquals(setOf("photo", "note", "language"), json.keys)
+        assertEquals("Жёлтые пятна", json["note"]!!.jsonPrimitive.content)
+        client.close()
+    }
+
+    private companion object {        val JSON = headersOf("Content-Type", "application/json")
         const val DIAGNOSE_OK =
             """{"causes":[{"title":"Overwatering","likelihood":"high","explanation":"Wet soil.","advice":"Water less."}],"summary":"Too much water."}"""
         const val IDENTIFY_OK =

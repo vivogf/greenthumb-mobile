@@ -4,20 +4,25 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -43,27 +49,39 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.core.platform.CameraCapture
+import site.xmpp.greenthumb.core.platform.CameraShutter
+import site.xmpp.greenthumb.core.platform.CameraStatus
 import site.xmpp.greenthumb.core.platform.CropRect
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.cropSquareJpeg
 import site.xmpp.greenthumb.core.platform.deleteCaptureFile
+import site.xmpp.greenthumb.core.platform.deleteStaleCaptures
+import site.xmpp.greenthumb.core.platform.openAppSettings
 import site.xmpp.greenthumb.core.platform.pickImageKeepingCapture
 import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
+import site.xmpp.greenthumb.ui.components.GtCloseMark
+import site.xmpp.greenthumb.ui.components.GtDiagnosisMark
+import site.xmpp.greenthumb.ui.components.GtFlashMark
+import site.xmpp.greenthumb.ui.components.GtGalleryMark
+import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtModal
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
 import site.xmpp.greenthumb.ui.components.GtSheetRow
 import site.xmpp.greenthumb.ui.components.GtSheetRowRole
 import site.xmpp.greenthumb.ui.components.GtSheetTitle
 import site.xmpp.greenthumb.ui.components.GtSmartCameraMark
+import site.xmpp.greenthumb.ui.components.GtSpeciesMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
@@ -77,10 +95,16 @@ import site.xmpp.greenthumb.ui.res.common_galleryPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
 import site.xmpp.greenthumb.ui.res.diagnosis_journalCaptionPrefix
 import site.xmpp.greenthumb.ui.res.diagnosis_loading
+import site.xmpp.greenthumb.ui.res.diagnosis_notePlaceholder
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.smartcam_addToMine
+import site.xmpp.greenthumb.ui.res.smartcam_cameraDenied
+import site.xmpp.greenthumb.ui.res.smartcam_cameraUnavailable
 import site.xmpp.greenthumb.ui.res.smartcam_choosePhoto
 import site.xmpp.greenthumb.ui.res.smartcam_chosenPlant
+import site.xmpp.greenthumb.ui.res.smartcam_close
+import site.xmpp.greenthumb.ui.res.smartcam_flashOff
+import site.xmpp.greenthumb.ui.res.smartcam_flashOn
 import site.xmpp.greenthumb.ui.res.smartcam_hintDisease
 import site.xmpp.greenthumb.ui.res.smartcam_hintPlant
 import site.xmpp.greenthumb.ui.res.smartcam_isMine
@@ -89,9 +113,17 @@ import site.xmpp.greenthumb.ui.res.smartcam_modeDisease
 import site.xmpp.greenthumb.ui.res.smartcam_modePlant
 import site.xmpp.greenthumb.ui.res.smartcam_noMatch
 import site.xmpp.greenthumb.ui.res.smartcam_notInList
+import site.xmpp.greenthumb.ui.res.smartcam_openSettings
 import site.xmpp.greenthumb.ui.res.smartcam_pickPlant
+import site.xmpp.greenthumb.ui.res.smartcam_reshoot
 import site.xmpp.greenthumb.ui.res.smartcam_retake
-import site.xmpp.greenthumb.ui.res.smartcam_takePhoto
+import site.xmpp.greenthumb.ui.res.smartcam_sendDisease
+import site.xmpp.greenthumb.ui.res.smartcam_sendNoteDisease
+import site.xmpp.greenthumb.ui.res.smartcam_sendNotePlant
+import site.xmpp.greenthumb.ui.res.smartcam_sendPlant
+import site.xmpp.greenthumb.ui.res.smartcam_shutterDisease
+import site.xmpp.greenthumb.ui.res.smartcam_shutterPlant
+import site.xmpp.greenthumb.ui.res.smartcam_systemCamera
 import site.xmpp.greenthumb.ui.res.smartcam_title
 import site.xmpp.greenthumb.ui.res.species_identifyConfidence
 import site.xmpp.greenthumb.ui.res.species_identifyLoading
@@ -113,21 +145,30 @@ import site.xmpp.greenthumb.ui.screens.species.ScoreLevel
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.species.confidenceWord
 import site.xmpp.greenthumb.ui.screens.species.rememberSpeciesCatalog
+import site.xmpp.greenthumb.ui.theme.CameraChrome
+import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
-import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
 
 /** JPEG quality of the identify photo (the same as Add Plant identification). */
 private const val PLANT_PHOTO_QUALITY = 0.85
 
+/** Width of the aiming frame as a share of the screen: the whole plant, or one sick spot up close. */
+private const val PLANT_FRAME_SHARE = 0.8f
+private const val DISEASE_FRAME_SHARE = 0.5f
+
+/** The camera of the platform: CameraX on Android, a stub that reports [CameraStatus.Unavailable] on the JVM. */
+public typealias SmartCameraView = @Composable (CameraShutter, (CameraStatus) -> Unit, Modifier) -> Unit
+
 /**
- * «Умная камера» (D§ item 9a, variant B): mode choice «Растение | Болезнь», a photo from the
- * system camera or the gallery, then the plant candidates with Pl@ntNet attribution or the
- * diagnosis. «Добавить к моим растениям» hands the photo and species to Add Plant through
- * [onAddToMine]; «Просто узнать» and back save nothing. A disease result is for a plant outside
- * the list; «Это моё растение?» picks one of [myPlants] and saves the result to its journal
- * through [journal].
+ * «Умная камера» (M11 item 1): a full-screen live viewfinder with ✕, the flash toggle, the
+ * «Растение · Болезнь» switch above the shutter row and the gallery button. A shot or a gallery
+ * photo is shown first; only «Узнать вид» / «Проверить растение» sends it. Then the plant
+ * candidates with Pl@ntNet attribution or the diagnosis. «Добавить к моим растениям» hands the photo
+ * and species to Add Plant through [onAddToMine]; «Просто узнать» and back save nothing. A disease
+ * result is for a plant outside the list; «Это моё растение?» picks one of [myPlants] and saves the
+ * result to its journal through [journal].
  */
 @Composable
 public fun SmartCameraScreen(
@@ -140,10 +181,17 @@ public fun SmartCameraScreen(
     journal: DiagnosisJournalSaver? = null,
     pick: suspend (PickSource) -> PickResult = { pickImageKeepingCapture(it) },
     deleteCapture: (String) -> Unit = ::deleteCaptureFile,
+    camera: SmartCameraView = { shutter, onStatus, modifier -> CameraCapture(shutter, onStatus, modifier) },
+    openSettings: () -> Unit = ::openAppSettings,
+    onModeChange: (SmartCameraMode) -> Unit = {},
 ) {
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
+    val currentModeChange by rememberUpdatedState(onModeChange)
+    val shutter = remember { CameraShutter() }
     val controller = remember(identifier, diagnoser, journal) {
+        // Shots left behind by a killed process; this screen does not own any yet.
+        deleteStaleCaptures()
         SmartCameraController(
             initialMode = initialMode,
             identifier = identifier,
@@ -152,13 +200,29 @@ public fun SmartCameraScreen(
             preparePlant = { raw -> resizeJpeg(raw, maxSide = IdentifyLogic.PHOTO_MAX_SIDE, quality = PLANT_PHOTO_QUALITY) },
             prepareDisease = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
             catalog = { currentCatalog },
+            capture = { flash -> shutter.take(flash) },
             workContext = Dispatchers.Default,
             journal = journal,
             deleteCapture = deleteCapture,
+            onModeChange = { currentModeChange(it) },
         )
     }
     DisposableEffect(controller) { onDispose { controller.close() } }
-    SmartCameraContent(controller = controller, onClose = onClose, onAddToMine = onAddToMine, myPlants = myPlants)
+    SmartCameraContent(
+        controller = controller,
+        onClose = onClose,
+        onAddToMine = onAddToMine,
+        myPlants = myPlants,
+        viewfinder = {
+            Viewfinder(
+                controller = controller,
+                shutter = shutter,
+                camera = camera,
+                onClose = onClose,
+                openSettings = openSettings,
+            )
+        },
+    )
 }
 
 /** Square cover of the identified photo for Add Plant; the full photo when it cannot be decoded. */
@@ -173,13 +237,414 @@ internal fun SmartCameraContent(
     onClose: () -> Unit,
     onAddToMine: (AddPlantDraft) -> Unit,
     myPlants: List<SmartCameraPlant> = emptyList(),
+    viewfinder: @Composable () -> Unit = {},
+) {
+    val scope = rememberCoroutineScope()
+    val language = IdentifyLogic.wireLanguage(LocalAppLocale.current)
+    when (controller.phase) {
+        // The camera is in composition only on the viewfinder, so it is released as soon as a photo is shown.
+        SmartCameraPhase.Viewfinder -> viewfinder()
+        SmartCameraPhase.Captured -> AfterShot(controller, onClose, onSend = { controller.send(scope, language) })
+        else -> ResultContent(controller, onClose, onAddToMine, myPlants)
+    }
+
+    if (controller.plantPickerOpen) {
+        PlantPickerSheet(
+            plants = myPlants,
+            onPick = controller::choosePlant,
+            onDismiss = controller::dismissPlantPicker,
+        )
+    }
+    controller.deniedSource?.let { source ->
+        GtAlertDialog(
+            title = stringResource(Res.string.common_permissionDeniedTitle),
+            message = stringResource(
+                when (source) {
+                    PickSource.Camera -> Res.string.common_cameraPermissionDenied
+                    PickSource.Gallery -> Res.string.common_galleryPermissionDenied
+                },
+            ),
+            onDismissRequest = controller::dismissDenied,
+        )
+    }
+    controller.pickErrorMessage?.let { message ->
+        GtAlertDialog(
+            title = stringResource(Res.string.common_error),
+            message = pickErrorText(message),
+            onDismissRequest = controller::dismissPickError,
+        )
+    }
+}
+
+@Composable
+private fun Viewfinder(
+    controller: SmartCameraController,
+    shutter: CameraShutter,
+    camera: SmartCameraView,
+    onClose: () -> Unit,
+    openSettings: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val status = controller.cameraStatus
+    val blocked = status is CameraStatus.Denied || status == CameraStatus.Unavailable
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CameraChrome.background)
+            .pointerInput(controller) {
+                var dragX = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragX = 0f },
+                    onDragEnd = { controller.swipeMode(dragX) },
+                    onHorizontalDrag = { _, amount -> dragX += amount },
+                )
+            }
+            .testTag("smartcam_viewfinder"),
+    ) {
+        // Stays composed while blocked: after «Открыть настройки» it reports the new permission state itself.
+        camera(shutter, controller::onCameraStatus, Modifier.fillMaxSize())
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                ChromeButton(
+                    label = stringResource(Res.string.smartcam_close),
+                    onClick = onClose,
+                    modifier = Modifier.testTag("smartcam_close"),
+                ) { GtCloseMark(tint = CameraChrome.content, modifier = Modifier.size(Sizes.iconSlot)) }
+                Spacer(Modifier.weight(1f))
+                if (controller.hasFlash) FlashToggle(controller)
+            }
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (blocked) {
+                    CameraBlocked(
+                        status = status,
+                        enabled = !controller.picking,
+                        onGallery = { controller.chooseFromGallery(scope) },
+                        onSettings = openSettings,
+                        onSystemCamera = { controller.useSystemCamera(scope) },
+                    )
+                } else {
+                    AimingFrame(controller.mode)
+                }
+            }
+            ModeSelector(selected = controller.mode, onSelect = controller::selectMode)
+            if (!blocked) {
+                Spacer(Modifier.size(Spacing.lg))
+                ShutterRow(
+                    mode = controller.mode,
+                    shutterEnabled = status is CameraStatus.Ready && !controller.picking,
+                    galleryEnabled = !controller.picking,
+                    onShutter = { controller.shutter(scope) },
+                    onGallery = { controller.chooseFromGallery(scope) },
+                )
+            }
+        }
+    }
+}
+
+/** A round 48 dp control on the dark viewfinder. */
+@Composable
+private fun ChromeButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    mark: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(Sizes.touch)
+            .clip(CircleShape)
+            .background(CameraChrome.scrim)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { mark() }
+}
+
+@Composable
+private fun FlashToggle(controller: SmartCameraController) {
+    val on = controller.flash
+    val label = stringResource(if (on) Res.string.smartcam_flashOn else Res.string.smartcam_flashOff)
+    Box(
+        modifier = Modifier
+            .size(Sizes.touch)
+            .clip(CircleShape)
+            .background(CameraChrome.scrim)
+            .toggleable(value = on, role = Role.Switch, onValueChange = { controller.toggleFlash() })
+            .semantics { contentDescription = label }
+            .testTag("smartcam_flash"),
+        contentAlignment = Alignment.Center,
+    ) {
+        GtFlashMark(tint = CameraChrome.content, on = on, modifier = Modifier.size(Sizes.iconSlot))
+    }
+}
+
+/** Corners of the aim and the hint under them; «Болезнь» uses a smaller frame for a close-up. */
+@Composable
+private fun AimingFrame(mode: SmartCameraMode) {
+    val share = if (mode == SmartCameraMode.Plant) PLANT_FRAME_SHARE else DISEASE_FRAME_SHARE
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(share)
+                .aspectRatio(1f)
+                .border(Sizes.cameraRing, CameraChrome.frame, RoundedCornerShape(Radii.xl))
+                .testTag("smartcam_frame"),
+        )
+        Text(
+            text = stringResource(
+                when (mode) {
+                    SmartCameraMode.Plant -> Res.string.smartcam_hintPlant
+                    SmartCameraMode.Disease -> Res.string.smartcam_hintDisease
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = CameraChrome.content,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radii.md))
+                .background(CameraChrome.scrim)
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
+                .testTag("smartcam_hint"),
+        )
+    }
+}
+
+/** «Растение · Болезнь» on the viewfinder; a horizontal swipe on the preview switches it too. */
+@Composable
+private fun ModeSelector(selected: SmartCameraMode, onSelect: (SmartCameraMode) -> Unit) {
+    val pill = RoundedCornerShape(Radii.xl)
+    Row(
+        modifier = Modifier
+            .clip(pill)
+            .background(CameraChrome.scrim)
+            .padding(Spacing.xxs)
+            .testTag("smartcam_modes"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+    ) {
+        for (mode in SmartCameraMode.entries) {
+            val on = mode == selected
+            Box(
+                modifier = Modifier
+                    .heightIn(min = Sizes.touch)
+                    .widthIn(min = Sizes.touch)
+                    .clip(pill)
+                    .then(if (on) Modifier.background(CameraChrome.content, pill) else Modifier)
+                    .clickable(role = Role.Tab) { onSelect(mode) }
+                    .semantics { this.selected = on }
+                    .padding(horizontal = Spacing.lg)
+                    .testTag("smartcam_mode_${mode.wire}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(
+                        when (mode) {
+                            SmartCameraMode.Plant -> Res.string.smartcam_modePlant
+                            SmartCameraMode.Disease -> Res.string.smartcam_modeDisease
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (on) FontWeight.SemiBold else null,
+                    color = if (on) CameraChrome.onContent else CameraChrome.content,
+                )
+            }
+        }
+    }
+}
+
+/** Gallery on the left, the shutter in the centre; the right third stays empty so the shutter is centred. */
+@Composable
+private fun ShutterRow(
+    mode: SmartCameraMode,
+    shutterEnabled: Boolean,
+    galleryEnabled: Boolean,
+    onShutter: () -> Unit,
+    onGallery: () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            ChromeButton(
+                label = stringResource(Res.string.smartcam_choosePhoto),
+                onClick = onGallery,
+                enabled = galleryEnabled,
+                modifier = Modifier.testTag("smartcam_gallery"),
+            ) { GtGalleryMark(tint = CameraChrome.content, modifier = Modifier.size(Sizes.iconSlot)) }
+        }
+        val label = stringResource(
+            when (mode) {
+                SmartCameraMode.Plant -> Res.string.smartcam_shutterPlant
+                SmartCameraMode.Disease -> Res.string.smartcam_shutterDisease
+            },
+        )
+        Box(
+            modifier = Modifier
+                .size(Sizes.cameraShutter)
+                .border(Sizes.cameraRing, CameraChrome.content, CircleShape)
+                .padding(Sizes.cameraRing * 2)
+                .clip(CircleShape)
+                .background(CameraChrome.content)
+                .clickable(enabled = shutterEnabled, role = Role.Button, onClick = onShutter)
+                .semantics { contentDescription = label }
+                .testTag("smartcam_shutter"),
+            contentAlignment = Alignment.Center,
+        ) {
+            val markModifier = Modifier.size(Sizes.iconSlot)
+            when (mode) {
+                SmartCameraMode.Plant -> GtSpeciesMark(tint = CameraChrome.onContent, modifier = markModifier)
+                SmartCameraMode.Disease -> GtDiagnosisMark(tint = CameraChrome.onContent, modifier = markModifier)
+            }
+        }
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+/** No camera permission, or no working camera: the gallery and settings / the system camera instead. */
+@Composable
+private fun CameraBlocked(
+    status: CameraStatus,
+    enabled: Boolean,
+    onGallery: () -> Unit,
+    onSettings: () -> Unit,
+    onSystemCamera: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val denied = status is CameraStatus.Denied
+    GtCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                text = stringResource(if (denied) Res.string.smartcam_cameraDenied else Res.string.smartcam_cameraUnavailable),
+                style = GtParagraph.of(MaterialTheme.typography.bodyLarge),
+                color = scheme.onSurface,
+                modifier = Modifier.testTag("smartcam_cameraMessage"),
+            )
+            PrimaryButton(
+                text = stringResource(Res.string.smartcam_choosePhoto),
+                onClick = onGallery,
+                enabled = enabled,
+                modifier = Modifier.gtButtonWidth().testTag("smartcam_fallbackGallery"),
+            )
+            if (denied) {
+                SecondaryButton(
+                    text = stringResource(Res.string.smartcam_openSettings),
+                    onClick = onSettings,
+                    modifier = Modifier.gtButtonWidth().testTag("smartcam_openSettings"),
+                )
+            } else {
+                SecondaryButton(
+                    text = stringResource(Res.string.smartcam_systemCamera),
+                    onClick = onSystemCamera,
+                    enabled = enabled,
+                    modifier = Modifier.gtButtonWidth().testTag("smartcam_systemCamera"),
+                )
+            }
+        }
+    }
+}
+
+/** The photo stays on the phone here; the one primary button sends it, «Переснять» goes back to the camera. */
+@Composable
+private fun AfterShot(controller: SmartCameraController, onClose: () -> Unit, onSend: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val plant = controller.mode == SmartCameraMode.Plant
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(scheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.lg)
+            .testTag("smartcam_aftershot"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+    ) {
+        Header(onClose = onClose, closeTag = "smartcam_close")
+        PhotoPreview(controller.photo)
+        if (!plant) {
+            GtInputField(
+                value = controller.note,
+                onValueChange = controller::updateNote,
+                placeholder = stringResource(Res.string.diagnosis_notePlaceholder),
+                singleLine = false,
+                modifier = Modifier.fillMaxWidth().testTag("smartcam_note"),
+            )
+        }
+        PrimaryButton(
+            text = stringResource(if (plant) Res.string.smartcam_sendPlant else Res.string.smartcam_sendDisease),
+            onClick = onSend,
+            modifier = Modifier.gtButtonWidth().testTag("smartcam_send"),
+        )
+        Text(
+            text = stringResource(if (plant) Res.string.smartcam_sendNotePlant else Res.string.smartcam_sendNoteDisease),
+            style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.testTag("smartcam_sendNote"),
+        )
+        SecondaryButton(
+            text = stringResource(Res.string.smartcam_reshoot),
+            onClick = controller::retake,
+            modifier = Modifier.gtButtonWidth().testTag("smartcam_reshoot"),
+        )
+    }
+}
+
+/** Back (or ✕ on the after-shot screen), the smart camera mark and the title. */
+@Composable
+private fun Header(onClose: () -> Unit, closeTag: String) {
+    val scheme = MaterialTheme.colorScheme
+    val closing = closeTag == "smartcam_close"
+    val label = stringResource(if (closing) Res.string.smartcam_close else Res.string.a11y_back)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Box(
+            modifier = Modifier
+                .size(Sizes.touch)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Button,
+                ) { onClose() }
+                .semantics { contentDescription = label }
+                .testTag(closeTag),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (closing) {
+                GtCloseMark(tint = scheme.onSurface, modifier = Modifier.size(Sizes.iconSlot))
+            } else {
+                GtChevronMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.lg), direction = GtChevronDirection.Left)
+            }
+        }
+        GtSmartCameraMark(tint = scheme.secondary, modifier = Modifier.size(Sizes.iconSlot))
+        Text(
+            text = stringResource(Res.string.smartcam_title),
+            style = MaterialTheme.typography.headlineMedium,
+            color = scheme.onSurface,
+            modifier = Modifier.weight(1f).testTag("smartcam_title"),
+        )
+    }
+}
+
+/** Loading, the species candidates, the diagnosis or a failure. */
+@Composable
+private fun ResultContent(
+    controller: SmartCameraController,
+    onClose: () -> Unit,
+    onAddToMine: (AddPlantDraft) -> Unit,
+    myPlants: List<SmartCameraPlant>,
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val captionPrefix = stringResource(Res.string.diagnosis_journalCaptionPrefix)
     val words = Likelihood.entries.associateWith { likelihoodWord(it) }
-    val language = IdentifyLogic.wireLanguage(LocalAppLocale.current)
-    val backLabel = stringResource(Res.string.a11y_back)
     val phase = controller.phase
 
     Column(
@@ -193,32 +658,10 @@ internal fun SmartCameraContent(
             .testTag("smartcam_screen"),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Box(
-                modifier = Modifier
-                    .size(Sizes.touch)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                    ) { onClose() }
-                    .semantics { contentDescription = backLabel }
-                    .testTag("smartcam_back"),
-                contentAlignment = Alignment.Center,
-            ) {
-                GtChevronMark(tint = scheme.onSurface, modifier = Modifier.size(Spacing.lg), direction = GtChevronDirection.Left)
-            }
-            GtSmartCameraMark(tint = scheme.secondary, modifier = Modifier.size(Sizes.iconSlot))
-            Text(
-                text = stringResource(Res.string.smartcam_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = scheme.onSurface,
-                modifier = Modifier.weight(1f).testTag("smartcam_title"),
-            )
-        }
+        Header(onClose = onClose, closeTag = "smartcam_back")
 
         when (phase) {
-            SmartCameraPhase.Choose -> ChooseContent(controller, onShoot = { source -> controller.shoot(scope, source, language) })
+            SmartCameraPhase.Viewfinder, SmartCameraPhase.Captured -> Unit
             SmartCameraPhase.Loading -> {
                 PhotoPreview(controller.photo)
                 Row(
@@ -315,35 +758,7 @@ internal fun SmartCameraContent(
             }
         }
     }
-
-    if (controller.plantPickerOpen) {
-        PlantPickerSheet(
-            plants = myPlants,
-            onPick = controller::choosePlant,
-            onDismiss = controller::dismissPlantPicker,
-        )
-    }
-    controller.deniedSource?.let { source ->
-        GtAlertDialog(
-            title = stringResource(Res.string.common_permissionDeniedTitle),
-            message = stringResource(
-                when (source) {
-                    PickSource.Camera -> Res.string.common_cameraPermissionDenied
-                    PickSource.Gallery -> Res.string.common_galleryPermissionDenied
-                },
-            ),
-            onDismissRequest = controller::dismissDenied,
-        )
-    }
-    controller.pickErrorMessage?.let { message ->
-        GtAlertDialog(
-            title = stringResource(Res.string.common_error),
-            message = pickErrorText(message),
-            onDismissRequest = controller::dismissPickError,
-        )
-    }
 }
-
 /** «Не из вашего списка» (or the chosen plant) and «Это моё растение?» on a disease result. */
 @Composable
 private fun OwnPlantChoice(chosen: SmartCameraPlant?, canChoose: Boolean, onChoose: () -> Unit) {
@@ -417,79 +832,6 @@ private fun PlantPickerSheet(plants: List<SmartCameraPlant>, onPick: (String) ->
             role = GtSheetRowRole.Cancel,
             modifier = Modifier.testTag("smartcam_pickPlantCancel"),
         )
-    }
-}
-
-@Composable
-private fun ChooseContent(controller: SmartCameraController, onShoot: (PickSource) -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    ModeSwitch(selected = controller.mode, onSelect = controller::selectMode)
-    Text(
-        text = stringResource(
-            when (controller.mode) {
-                SmartCameraMode.Plant -> Res.string.smartcam_hintPlant
-                SmartCameraMode.Disease -> Res.string.smartcam_hintDisease
-            },
-        ),
-        style = MaterialTheme.typography.bodyMedium,
-        color = scheme.onSurfaceVariant,
-        modifier = Modifier.testTag("smartcam_hint"),
-    )
-    PrimaryButton(
-        text = stringResource(Res.string.smartcam_takePhoto),
-        onClick = { onShoot(PickSource.Camera) },
-        enabled = !controller.picking,
-        modifier = Modifier.gtButtonWidth().testTag("smartcam_camera"),
-    )
-    SecondaryButton(
-        text = stringResource(Res.string.smartcam_choosePhoto),
-        onClick = { onShoot(PickSource.Gallery) },
-        enabled = !controller.picking,
-        modifier = Modifier.gtButtonWidth().testTag("smartcam_gallery"),
-    )
-}
-
-/** Two-segment «Растение | Болезнь» control; the selected segment uses the chip-selected style. */
-@Composable
-private fun ModeSwitch(selected: SmartCameraMode, onSelect: (SmartCameraMode) -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val extended = greenThumbExtendedColors()
-    val outer = RoundedCornerShape(Radii.lg)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(scheme.surfaceVariant, outer)
-            .padding(Spacing.xxs)
-            .testTag("smartcam_modes"),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
-    ) {
-        for (mode in SmartCameraMode.entries) {
-            val on = mode == selected
-            val label = stringResource(
-                when (mode) {
-                    SmartCameraMode.Plant -> Res.string.smartcam_modePlant
-                    SmartCameraMode.Disease -> Res.string.smartcam_modeDisease
-                },
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = Sizes.touch)
-                    .clip(outer)
-                    .then(if (on) Modifier.background(extended.chipSelected, outer).border(Sizes.glowBorder / 2, scheme.secondary, outer) else Modifier)
-                    .clickable(role = Role.Tab) { onSelect(mode) }
-                    .semantics { this.selected = on }
-                    .testTag("smartcam_mode_${mode.wire}"),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (on) FontWeight.SemiBold else null,
-                    color = if (on) extended.accentText else scheme.onSurface,
-                )
-            }
-        }
     }
 }
 

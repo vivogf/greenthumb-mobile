@@ -588,11 +588,12 @@ class DashboardScreenTest {
             "the smart camera button has no text",
         )
         clickAt(button)
-        waitUntilAtLeastOneExists(hasText("Take photo"), TIMEOUT)
-        onNode(hasText("Plant") and hasClickAction()).assertExists()
-        onNode(hasText("Problem") and hasClickAction()).assertExists()
-        onNode(hasText("Choose from gallery")).assertExists()
-        onNode(hasTestTag("smartcam_title") and hasText("Smart camera")).assertExists()
+        // VAL-CAM11-001: the viewfinder opens at once, without the M10 mode-choice screen.
+        waitUntilAtLeastOneExists(hasTestTag("smartcam_viewfinder"), TIMEOUT)
+        onNode(hasTestTag("smartcam_mode_plant") and hasText("Plant")).assertExists()
+        onNode(hasTestTag("smartcam_mode_disease") and hasText("Problem")).assertExists()
+        onNode(hasTestTag("smartcam_close")).assertExists()
+        onAllNodes(hasText("Take photo")).assertCountEquals(0)
     }
 
     @Test

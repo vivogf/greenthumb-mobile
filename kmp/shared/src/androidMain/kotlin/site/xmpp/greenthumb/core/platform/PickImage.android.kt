@@ -1,6 +1,7 @@
 package site.xmpp.greenthumb.core.platform
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -24,9 +25,8 @@ import kotlin.math.roundToInt
  * Android-actual пикера (Stage 8 п.1):
  * - галерея — `PickVisualMedia` (системный photo picker);
  * - камера — `TakePicture` на файл в cacheDir через FileProvider;
- * - разрешения запрашиваются ДО пикера (RN-паритет:
- *   `requestCameraPermissionsAsync`/`requestMediaLibraryPermissionsAsync`),
- *   отказ — `PermissionDenied(source)`, не отмена;
+ * - разрешение камеры запрашивается ДО системной камеры, отказ — `PermissionDenied(Camera)`,
+ *   не отмена; photo picker разрешений не требует;
  * - отмена системного пикера — `Cancelled` (молчит).
  *
  * UI кропа здесь НЕ рисуется — после `Picked` экран показывает общий
@@ -41,6 +41,15 @@ actual suspend fun pickImageKeepingCapture(source: PickSource): PickResult = pic
 
 private const val KEPT_CAPTURE_PREFIX = "gt-diag-"
 
+/** A new file in `cacheDir/gt-pick` that [deleteStaleCaptures] removes if the process dies before its owner does. */
+internal fun newKeptCaptureFile(context: Context): File = captureFile(context, KEPT_CAPTURE_PREFIX)
+
+private fun captureFile(context: Context, prefix: String): File {
+    val directory = File(context.cacheDir, "gt-pick")
+    directory.mkdirs()
+    return File(directory, "$prefix${System.nanoTime()}.jpg")
+}
+
 actual fun deleteCaptureFile(path: String) {
     File(path).delete()
 }
@@ -53,19 +62,14 @@ actual fun deleteStaleCaptures() {
 
 private suspend fun pick(source: PickSource, keepCapture: Boolean): PickResult {
     val activity = AppActivityHolder.activity ?: return PickResult.Cancelled
-    val permission = when (source) {
-        PickSource.Camera -> Manifest.permission.CAMERA
-        PickSource.Gallery ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Manifest.permission.READ_MEDIA_IMAGES
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
+    // The system photo picker grants access to the chosen photo by itself; asking for a media permission
+    // first only adds a dialog whose refusal would block the gallery (the camera-denied fallback included).
+    if (source == PickSource.Camera) {
+        val granted = ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED ||
+            requestPermission(activity, Manifest.permission.CAMERA)
+        if (!granted) return PickResult.PermissionDenied(source)
     }
-    val granted = ContextCompat.checkSelfPermission(activity, permission) ==
-        PackageManager.PERMISSION_GRANTED ||
-        requestPermission(activity, permission)
-    if (!granted) return PickResult.PermissionDenied(source)
 
     val result = when (source) {
         PickSource.Gallery -> launchGallery(activity)
@@ -107,7 +111,7 @@ private fun mediaTypeForRequest(): ActivityResultContracts.PickVisualMedia.Visua
     }
 
 /** Запрос runtime-разрешения через registry текущей Activity. */
-private suspend fun requestPermission(activity: ComponentActivity, permission: String): Boolean =
+internal suspend fun requestPermission(activity: ComponentActivity, permission: String): Boolean =
     suspendCancellableCoroutine { continuation ->
         val key = "gt-pick-permission-${gtPickRequestCounter++}"
         lateinit var launcher: ActivityResultLauncher<String>
@@ -155,10 +159,7 @@ private suspend fun launchCamera(activity: ComponentActivity, keepCapture: Boole
     suspendCancellableCoroutine { continuation ->
         // EXTRA_OUTPUT требует grantable content:// — FileProvider (манифест
         // androidApp + res/xml/file_paths.xml: cache-path gt-pick/).
-        val directory = File(activity.cacheDir, "gt-pick")
-        directory.mkdirs()
-        val prefix = if (keepCapture) KEPT_CAPTURE_PREFIX else "gt-pick-"
-        val file = File(directory, "$prefix${System.nanoTime()}.jpg")
+        val file = if (keepCapture) newKeptCaptureFile(activity) else captureFile(activity, "gt-pick-")
         val uri = FileProvider.getUriForFile(
             activity,
             activity.packageName + ".fileprovider",

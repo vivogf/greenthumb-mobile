@@ -82,4 +82,16 @@ object Sizes {
 
     /** Width of the smart camera glow ring. */
     val glowBorder = 2.dp
+
+    /**
+     * Band at the bottom of the dashboard kept free of the plant list: the camera and «+» buttons with their
+     * 20 dp margins. Content padding alone still lets a row rest under the buttons at some scroll positions.
+     */
+    val fabBand = smartCameraButton + Spacing.xl * 2
+
+    /** Shutter of the in-app camera. */
+    val cameraShutter = 72.dp
+
+    /** Ring around the shutter and the corners of the aiming frame. */
+    val cameraRing = 3.dp
 }

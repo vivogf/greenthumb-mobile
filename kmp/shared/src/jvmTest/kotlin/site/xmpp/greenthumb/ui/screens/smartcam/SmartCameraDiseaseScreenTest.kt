@@ -37,7 +37,8 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 /**
  * VAL-CAM-009/010/011/012 on screen, ru and en: the street-plant result says it is not saved and offers
  * «Это моё растение?» instead of the journal button; the plant picker lists the user's plants; the save goes
- * to the chosen plant once; limit answers show clear texts; no counter text appears.
+ * to the chosen plant once; limit answers show clear texts; no counter text appears. The desktop has no
+ * camera, so the photo comes through the gallery fallback and is sent with the after-shot button.
  */
 @OptIn(ExperimentalTestApi::class)
 class SmartCameraDiseaseScreenTest {
@@ -143,7 +144,8 @@ class SmartCameraDiseaseScreenTest {
         val saves = mutableListOf<Triple<String, String, String>>()
         val api = api(HttpStatusCode.OK, okBody)
         show(locale, SmartCameraMode.Disease, api, journal = DiagnosisJournalSaver { id, uri, caption -> saves += Triple(id, uri, caption) })
-        click("smartcam_gallery")
+        click("smartcam_fallbackGallery")
+        click("smartcam_send")
         waitFor(hasTestTag("diagnosis_result"))
         assertEquals(1, calls)
         assertTrue(exists(hasTestTag("diagnosis_cause_0")))
@@ -210,7 +212,8 @@ class SmartCameraDiseaseScreenTest {
     @Test
     fun without_a_journal_there_is_no_is_mine_button() = runDesktopComposeUiTest {
         show("ru", SmartCameraMode.Disease, api(HttpStatusCode.OK, okBody), journal = null)
-        click("smartcam_gallery")
+        click("smartcam_fallbackGallery")
+        click("smartcam_send")
         waitFor(hasTestTag("diagnosis_result"))
         assertTrue(exists(hasTestTag("smartcam_notInList")))
         assertTrue(!exists(hasTestTag("smartcam_isMine")))
@@ -221,7 +224,8 @@ class SmartCameraDiseaseScreenTest {
         runDesktopComposeUiTest {
             var closed = 0
             show(locale, mode, api(status, body), onClose = { closed++ })
-            click("smartcam_gallery")
+            click("smartcam_fallbackGallery")
+        click("smartcam_send")
             waitFor(tagged("smartcam_message", message))
             println("[$locale ${mode.wire}] $body -> $message")
             assertTrue(!exists(hasTestTag("smartcam_loading")), "loading has ended")

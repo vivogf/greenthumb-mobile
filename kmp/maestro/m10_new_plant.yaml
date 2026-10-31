@@ -9,7 +9,7 @@
 #   photo     (form open) the photo box → «Галерея» → ${PHOTO} → crop «Готово»: the cover is set, «Узнать вид по
 #             фото» and the Pl@ntNet note appear, no candidates (0 Pl@ntNet calls)
 #   unphoto   (form open with a photo) photo box → «Удалить фото»: identify button and note are gone
-#   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, «Добавить» → dashboard shows ${NAME}
+#   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, «Добавить» → dashboard, scrolled until ${NAME} shows
 #   expanded  (form open) name ${NAME}; «Ещё параметры»: place ${PLACE}, species from the list (search ${SEARCH},
 #             pick ${SPECIES}),
 #             last watering = the day cell labelled ${DAY} (e.g. «Wednesday, October 28, 2026»), fertilize every ${FERT}, notes ${NOTES}; collapse and reopen
@@ -138,9 +138,15 @@ name: GreenThumb new plant (${STEP})
       - takeScreenshot: manual-form
       - tapOn: "Добавить|Add"
       - extendedWaitUntil:
-          visible: ${NAME}
+          visible: "Мои растения|My Plants"
           timeout: 40000
-      - assertVisible: "Мои растения|My Plants"
+      # The new plant can sit below the fold on a filled dashboard.
+      - scrollUntilVisible:
+          element:
+            text: ${NAME}
+          direction: DOWN
+          timeout: 40000
+      - assertVisible: ${NAME}
       - takeScreenshot: manual-dashboard
 
 - runFlow:

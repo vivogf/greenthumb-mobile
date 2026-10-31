@@ -14,13 +14,30 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import site.xmpp.greenthumb.core.network.DiagnosisCauseDto
 import site.xmpp.greenthumb.core.network.DiagnosisResponse
+import site.xmpp.greenthumb.core.platform.CameraStatus
 import site.xmpp.greenthumb.core.platform.PickResult
-import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
 
-/** VAL-CAM-010 / VAL-CAM-018 without UI: «Это моё растение?» saves once, no second diagnosis; capture files are deleted. */
+/** Shows the photo from the gallery and taps the send button. */
+private fun SmartCameraController.sendFromGallery(scope: kotlinx.coroutines.test.TestScope, language: String) {
+    chooseFromGallery(scope)
+    scope.advanceUntilIdle()
+    send(scope, language)
+    scope.advanceUntilIdle()
+}
+
+/** Takes a photo with the in-app camera and taps the send button. */
+private fun SmartCameraController.sendShot(scope: kotlinx.coroutines.test.TestScope, language: String) {
+    onCameraStatus(CameraStatus.Ready(hasFlash = false))
+    shutter(scope)
+    scope.advanceUntilIdle()
+    send(scope, language)
+    scope.advanceUntilIdle()
+}
+
+/** VAL-CAM-010 / VAL-CAM-018 / VAL-CAM11-018 without UI: «Это моё растение?» saves once, no second diagnosis; capture files are deleted. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SmartCameraJournalTest {
 
@@ -47,6 +64,7 @@ class SmartCameraJournalTest {
             identifier = { _, _ -> emptyList() },
             diagnoser = diagnoser,
             pick = { pickResult },
+            capture = { pickResult },
             preparePlant = { it + 7 },
             prepareDisease = { it + 9 },
             catalog = { null },
@@ -59,8 +77,7 @@ class SmartCameraJournalTest {
     fun choosingAPlantThenSavingUploadsTheDiagnosedPhotoOnceWithoutASecondDiagnosis() = runTest {
         val f = Fakes()
         val c = f.controller()
-        c.shoot(this, PickSource.Gallery, "ru")
-        advanceUntilIdle()
+        c.sendFromGallery(this, "ru")
         assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
         assertTrue(c.canSaveToJournal)
         assertNull(c.journalPlantId)
@@ -101,8 +118,7 @@ class SmartCameraJournalTest {
         val f = Fakes()
         f.saveGate = CompletableDeferred()
         val c = f.controller()
-        c.shoot(this, PickSource.Gallery, "en")
-        advanceUntilIdle()
+        c.sendFromGallery(this, "en")
         c.choosePlant("p-1")
         c.saveToJournal(this, "x")
         advanceUntilIdle()
@@ -119,8 +135,7 @@ class SmartCameraJournalTest {
         val f = Fakes()
         f.saveFails = true
         val c = f.controller()
-        c.shoot(this, PickSource.Gallery, "ru")
-        advanceUntilIdle()
+        c.sendFromGallery(this, "ru")
         c.choosePlant("p-1")
         c.saveToJournal(this, "x")
         advanceUntilIdle()
@@ -138,8 +153,7 @@ class SmartCameraJournalTest {
     fun withoutAJournalOrOutsideADiseaseResultThereIsNoPicker() = runTest {
         val f = Fakes()
         val none = f.controller(withJournal = false)
-        none.shoot(this, PickSource.Gallery, "ru")
-        advanceUntilIdle()
+        none.sendFromGallery(this, "ru")
         assertFalse(none.canSaveToJournal)
         none.openPlantPicker()
         none.choosePlant("p-1")
@@ -160,8 +174,7 @@ class SmartCameraJournalTest {
     fun retakeForgetsTheChosenPlant() = runTest {
         val f = Fakes()
         val c = f.controller()
-        c.shoot(this, PickSource.Gallery, "ru")
-        advanceUntilIdle()
+        c.sendFromGallery(this, "ru")
         c.choosePlant("p-1")
         c.retake()
         assertNull(c.journalPlantId)
@@ -175,20 +188,64 @@ class SmartCameraJournalTest {
     fun theCameraShotStaysWhileOpenAndIsDeletedOnRetakeAndClose() = runTest {
         val f = Fakes()
         val c = f.controller()
-        c.shoot(this, PickSource.Camera, "ru")
-        advanceUntilIdle()
+        c.sendShot(this, "ru")
         assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
         assertTrue(f.deleted.isEmpty(), "kept while the result is open")
         c.retake()
         assertEquals(listOf("/cache/shot-1.jpg"), f.deleted)
 
         f.pickResult = PickResult.Picked(byteArrayOf(4), capturePath = "/cache/shot-2.jpg")
-        c.shoot(this, PickSource.Camera, "ru")
-        advanceUntilIdle()
+        c.sendShot(this, "ru")
         c.close()
         assertEquals(listOf("/cache/shot-1.jpg", "/cache/shot-2.jpg"), f.deleted)
         c.close()
         assertEquals(2, f.deleted.size, "deleted once")
+    }
+
+    @Test
+    fun anUnsentShotIsDeletedOnRetakeAndOnClose() = runTest {
+        val f = Fakes()
+        val c = f.controller()
+        c.onCameraStatus(CameraStatus.Ready(hasFlash = true))
+        c.shutter(this)
+        advanceUntilIdle()
+        assertEquals(SmartCameraPhase.Captured, c.phase)
+        assertTrue(f.deleted.isEmpty(), "kept while the after-shot screen is open")
+        c.retake()
+        assertEquals(listOf("/cache/shot-1.jpg"), f.deleted)
+
+        f.pickResult = PickResult.Picked(byteArrayOf(4), capturePath = "/cache/shot-2.jpg")
+        c.shutter(this)
+        advanceUntilIdle()
+        c.close()
+        assertEquals(listOf("/cache/shot-1.jpg", "/cache/shot-2.jpg"), f.deleted)
+        assertEquals(0, f.diagnoseCalls)
+    }
+
+    @Test
+    fun aShotThatArrivesAfterRetakeIsDeletedAndNotShown() = runTest {
+        val f = Fakes()
+        val gate = CompletableDeferred<PickResult>()
+        val c = SmartCameraController(
+            initialMode = SmartCameraMode.Plant,
+            identifier = { _, _ -> emptyList() },
+            diagnoser = null,
+            pick = { PickResult.Cancelled },
+            capture = { withContext(NonCancellable) { gate.await() } },
+            preparePlant = { it },
+            prepareDisease = { it },
+            catalog = { null },
+            deleteCapture = { f.deleted += it },
+        )
+        c.onCameraStatus(CameraStatus.Ready(hasFlash = false))
+        c.shutter(this)
+        advanceUntilIdle()
+        c.retake()
+        gate.complete(PickResult.Picked(byteArrayOf(1), capturePath = "/cache/stale.jpg"))
+        advanceUntilIdle()
+        assertEquals(listOf("/cache/stale.jpg"), f.deleted)
+        assertEquals(SmartCameraPhase.Viewfinder, c.phase)
+        assertNull(c.photo)
     }
 
     @Test
@@ -199,13 +256,13 @@ class SmartCameraJournalTest {
             identifier = null,
             diagnoser = { _, _, _ -> throw site.xmpp.greenthumb.core.network.ApiError.Network },
             pick = { f.pickResult },
+            capture = { f.pickResult },
             preparePlant = { it },
             prepareDisease = { it },
             catalog = { null },
             deleteCapture = { f.deleted += it },
         )
-        c.shoot(this, PickSource.Camera, "ru")
-        advanceUntilIdle()
+        c.sendShot(this, "ru")
         assertIs<SmartCameraPhase.Failed>(c.phase)
         assertTrue(f.deleted.isEmpty())
         c.close()
@@ -220,14 +277,16 @@ class SmartCameraJournalTest {
             initialMode = SmartCameraMode.Plant,
             identifier = { _, _ -> emptyList() },
             diagnoser = null,
-            // A platform picker that finishes its activity result even after the screen is gone.
-            pick = { withContext(NonCancellable) { gate.await() } },
+            pick = { PickResult.Cancelled },
+            // A camera that finishes writing its file even after the screen is gone.
+            capture = { withContext(NonCancellable) { gate.await() } },
             preparePlant = { it },
             prepareDisease = { it },
             catalog = { null },
             deleteCapture = { f.deleted += it },
         )
-        c.shoot(this, PickSource.Camera, "ru")
+        c.onCameraStatus(CameraStatus.Ready(hasFlash = false))
+        c.shutter(this)
         advanceUntilIdle()
         c.close()
         gate.complete(PickResult.Picked(byteArrayOf(1), capturePath = "/cache/late.jpg"))

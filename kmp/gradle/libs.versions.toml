@@ -45,6 +45,10 @@ glance = "1.2.0"
 # widget's periodic refresh worker (CoroutineWorker lives in -ktx at this version).
 work = "2.7.1"
 foojayResolver = "1.0.0"
+# In-app camera (M11 owner item 1, architecture §10.1): androidMain only. 1.6.2 = latest stable on
+# Google Maven (checked 2026-10-31); minSdk 23, builds with AGP 9.3.1 / compileSdk 37.
+# camera-compose (CameraXViewfinder) instead of camera-view: no appcompat/fragment/camera-video.
+camerax = "1.6.2"
 
 [plugins]
 foojayResolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version.ref = "foojayResolver" }
@@ -123,3 +127,7 @@ glanceAppwidget = { module = "androidx.glance:glance-appwidget", version.ref = "
 glanceTesting = { module = "androidx.glance:glance-testing", version.ref = "glance" }
 glanceAppwidgetTesting = { module = "androidx.glance:glance-appwidget-testing", version.ref = "glance" }
 workRuntimeKtx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+cameraCore = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+cameraCamera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+cameraLifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+cameraCompose = { module = "androidx.camera:camera-compose", version.ref = "camerax" }

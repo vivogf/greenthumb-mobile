@@ -20,6 +20,11 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Своя камера (M11, CameraX): CAMERA подразумевает обязательную камеру с автофокусом.
+         Без камеры приложение ставится и работает через галерею. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
     <!-- Пуш-уведомления (M9 push-android): runtime-разрешение API 33+
          (RN-паритет requestPermissionsAsync; ниже 33 выдано неявно). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
