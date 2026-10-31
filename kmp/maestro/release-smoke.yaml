@@ -190,7 +190,10 @@ name: GreenThumb release smoke (${STEP})
       - scrollUntilVisible:
           element: "Watered"
           direction: DOWN
-      - assertVisible: "Release smoke note"
+      # The new Watered entry pushes the note below the fold on a 1440x3120 screen.
+      - scrollUntilVisible:
+          element: "Release smoke note"
+          direction: DOWN
       - takeScreenshot: journal-watered
       - tapOn: Back
 
