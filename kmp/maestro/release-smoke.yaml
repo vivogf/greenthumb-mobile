@@ -115,8 +115,10 @@ name: GreenThumb release smoke (${STEP})
       - tapOn: ${PAST_DAY}
       - tapOn: Done
       - tapOn: Save
-      - extendedWaitUntil:
-          visible: "Overdue by \\d+ days"
+      # The detail stays scrolled to Care Settings after Save, so the watering line is above the fold.
+      - scrollUntilVisible:
+          element: "Overdue by \\d+ days"
+          direction: UP
           timeout: 15000
       - scrollUntilVisible:
           element: "Water Plant"

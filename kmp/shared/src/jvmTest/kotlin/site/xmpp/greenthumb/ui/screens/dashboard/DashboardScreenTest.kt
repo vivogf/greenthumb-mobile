@@ -226,9 +226,10 @@ class DashboardScreenTest {
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
+        // Season off: under the default auto mode the fixture's intervals stretch in the dormant months (Nov-Feb).
         private fun userJson(): String =
             """{"user":{"id":73,"name":"kmp-val-dash","recovery_key":"fixture-not-credential",""" +
-                """"created_at":"2026-09-27T10:00:00.000Z"}}"""
+                """"season_mode":"off","created_at":"2026-09-27T10:00:00.000Z"}}"""
 
         /**
          * Фикстура из трёх растений; даты относительно СЕГОДНЯШНЕГО дня
