@@ -11,14 +11,10 @@
          «нет сети» с третьим триггером обновления работать не будут. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Пикер фото (Stage 8 п.1): камера (TakePicture) и медиатека —
-         RN-паритет requestCameraPermissionsAsync/requestMediaLibraryPermissionsAsync
-         (запрос ДО пикера, отказ → локализованный алерт). -->
+    <!-- Photos: CAMERA for the in-app CameraX camera and the system camera (TakePicture).
+         The gallery is the system photo picker (PickVisualMedia), which needs no media
+         permission, so READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE are not declared. -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
 
     <!-- Своя камера (M11, CameraX): CAMERA подразумевает обязательную камеру с автофокусом.
          Без камеры приложение ставится и работает через галерею. -->

@@ -34,7 +34,7 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="meta">Effective date: 2026-10-30</p>
+<p class="meta">Effective date: 2026-10-31</p>
 
 <p>
   This privacy policy applies to the <strong>GreenThumb — Plant Care</strong> app
@@ -57,6 +57,7 @@
   <li><strong>Care journal</strong> — the care events you record for a plant (watering, fertilizing, repotting, pruning) and the journal notes you write. Achievements and streaks are calculated from this journal and stored with your account.</li>
   <li><strong>Account settings</strong> — reminder time, language, seasonal watering mode and your device's time zone. The server stores the time zone as an IANA time zone name (for example <code>Europe/Berlin</code>) so that reminders and "today" are calculated in your local time. The time zone is not a precise or approximate location.</li>
   <li><strong>Push notification token</strong> — issued by Firebase Cloud Messaging (FCM) and stored on the Service Provider's server only if you turn on watering reminders. It is used only to deliver reminders to your device.</li>
+  <li><strong>Camera and photo gallery</strong> — the smart camera is part of the Application: it uses the camera permission only to show the viewfinder and to take a photo when you press the shutter. The viewfinder image is not recorded and is never sent. The same permission is used only to take a plant photo with the system camera when you choose <em>Camera</em> for a plant photo, or when the in-app camera cannot start. Photos from your gallery are chosen with the Android system photo picker, which gives the Application only the photo you pick; the Application asks for no permission to read your photo library. A photo you take or pick stays on your phone until you send it as described in "Artificial Intelligence features" or add it as a plant photo. Before any photo leaves your phone, the Application removes its EXIF metadata, including any GPS location.</li>
   <li><strong>Photos you send for species identification or plant diagnosis</strong> — these are sent through the Service Provider's server to the providers described below. The server does not store them for these features, and it does not store identification or diagnosis results. A photo is stored only if you also save it as a plant photo. A diagnosis photo and its short result are stored only when you tap <em>Save to plant journal</em> [<em>Сохранить в журнал растения</em>] on the result for one of your own plants: the photo then becomes a timeline photo of that plant in Cloudflare R2, and the short result (the likely causes with their likelihood words) becomes its caption in the database. A check of a plant that is not in your list is not saved unless you choose one of your plants for it.</li>
   <li><strong>Crash reports and diagnostics</strong> — when the Application crashes or stops responding (an "ANR", Application Not Responding), a report is sent to Firebase Crashlytics so defects can be found and fixed. A report contains the stack trace, device model, operating system version, app version, free memory and a random installation identifier. In addition, when the Application starts, Crashlytics sends a session event (a random session identifier, the random installation identifier, the time, the app version and the device and operating system details), so the share of sessions with a crash can be calculated. Reports and session events do not contain your plants, photos, display name or recovery key, and they are not linked to your account.</li>
   <li><strong>Server logs</strong> — the Service Provider's server keeps no logs about people: the web server and the application server keep no access logs and no error logs, so your IP address, your requests and your account number are not recorded. Only automated maintenance jobs (backups and reminders) write a status line, such as a response code or "backup ok", and the database writes short technical messages (for example, maintenance checkpoints) without your data.</li>
@@ -64,7 +65,7 @@
 
 <p>
   Apart from the optional display name, the Application does <strong>not</strong> collect your name, email, phone number, age,
-  gender, contacts, precise or approximate location, or microphone input. It does not
+  gender, contacts, precise or approximate location, your photo library (only the photos you pick), or microphone input. It does not
   collect analytics about your usage (screens visited, time spent). No user-tracking or
   advertising SDK is integrated.
 </p>
@@ -80,13 +81,18 @@
     <strong>Species identification (Pl@ntNet).</strong> The photos you choose are sent through
     the Service Provider's server to the Pl@ntNet identification service. Pl@ntNet processes the
     photos transiently to return a list of possible species. No account information is sent to
-    Pl@ntNet. A photo goes to Pl@ntNet only after you ask for it: in the smart camera, after you
-    pick the <em>Plant</em> [<em>Растение</em>] mode and take or select a photo; when you add a plant,
-    only when you tap <em>Find species by photo</em> [<em>Узнать вид по фото</em>]. Choosing a cover photo for a new plant never
-    sends that photo to Pl@ntNet by itself.
+    Pl@ntNet. A photo goes to Pl@ntNet only after you ask for it: in the smart camera's
+    <em>Plant</em> [<em>Растение</em>] mode, the photo you take or pick stays on your phone and is shown
+    to you, and it is sent only when you tap <em>Identify species</em> [<em>Узнать вид</em>];
+    <em>Retake</em> [<em>Переснять</em>] discards it without sending. When you add a plant, a photo is
+    sent only when you tap <em>Find species by photo</em> [<em>Узнать вид по фото</em>]. Adding a plant
+    never sends its photo to Pl@ntNet by itself.
   </li>
   <li>
-    <strong>Plant diagnosis (OpenAI).</strong> The photo you choose, the plant context (species, or
+    <strong>Plant diagnosis (OpenAI).</strong> <em>What's wrong with my plant?</em>
+    [<em>Что с растением?</em>] on one of your plants opens the smart camera in the <em>Problem</em>
+    [<em>Болезнь</em>] mode with that plant chosen. The photo you take or pick stays on your phone until you
+    tap <em>Check the plant</em> [<em>Проверить растение</em>]. Then the photo, the plant context (species, or
     the plant name when no species is set, the watering schedule and your optional description of
     the problem) and the recent care history of that plant (the type and date of the last 10 care
     events, without journal note text) are sent through the Service Provider's server to the OpenAI API. Requests are sent with
@@ -98,10 +104,11 @@
   <li>
     <strong>Plant check from the smart camera (OpenAI).</strong> In the smart camera's
     <em>Problem</em> [<em>Болезнь</em>] mode you can check a plant that is not in your list, for example
-    a plant in the street. Then only the photo, your optional description of the problem and the
-    language of the Application are sent through the Service Provider's server to the OpenAI API, with
-    the same <code>store: false</code> terms as above. No plant data, care history, recovery key or
-    account number is sent.
+    a plant in the street (or remove the chosen plant from the check). The photo stays on your phone
+    until you tap <em>Check the plant</em> [<em>Проверить растение</em>]. Then only the photo, your optional
+    description of the problem and the language of the Application are sent through the Service
+    Provider's server to the OpenAI API, with the same <code>store: false</code> terms as above. No plant
+    data, care history, recovery key or account number is sent.
   </li>
 </ul>
 

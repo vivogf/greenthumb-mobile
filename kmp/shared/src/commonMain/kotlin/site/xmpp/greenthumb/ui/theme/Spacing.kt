@@ -94,4 +94,10 @@ object Sizes {
 
     /** Ring around the shutter and the corners of the aiming frame. */
     val cameraRing = 3.dp
+
+    /**
+     * Empty space at the end of a right chevron drawn in a [Spacing.lg] box: the glyph's path ends at
+     * x≈17 of its 24-unit viewport. Shifting the chevron by this much puts its tip on the row's end edge.
+     */
+    val chevronEndInk = 4.5.dp
 }

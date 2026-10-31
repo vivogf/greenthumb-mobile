@@ -2,7 +2,7 @@
 
 Source of truth for the Data Safety form. Keep it consistent with
 [`docs/privacy.html`](../../docs/privacy.html) and
-[`docs/account-deletion.html`](../../docs/account-deletion.html). Last checked against the code and the server configuration: 2026-10-30.
+[`docs/account-deletion.html`](../../docs/account-deletion.html). Last checked against the code and the server configuration: 2026-10-31.
 
 Filling the form in Play Console is the user's step.
 
@@ -56,8 +56,9 @@ web browsing, app interactions, in-app search history, installed apps, other act
 | Care journal (+ achievements, streaks) | Other user-generated content |
 | Account settings incl. stored IANA time zone | Part of the account record. Not a Play location type: a time zone is coarser than "approximate location" (about 3 km²). Declared nowhere separately; covered by App functionality of User IDs |
 | Push notification token | Device or other IDs |
-| Photos for species identification (Pl@ntNet, transient) | Photos (processed ephemerally by the provider) |
-| Photos and context for diagnosis (OpenAI, `store:false`, up to 30 days abuse monitoring, no training) | Photos + Other user-generated content |
+| Camera and photo gallery: camera permission only for the in-app viewfinder and shutter (and the system camera for a plant photo); camera frames never leave the phone; gallery through the system photo picker, no media permission; EXIF/GPS removed before upload | Not a data type by itself: only photos the user sends or adds are collected (Photos) |
+| Photos for species identification (Pl@ntNet, transient), sent only after «Узнать вид» / «Узнать вид по фото» | Photos (processed ephemerally by the provider) |
+| Photos and context for diagnosis (OpenAI, `store:false`, up to 30 days abuse monitoring, no training), sent only after «Проверить растение» | Photos + Other user-generated content |
 | Smart camera check of a plant outside the list (street plant): only the photo, the optional note and the language go to OpenAI, no plant data | Photos + Other user-generated content (same processor, no new type) |
 | Saved diagnosis (user taps «Сохранить в журнал растения»): the photo becomes a timeline photo in R2, the short result its caption | Photos (optional) + Other user-generated content; no new type |
 | Crash and ANR reports, session event (Crashlytics) | Crash logs + Diagnostics |
@@ -67,6 +68,15 @@ web browsing, app interactions, in-app search history, installed apps, other act
 
 ## Notes for the form
 
+- M11 (in-app camera): the smart camera and the plant check use the app's own CameraX viewfinder. The app
+  needs only the camera permission for photos: the viewfinder and the shutter of the in-app camera, and the
+  system camera for a plant photo or as the fallback when the in-app camera cannot start. Camera frames
+  (the live preview) are never recorded or sent, so they are not collected. The gallery uses the system photo
+  picker, which gives the app only the photo the user picks; the manifest declares no media permission
+  (`READ_MEDIA_IMAGES`, `READ_MEDIA_VISUAL_USER_SELECTED` and `READ_EXTERNAL_STORAGE` are absent). A photo
+  stays on the phone until the user taps «Узнать вид» (Pl@ntNet) or «Проверить растение» (OpenAI,
+  `store: false`), or adds it as a plant photo; EXIF metadata, including GPS, is removed before any photo
+  leaves the phone. No new data type and no change in the form.
 - M10 (smart camera, saved diagnoses, street-plant check) adds no new data type: saved diagnosis photos fall
   under the existing optional Photos answer, their captions under Other user-generated content, and OpenAI and
   Pl@ntNet stay service providers as declared before. Nothing in the form changes.

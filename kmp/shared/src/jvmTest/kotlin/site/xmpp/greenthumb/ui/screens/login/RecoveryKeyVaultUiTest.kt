@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 import io.ktor.http.HttpStatusCode
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -140,7 +141,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_picker_cancelled_stays_on_login_without_error() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val vault = FakeVault(getResult = VaultGetResult.Cancelled)
         openLoginKeyMode(vaultSession(calls, loginRecoveryResponder()), vault)
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
@@ -154,7 +155,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_no_credential_shows_friendly_message_and_manual_field() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         openLoginKeyMode(vaultSession(calls, loginRecoveryResponder()), FakeVault(getResult = VaultGetResult.NoCredential))
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
         waitUntilAtLeastOneExists(hasText(MSG_NO_CREDENTIAL), TIMEOUT)
@@ -164,7 +165,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_without_provider_hides_button_and_keeps_manual_entry() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         openLoginKeyMode(vaultSession(calls, loginRecoveryResponder()), FakeVault(isSupported = false))
         onNodeWithText(BTN_SIGN_IN_SAVED).assertDoesNotExist()
         assertManualFieldEnabled()
@@ -172,7 +173,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_runtime_unsupported_explains_and_hides_button() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         openLoginKeyMode(vaultSession(calls, loginRecoveryResponder()), FakeVault(getResult = VaultGetResult.Unsupported))
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
         waitUntilAtLeastOneExists(hasText(MSG_UNAVAILABLE_RESTORE), TIMEOUT)
@@ -182,7 +183,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_found_key_signs_in_through_login_recovery() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = vaultSession(calls, loginRecoveryResponder())
         openLoginKeyMode(session, FakeVault(getResult = VaultGetResult.Found(VAULT_TEST_KEY)))
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
@@ -194,7 +195,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_stale_key_shows_out_of_date_message_and_manual_field() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = vaultSession(calls, loginRecoveryResponder(acceptedKey = VAULT_TEST_NEW_KEY))
         openLoginKeyMode(session, FakeVault(getResult = VaultGetResult.Found(VAULT_TEST_KEY)))
         onNodeWithText(BTN_SIGN_IN_SAVED).performClick()
@@ -206,7 +207,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun login_initial_notice_is_shown_on_entry() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         show(FakeVault()) {
             LoginScreen(
                 session = vaultSession(calls, loginRecoveryResponder()),
@@ -260,7 +261,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun profile_save_uses_user_id_label_and_confirms() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = signedInSession(calls)
         val vault = FakeVault(saveResult = VaultSaveResult.Saved)
         show(vault) {
@@ -275,7 +276,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun profile_save_cancelled_is_silent_and_session_stays() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = signedInSession(calls)
         val vault = FakeVault(saveResult = VaultSaveResult.Cancelled)
         show(vault) {
@@ -293,7 +294,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun profile_after_regeneration_offers_new_key_save_under_same_id() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = signedInSession(calls)
         val vault = FakeVault(saveResult = VaultSaveResult.Saved)
         show(vault) {
@@ -322,7 +323,7 @@ class RecoveryKeyVaultUiTest {
 
     @Test
     fun profile_offers_no_save_while_the_key_change_is_unproven() = runDesktopComposeUiTest {
-        val calls = mutableListOf<RecordedCall>()
+        val calls = CopyOnWriteArrayList<RecordedCall>()
         val session = vaultSession(calls, loginRecoveryResponder(confirmStatus = HttpStatusCode.ServiceUnavailable))
         runBlocking { session.signInWithRecoveryKey(VAULT_TEST_KEY) }
         val vault = FakeVault(saveResult = VaultSaveResult.Saved)

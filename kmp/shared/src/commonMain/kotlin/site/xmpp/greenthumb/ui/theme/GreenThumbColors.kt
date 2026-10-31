@@ -30,6 +30,9 @@ object GreenThumbColors {
     /** Light-theme sheet and dialog scrim: black at 50 %. */
     val modalScrim: Color = Color(red = 0f, green = 0f, blue = 0f, alpha = 0.5f)
 
+    /** Alpha of a row that is shown but cannot be used now (Material disabled content level). */
+    const val disabledContentAlpha: Float = 0.38f
+
     /**
      * `#22c55e` — успех показа ключа (RN `app/(auth)/login.tsx`: иконка
      * checkmark-circle и её фон `#22c55e22`). Не токен constants.ts —

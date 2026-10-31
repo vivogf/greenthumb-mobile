@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -482,12 +484,19 @@ public fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = Sizes.touch)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                        enabled = pushEnabled && !savingTime,
-                    ) { if (pushEnabled) showTimePicker = true },
+                    .then(
+                        // Off: no click action at all, so TalkBack does not offer a tap that does nothing.
+                        if (pushEnabled) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                role = Role.Button,
+                                enabled = !savingTime,
+                            ) { showTimePicker = true }
+                        } else {
+                            Modifier.alpha(GreenThumbColors.disabledContentAlpha)
+                        },
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
@@ -512,7 +521,8 @@ public fun ProfileScreen(
                 }
                 GtChevronMark(
                     tint = scheme.onSurfaceVariant,
-                    modifier = Modifier.size(Spacing.lg),
+                    // Tip under the switch track's right edge, not the glyph's empty box edge.
+                    modifier = Modifier.offset(x = Sizes.chevronEndInk).size(Spacing.lg),
                     direction = GtChevronDirection.Right,
                 )
             }

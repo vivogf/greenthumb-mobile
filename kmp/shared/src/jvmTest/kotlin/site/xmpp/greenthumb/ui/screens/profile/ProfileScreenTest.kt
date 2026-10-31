@@ -594,6 +594,29 @@ class ProfileScreenTest {
         }
     }
 
+    /**
+     * With reminders off the «Every day at HH:00» row is shown but is not a button: no click action
+     * and no Button role, so TalkBack and uiautomator do not offer a tap that does nothing.
+     */
+    @Test
+    fun remindersOff_timeRowIsNotClickable() {
+        val graph = newHarness()
+        graph.settings.presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openProfileTab(pushSubscribed = false)
+
+            waitUntilAtLeastOneExists(hasText("Every day at 09:00"), TIMEOUT)
+            assertTrue(allNodes(hasClickAction() and hasText("Every day at 09:00")).isEmpty(), "no click action when off")
+            assertTrue(
+                allNodes(hasText("Every day at 09:00") and hasAnyDescendantOrSelfRole(Role.Button)).isEmpty(),
+                "no Button role when off",
+            )
+
+            runOnIdle { graph.close() }
+        }
+    }
+
     @Test
     fun notificationTimeSelect_sendsPatchHH00_andUpdatesUser() {
         val graph = newHarness()
