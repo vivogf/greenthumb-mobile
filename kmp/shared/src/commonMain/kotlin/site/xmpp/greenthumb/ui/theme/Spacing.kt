@@ -84,8 +84,8 @@ object Sizes {
     val glowBorder = 2.dp
 
     /**
-     * Band at the bottom of the dashboard kept free of the plant list: the camera and «+» buttons with their
-     * 20 dp margins. Content padding alone still lets a row rest under the buttons at some scroll positions.
+     * Height of the camera and «+» buttons with their 20 dp margins. The dashboard list runs under the buttons and
+     * uses this as bottom content padding, so the last card can scroll fully above them.
      */
     val fabBand = smartCameraButton + Spacing.xl * 2
 

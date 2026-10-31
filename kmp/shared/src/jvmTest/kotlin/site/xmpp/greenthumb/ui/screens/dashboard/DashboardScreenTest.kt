@@ -10,6 +10,11 @@ import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import site.xmpp.greenthumb.ui.theme.Sizes
+import site.xmpp.greenthumb.ui.theme.Spacing
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -216,6 +221,9 @@ class DashboardScreenTest {
         var lastPatchBody: String? = null
         @Volatile var plantsEmpty = false
 
+        /** When > 0, GET /api/plants returns this many plants instead of the three-plant fixture. */
+        @Volatile var plantCount = 0
+
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
         private fun userJson(): String =
@@ -232,6 +240,15 @@ class DashboardScreenTest {
             val today = pickerToday()
             fun daysAgo(days: Long): String =
                 LocalDate.fromEpochDays(today.toEpochDays() - days).toString()
+            if (plantCount > 0) {
+                // «Plant NN» watered NN days ago, every 30 days: sorted by urgency, «Plant 00» is the last card.
+                return (0 until plantCount).joinToString(separator = ",", prefix = "[", postfix = "]") { n ->
+                    val name = "Plant " + n.toString().padStart(2, '0')
+                    """{"id":"p$n","user_id":"73","name":"$name","location":"Shelf",""" +
+                        """"photo_url":"","water_frequency_days":30,"last_watered_date":"${daysAgo(n.toLong())}",""" +
+                        """"notes":"","created_at":"2026-09-01T10:00:00.000Z"}"""
+                }
+            }
             fun plant(id: String, name: String, location: String, lastWatered: String) =
                 """{"id":"$id","user_id":"73","name":"$name","location":"$location",""" +
                     """"photo_url":"","water_frequency_days":7,"last_watered_date":"$lastWatered",""" +
@@ -659,6 +676,81 @@ class DashboardScreenTest {
             runOnIdle { graph.close() }
         }
     }
+
+    // ------------------------------------------------------------------
+    // M11c item 1: the list runs under the floating camera and «+» buttons
+    // ------------------------------------------------------------------
+
+    /**
+     * VAL-DASH12-001/002 at 384 dp: in list, card and grid modes the list viewport reaches the dashboard bottom
+     * (the buttons sit [Spacing.xl] above it, no reserved band), cards are visible beside/under the buttons before
+     * the end, and at the end the whole last card and its status pill are above both buttons.
+     */
+    private fun underFloatingButtonsCase(fontScale: Float) {
+        val graph = newHarness()
+        graph.server.plantCount = 20
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest(width = 384, height = 800) {
+            setContent {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push)
+                }
+            }
+            openDashboard(firstVisible = "Plant 19")
+            val cameraMatcher = hasContentDescription("Smart camera") and hasClickAction()
+            val lastCard = hasContentDescription("Open plant card Plant 00")
+            for (toggle in listOf("List view", "Card view", "Grid view")) {
+                clickAt(hasClickAction() and hasContentDescription(toggle))
+                waitForIdle()
+                waitUntilAtLeastOneExists(hasTestTag("dashboard_plants"), TIMEOUT)
+                val camera = onNode(cameraMatcher).getBoundsInRoot()
+                val add = onNode(hasContentDescription("Add a new plant")).getBoundsInRoot()
+                val buttonsTop = minOf(camera.top, add.top)
+                val list = onNodeWithTag("dashboard_plants").getBoundsInRoot()
+                assertTrue(
+                    list.bottom >= camera.bottom + Spacing.xl - 1.dp,
+                    "$toggle at $fontScale: the list reaches the dashboard bottom under the buttons: list=$list camera=$camera",
+                )
+                val cards = onAllNodes(hasContentDescription("Open plant card", substring = true))
+                    .fetchSemanticsNodes()
+                assertTrue(
+                    cards.any { node ->
+                        with(density) { node.boundsInRoot.bottom.toDp() } > buttonsTop &&
+                            with(density) { node.boundsInRoot.top.toDp() } < camera.bottom
+                    },
+                    "$toggle at $fontScale: before the end a card is drawn beside/under the buttons",
+                )
+                onNodeWithTag("dashboard_plants").performScrollToIndex(19)
+                waitForIdle()
+                val card = onNode(lastCard).getBoundsInRoot()
+                assertTrue(
+                    card.bottom <= buttonsTop,
+                    "$toggle at $fontScale: the last card scrolls fully above the buttons: card=$card buttonsTop=$buttonsTop",
+                )
+                assertTrue(card.bottom <= list.bottom && card.top >= list.top, "$toggle: the last card is inside the list")
+                if (toggle != "Grid view") {
+                    val pill = onNode(hasText("30 days left"), useUnmergedTree = true).getBoundsInRoot()
+                    assertTrue(
+                        pill.bottom <= buttonsTop && pill.bottom <= card.bottom,
+                        "$toggle at $fontScale: the status pill is above the buttons: pill=$pill buttonsTop=$buttonsTop",
+                    )
+                    assertTrue(pill.right > pill.left && pill.bottom > pill.top, "$toggle: the status pill is laid out")
+                }
+                onNodeWithTag("dashboard_plants").performScrollToIndex(0)
+                waitForIdle()
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun plant_list_runs_under_the_floating_buttons_at_font_1_15() = underFloatingButtonsCase(1.15f)
+
+    @Test
+    fun plant_list_runs_under_the_floating_buttons_at_font_1_3() = underFloatingButtonsCase(1.3f)
 
     private companion object {
         const val TIMEOUT: Long = 10_000L

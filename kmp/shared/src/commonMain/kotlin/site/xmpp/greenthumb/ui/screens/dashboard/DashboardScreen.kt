@@ -783,7 +783,7 @@ public fun DashboardScreen(
                         PullToRefreshBox(
                             isRefreshing = isManualRefreshing,
                             onRefresh = { refreshManual() },
-                            modifier = Modifier.weight(1f).padding(bottom = Sizes.fabBand),
+                            modifier = Modifier.weight(1f),
                         ) {
                             // Карточки в снап-наборе досиживают в списке, даже когда
                             // данные уже обновлены и фильтр их больше не отдаёт
@@ -1059,11 +1059,11 @@ private fun PlantsList(
     onWater: (String) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().testTag(PLANTS_TAG),
         contentPadding = PaddingValues(
             start = Spacing.xl,
             end = Spacing.xl,
-            bottom = Spacing.sm,
+            bottom = Sizes.fabBand,
         ),
         verticalArrangement = Arrangement.spacedBy(if (cardMode) Spacing.lg else Spacing.sm),
     ) {
@@ -1131,11 +1131,11 @@ private fun PlantsGrid(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(GRID_COLS),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().testTag(PLANTS_TAG),
         contentPadding = PaddingValues(
             start = Spacing.lg,
             end = Spacing.lg,
-            bottom = Spacing.sm,
+            bottom = Sizes.fabBand,
         ),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -1167,6 +1167,9 @@ private fun PlantsGrid(
         }
     }
 }
+
+/** Test tag of the scrolling plant list/grid. */
+private const val PLANTS_TAG = "dashboard_plants"
 
 /** Колонки сетки (RN GRID_COLS). */
 private const val GRID_COLS: Int = 3
