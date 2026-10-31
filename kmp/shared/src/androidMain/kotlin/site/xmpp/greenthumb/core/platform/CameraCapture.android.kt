@@ -6,15 +6,20 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import android.util.Size
 import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
+import androidx.camera.core.ZoomState
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -25,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +56,13 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * Preview and capture both use the sensor's 4:3 (3:4 in portrait), and the viewfinder fits the preview into
  * [modifier] without cropping, so the frame on screen is the frame of the shot.
  *
+ * Speed of the shot (M11c item 2): the capture asks for about 1600×1200 instead of the full sensor (the app keeps
+ * 800 px anyway, so a 12 MP JPEG only costs encode, write and decode time), and uses zero shutter lag where the
+ * camera supports it (CameraX itself falls back to a normal capture while the flash is on).
+ *
+ * [CameraShutter.zoomRatio] is applied after every bind and on every change; the camera's maximum zoom goes out with
+ * [CameraStatus.Ready].
+ *
  * The camera is bound to the composition's lifecycle owner (the navigation entry): it stops when the app
  * goes to the background and is unbound when the screen leaves composition.
  */
@@ -60,6 +73,7 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
     val report by rememberUpdatedState(onStatus)
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
     var surfaceRequest by remember { mutableStateOf<SurfaceRequest?>(null) }
+    var boundCamera by remember { mutableStateOf<Camera?>(null) }
 
     LaunchedEffect(Unit) {
         if (granted) return@LaunchedEffect
@@ -92,17 +106,27 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
                 .build()
             val preview = Preview.Builder().setResolutionSelector(sensorFrame).build()
             preview.setSurfaceProvider { request -> surfaceRequest = request }
-            val imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .setResolutionSelector(sensorFrame)
-                .build()
-            val take: suspend (Boolean) -> PickResult = { flash -> takePicture(context, imageCapture, flash) }
+            var imageCapture: ImageCapture? = null
+            val take: suspend (Boolean) -> PickResult = { flash ->
+                imageCapture?.let { takePicture(context, it, flash) } ?: PickResult.Cancelled
+            }
             var provider: ProcessCameraProvider? = null
             var cameraState: LiveData<CameraState>? = null
+            var zoomState: LiveData<ZoomState>? = null
+            var hasFlash = false
+            var maxZoom = 1f
+            var failed = false
             val stateObserver = Observer<CameraState> { state ->
                 if (state.error?.type == CameraState.ErrorType.CRITICAL) {
+                    failed = true
                     shutter.detach(take)
                     report(CameraStatus.Unavailable)
+                }
+            }
+            val zoomObserver = Observer<ZoomState> { state ->
+                if (!failed && state.maxZoomRatio != maxZoom) {
+                    maxZoom = state.maxZoomRatio
+                    report(CameraStatus.Ready(hasFlash = hasFlash, maxZoom = maxZoom))
                 }
             }
             var disposed = false
@@ -116,15 +140,25 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
                             report(CameraStatus.Unavailable)
                             return@addListener
                         }
+                        val capture = ImageCapture.Builder()
+                            .setCaptureMode(captureModeFor(cameras.getCameraInfo(CameraSelector.DEFAULT_BACK_CAMERA)))
+                            .setResolutionSelector(captureSize)
+                            .build()
+                        imageCapture = capture
                         val camera = cameras.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
                             preview,
-                            imageCapture,
+                            capture,
                         )
+                        camera.cameraControl.setZoomRatio(shutter.zoomRatio)
+                        boundCamera = camera
                         cameraState = camera.cameraInfo.cameraState.also { it.observe(lifecycleOwner, stateObserver) }
                         shutter.attach(take)
-                        report(CameraStatus.Ready(hasFlash = camera.cameraInfo.hasFlashUnit()))
+                        hasFlash = camera.cameraInfo.hasFlashUnit()
+                        maxZoom = camera.cameraInfo.zoomState.value?.maxZoomRatio ?: 1f
+                        report(CameraStatus.Ready(hasFlash = hasFlash, maxZoom = maxZoom))
+                        zoomState = camera.cameraInfo.zoomState.also { it.observe(lifecycleOwner, zoomObserver) }
                     } catch (_: Exception) {
                         // No camera hardware, CameraX init failure or a bind error: the gallery fallback takes over.
                         report(CameraStatus.Unavailable)
@@ -135,12 +169,20 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
             onDispose {
                 disposed = true
                 cameraState?.removeObserver(stateObserver)
+                zoomState?.removeObserver(zoomObserver)
                 shutter.detach(take)
-                provider?.unbind(preview, imageCapture)
+                boundCamera = null
+                provider?.unbind(preview, *listOfNotNull(imageCapture).toTypedArray())
                 preview.setSurfaceProvider(null)
                 surfaceRequest = null
             }
         }
+    }
+
+    LaunchedEffect(boundCamera) {
+        val camera = boundCamera ?: return@LaunchedEffect
+        // A superseded ratio fails its future; the next value is already on its way.
+        snapshotFlow { shutter.zoomRatio }.collect { ratio -> camera.cameraControl.setZoomRatio(ratio) }
     }
 
     Box(modifier) {
@@ -154,6 +196,17 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
         }
     }
 }
+
+/** The shot: about 1600×1200 in the sensor's 4:3, the closest larger size first so 4× zoom keeps 800 px of detail. */
+private val captureSize: ResolutionSelector = ResolutionSelector.Builder()
+    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+    .setResolutionStrategy(
+        ResolutionStrategy(Size(1600, 1200), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+    )
+    .build()
+
+private fun captureModeFor(info: CameraInfo): Int =
+    if (info.isZslSupported) ImageCapture.CAPTURE_MODE_ZERO_SHUTTER_LAG else ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
 
 private fun hasCameraPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED

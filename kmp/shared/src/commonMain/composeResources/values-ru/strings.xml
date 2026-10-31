@@ -592,5 +592,6 @@
     <string name="smartcam_chosenPlant">Сохраним в журнал растения «%1$s»</string>
     <string name="smartcam_plantChipClear">Убрать растение «%1$s»</string>
     <string name="smartcam_plantCare">Учтём уход за «%1$s»</string>
+    <string name="smartcam_zoomReset">Увеличение %1$s. Нажмите, чтобы вернуть 1×</string>
     <string name="a11y_smartCamera">Умная камера</string>
 </resources>

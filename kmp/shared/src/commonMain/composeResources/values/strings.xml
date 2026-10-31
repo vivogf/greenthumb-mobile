@@ -582,5 +582,6 @@
     <string name="smartcam_chosenPlant">Will be saved to the journal of “%1$s”</string>
     <string name="smartcam_plantChipClear">Remove “%1$s” from the check</string>
     <string name="smartcam_plantCare">The care history of “%1$s” is taken into account</string>
+    <string name="smartcam_zoomReset">Zoom %1$s. Tap to return to 1×</string>
     <string name="a11y_smartCamera">Smart camera</string>
 </resources>

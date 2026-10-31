@@ -350,6 +350,7 @@ KMP_ONLY_KEYS = {
     "smartcam.chosenPlant",
     "smartcam.plantChipClear",
     "smartcam.plantCare",
+    "smartcam.zoomReset",
     "smartcam.close",
     "smartcam.flashOn",
     "smartcam.flashOff",

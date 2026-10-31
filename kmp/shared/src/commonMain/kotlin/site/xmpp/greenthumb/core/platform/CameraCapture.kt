@@ -1,6 +1,9 @@
 package site.xmpp.greenthumb.core.platform
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 /** State of the in-app camera as the platform reports it to the smart camera. */
@@ -8,8 +11,11 @@ sealed interface CameraStatus {
     /** Waiting for the permission answer or for the camera to bind. */
     data object Starting : CameraStatus
 
-    /** The preview runs and the shutter works; [hasFlash] is false on devices without a flash unit. */
-    data class Ready(val hasFlash: Boolean) : CameraStatus
+    /**
+     * The preview runs and the shutter works; [hasFlash] is false on devices without a flash unit. [maxZoom] is the
+     * largest zoom ratio the bound camera reports (1 when it cannot zoom).
+     */
+    data class Ready(val hasFlash: Boolean, val maxZoom: Float = 1f) : CameraStatus
 
     /** The camera permission was refused; [permanent] when the system no longer shows its dialog. */
     data class Denied(val permanent: Boolean) : CameraStatus
@@ -25,6 +31,12 @@ sealed interface CameraStatus {
  */
 class CameraShutter {
     private var taker: (suspend (flash: Boolean) -> PickResult)? = null
+
+    /**
+     * Zoom ratio of the preview and the shot. The platform applies it to the bound camera, again after every bind,
+     * so a ratio set while the camera is released (after-shot screen) is in place when the viewfinder returns.
+     */
+    var zoomRatio: Float by mutableStateOf(1f)
 
     fun attach(take: suspend (flash: Boolean) -> PickResult) {
         taker = take

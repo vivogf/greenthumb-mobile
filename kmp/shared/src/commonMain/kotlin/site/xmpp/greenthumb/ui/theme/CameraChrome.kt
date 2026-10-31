@@ -19,4 +19,10 @@ object CameraChrome {
 
     /** Corners of the aiming frame. */
     val frame = rgb(0xFFFFFF).copy(alpha = 0.85f)
+
+    /** Opacity of [background] over the preview at the moment of the shutter tap… */
+    const val shotBlink = 0.85f
+
+    /** …and while the photo is being taken, so the scene stays visible under it. */
+    const val shotVeil = 0.4f
 }

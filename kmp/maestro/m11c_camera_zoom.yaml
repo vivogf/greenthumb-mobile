@@ -1,0 +1,96 @@
+# Smart camera pinch zoom and shutter (feature m11c-camera-zoom-haptic-speed; VAL-CAM12-001, -006).
+# Sign in first (m10_smartcam.yaml `login` through render-smoke.sh); these stages use no key and send nothing.
+# Maestro cannot inject two pointers: before `zoomed` and `reopen` the caller opens the camera with `open` and
+# pinches the preview to about 2× with a real two-pointer gesture (emulator gRPC sendTouch, see the handoff
+# of this feature). elt_test needs `-camera-back emulated` for zoom: the virtual-scene back camera reports 1×–1×.
+#   open     dashboard → camera: viewfinder without a zoom label and without a slider → shutter → after-shot →
+#            «Переснять» → viewfinder again, still no label; the camera stays open
+#   zoomed   (camera open, zoomed) label «N.N×» with its description → «Болезнь»: label stays → shutter →
+#            «Переснять»: label stays → tap the label: 1×, the label is gone
+#   reopen   (camera open, zoomed) ✕ → open the camera again: 1×, no label
+appId: com.greenthumbplantcare.debug
+name: GreenThumb camera zoom (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'open'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Сфотографировать растение|Photograph the plant"
+          timeout: 15000
+      - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - assertNotVisible: "\\d\\.\\d×"
+      - takeScreenshot: zoom-open-1x
+      - tapOn: "Сфотографировать растение|Photograph the plant"
+      - extendedWaitUntil:
+          visible: "Узнать вид|Identify species"
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            text: "Переснять|Retake"
+          direction: DOWN
+      - tapOn: "Переснять|Retake"
+      - extendedWaitUntil:
+          visible: "Сфотографировать растение|Photograph the plant"
+          timeout: 15000
+      - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+
+- runFlow:
+    when:
+      true: ${STEP == 'zoomed'}
+    commands:
+      - assertVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - assertVisible: "\\d\\.\\d×"
+      - takeScreenshot: zoom-label
+      - tapOn: "Болезнь|Problem"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 5000
+      - assertVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - tapOn: "Снять больное место|Photograph the sick spot"
+      - extendedWaitUntil:
+          visible: "Проверить растение|Check the plant"
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            text: "Переснять|Retake"
+          direction: DOWN
+      - tapOn: "Переснять|Retake"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 15000
+      - assertVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - takeScreenshot: zoom-kept-after-retake
+      - tapOn: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - extendedWaitUntil:
+          notVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+          timeout: 5000
+      - takeScreenshot: zoom-reset-by-label
+
+- runFlow:
+    when:
+      true: ${STEP == 'reopen'}
+    commands:
+      - assertVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - tapOn: "Закрыть камеру|Close the camera"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+      - tapOn: "Умная камера|Smart camera"
+      - extendedWaitUntil:
+          visible: "Сфотографировать растение|Photograph the plant"
+          timeout: 15000
+      - assertNotVisible: "(Увеличение|Zoom) \\d\\.\\d×.*"
+      - takeScreenshot: zoom-reopen-1x
+      - tapOn: "Закрыть камеру|Close the camera"

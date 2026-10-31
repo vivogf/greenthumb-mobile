@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -15,6 +16,7 @@ import site.xmpp.greenthumb.catalog.CatalogRepository
 import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.DiagnosisResponse
 import site.xmpp.greenthumb.core.platform.CameraStatus
+import site.xmpp.greenthumb.core.platform.Haptics
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
@@ -160,6 +162,8 @@ public class SmartCameraController(
     private val plantDiagnoser: PlantDiagnoser? = null,
     plant: SmartCameraPlant? = null,
     private val initialPhoto: (suspend () -> ByteArray)? = null,
+    /** Sends the zoom ratio to the camera; the app passes it to [site.xmpp.greenthumb.core.platform.CameraShutter.zoomRatio]. */
+    private val applyZoom: (Float) -> Unit = {},
 ) {
     /** The plant of the chip; null for a plant-less check. */
     public var plant: SmartCameraPlant? by mutableStateOf(plant)
@@ -211,6 +215,31 @@ public class SmartCameraController(
     /** A shot or a pick is running. */
     public var picking: Boolean by mutableStateOf(false)
         private set
+
+    /**
+     * An accepted shutter tap waits for its photo. It turns on in the tap itself, so the screen reacts in the next
+     * frame, long before the camera delivers the JPEG.
+     */
+    public var shotPending: Boolean by mutableStateOf(false)
+        private set
+
+    /**
+     * Zoom of the viewfinder and the shot, 1× .. [zoomLimit]. It stays across mode switches and «Переснять» and
+     * starts at 1× with every new camera screen.
+     */
+    public var zoom: Float by mutableStateOf(1f)
+        private set
+
+    /** The smaller of the camera's maximum and [MAX_ZOOM]; 1 while the camera is not ready or cannot zoom. */
+    public val zoomLimit: Float
+        get() = (cameraStatus as? CameraStatus.Ready)?.maxZoom?.coerceIn(1f, MAX_ZOOM) ?: 1f
+
+    /** «2.0×» while the zoom is not 1× (same format in every language), null at 1×. */
+    public val zoomLabel: String?
+        get() {
+            val tenths = (zoom * 10).roundToInt()
+            return if (tenths == 10) null else "${tenths / 10}.${tenths % 10}×"
+        }
 
     public var deniedSource: PickSource? by mutableStateOf(null)
         private set
@@ -280,7 +309,28 @@ public class SmartCameraController(
 
     public fun onCameraStatus(status: CameraStatus) {
         cameraStatus = status
-        if (status is CameraStatus.Ready && !status.hasFlash) flash = false
+        if (status is CameraStatus.Ready) {
+            if (!status.hasFlash) flash = false
+            changeZoom(zoom.coerceIn(1f, zoomLimit))
+        }
+    }
+
+    private val canZoom: Boolean get() = onViewfinder && cameraStatus is CameraStatus.Ready
+
+    /** One step of a two-finger pinch: [factor] > 1 zooms in. */
+    public fun zoomBy(factor: Float) {
+        if (!canZoom || factor <= 0f || factor.isNaN()) return
+        changeZoom((zoom * factor).coerceIn(1f, zoomLimit))
+    }
+
+    /** Tap on the zoom label or a double tap on the preview: back to 1×. */
+    public fun resetZoom() {
+        if (canZoom) changeZoom(1f)
+    }
+
+    private fun changeZoom(value: Float) {
+        zoom = value
+        applyZoom(value)
     }
 
     public fun selectMode(value: SmartCameraMode) {
@@ -301,10 +351,12 @@ public class SmartCameraController(
         if (onViewfinder && hasFlash) flash = !flash
     }
 
-    /** The shutter of the in-app camera. */
+    /** The shutter of the in-app camera: one short haptic and the shot feedback on the tap, then the shot. */
     public fun shutter(scope: CoroutineScope) {
-        if (cameraStatus !is CameraStatus.Ready) return
+        if (cameraStatus !is CameraStatus.Ready || !onViewfinder) return
         val withFlash = flash && hasFlash
+        shotPending = true
+        Haptics.medium()
         acquire(scope) { capture(withFlash) }
     }
 
@@ -347,7 +399,10 @@ public class SmartCameraController(
                     }
                 }
             } finally {
-                if (id == attempt) picking = false
+                if (id == attempt) {
+                    picking = false
+                    shotPending = false
+                }
             }
         }
     }
@@ -542,6 +597,7 @@ public class SmartCameraController(
         journalJob?.cancel()
         journalJob = null
         picking = false
+        shotPending = false
         photo = null
         journalPlantId = null
         diagnosedPlant = null
@@ -568,5 +624,8 @@ public class SmartCameraController(
     private companion object {
         /** Horizontal drag (px) that counts as a mode swipe rather than a slip of the finger. */
         const val SWIPE_MIN_DRAG = 48f
+
+        /** Owner choice (M11c): pinch zoom up to 4× where the camera allows it, no further. */
+        const val MAX_ZOOM = 4f
     }
 }

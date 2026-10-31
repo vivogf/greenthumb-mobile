@@ -1,10 +1,11 @@
 package site.xmpp.greenthumb.ui.screens.smartcam
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -39,9 +41,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -128,6 +133,7 @@ import site.xmpp.greenthumb.ui.res.smartcam_shutterDisease
 import site.xmpp.greenthumb.ui.res.smartcam_shutterPlant
 import site.xmpp.greenthumb.ui.res.smartcam_systemCamera
 import site.xmpp.greenthumb.ui.res.smartcam_title
+import site.xmpp.greenthumb.ui.res.smartcam_zoomReset
 import site.xmpp.greenthumb.ui.res.species_identifyConfidence
 import site.xmpp.greenthumb.ui.res.species_identifyLoading
 import site.xmpp.greenthumb.ui.res.species_identifyQuota
@@ -163,6 +169,9 @@ private const val PREVIEW_ASPECT_MAX = 16f / 9f
 /** Width of the aiming frame as a share of the camera frame: the whole plant, or one sick spot up close. */
 private const val PLANT_FRAME_SHARE = 0.8f
 private const val DISEASE_FRAME_SHARE = 0.5f
+
+/** The dark blink of the shutter fades into the waiting veil in this time. */
+private const val SHOT_BLINK_MS = 150
 
 /** The camera of the platform: CameraX on Android, a stub that reports [CameraStatus.Unavailable] on the JVM. */
 public typealias SmartCameraView = @Composable (CameraShutter, (CameraStatus) -> Unit, Modifier) -> Unit
@@ -221,6 +230,7 @@ public fun SmartCameraScreen(
             plantDiagnoser = plantDiagnoser,
             plant = plant,
             initialPhoto = initialPhoto,
+            applyZoom = { shutter.zoomRatio = it },
         )
     }
     DisposableEffect(controller) { onDispose { controller.close() } }
@@ -300,18 +310,18 @@ private fun Viewfinder(
     val scope = rememberCoroutineScope()
     val status = controller.cameraStatus
     val blocked = status is CameraStatus.Denied || status == CameraStatus.Unavailable
+    val layout = remember { PreviewLayout() }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(CameraChrome.background)
-            .pointerInput(controller) {
-                var dragX = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { dragX = 0f },
-                    onDragEnd = { controller.swipeMode(dragX) },
-                    onHorizontalDrag = { _, amount -> dragX += amount },
-                )
-            }
+            .onGloballyPositioned { layout.root = it }
+            .viewfinderGestures(
+                previewBounds = layout::previewBounds,
+                onSwipe = controller::swipeMode,
+                onZoom = controller::zoomBy,
+                onDoubleTap = controller::resetZoom,
+            )
             .testTag("smartcam_viewfinder"),
     ) {
         Column(
@@ -348,12 +358,19 @@ private fun Viewfinder(
                     modifier = Modifier
                         .aspectRatio(CAMERA_FRAME_ASPECT)
                         .clip(RoundedCornerShape(Radii.md))
+                        .onGloballyPositioned { layout.preview = it }
                         .testTag("smartcam_preview"),
                     contentAlignment = Alignment.Center,
                 ) {
                     // Stays composed while blocked: after «Открыть настройки» it reports the new permission state itself.
                     camera(shutter, controller::onCameraStatus, Modifier.fillMaxSize())
-                    if (!blocked) AimingFrame(controller.mode, photoLoadFailed = controller.photoLoadFailed)
+                    if (!blocked) {
+                        AimingFrame(controller.mode, photoLoadFailed = controller.photoLoadFailed)
+                        ShotFeedback(pending = controller.shotPending)
+                        controller.zoomLabel?.let { label ->
+                            ZoomLabel(label, onReset = controller::resetZoom, modifier = Modifier.align(Alignment.BottomCenter))
+                        }
+                    }
                 }
                 if (blocked) {
                     Box(modifier = Modifier.padding(horizontal = Spacing.lg)) {
@@ -376,6 +393,7 @@ private fun Viewfinder(
                     Spacer(Modifier.size(Spacing.lg))
                     ShutterRow(
                         mode = controller.mode,
+                        busy = controller.shotPending,
                         shutterEnabled = status is CameraStatus.Ready && !controller.picking,
                         galleryEnabled = !controller.picking,
                         onShutter = { controller.shutter(scope) },
@@ -384,6 +402,74 @@ private fun Viewfinder(
                 }
             }
         }
+    }
+}
+
+/** Where the preview sits inside the viewfinder, for the double tap; read in the gesture, never in composition. */
+private class PreviewLayout {
+    var root: LayoutCoordinates? = null
+    var preview: LayoutCoordinates? = null
+
+    fun previewBounds(): Rect? {
+        val outer = root?.takeIf { it.isAttached } ?: return null
+        val inner = preview?.takeIf { it.isAttached } ?: return null
+        return outer.localBoundingBoxOf(inner)
+    }
+}
+
+/**
+ * The shutter reaction (M11c item 2): on the tap the preview goes dark at once and lifts to a dim veil that stays
+ * until the photo is ready, like the blink of a system camera.
+ */
+@Composable
+private fun ShotFeedback(pending: Boolean) {
+    val veil = remember { Animatable(0f) }
+    LaunchedEffect(pending) {
+        if (pending) {
+            veil.snapTo(CameraChrome.shotBlink)
+            veil.animateTo(CameraChrome.shotVeil, tween(SHOT_BLINK_MS))
+        } else {
+            veil.snapTo(0f)
+        }
+    }
+    if (pending) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = veil.value }
+                .background(CameraChrome.background)
+                .testTag("smartcam_shotFeedback"),
+        )
+    }
+}
+
+/** «2.0×» on the preview while zoomed; the whole 48 dp target returns to 1×. */
+@Composable
+private fun ZoomLabel(label: String, onReset: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(Res.string.smartcam_zoomReset, label)
+    Box(
+        modifier = modifier
+            .padding(bottom = Spacing.xs)
+            // Grows with the text: at font scale 1.3 «4.0×» is wider than 48 dp.
+            .defaultMinSize(minWidth = Sizes.touch, minHeight = Sizes.touch)
+            .clip(RoundedCornerShape(Radii.md))
+            .clickable(role = Role.Button, onClick = onReset)
+            .semantics { contentDescription = description }
+            .testTag("smartcam_zoomLabel"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = CameraChrome.content,
+            maxLines = 1,
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radii.md))
+                .background(CameraChrome.scrim)
+                .padding(horizontal = Spacing.xs, vertical = Spacing.xxs)
+                .testTag("smartcam_zoomLabelText"),
+        )
     }
 }
 
@@ -555,6 +641,7 @@ private fun ModeSelector(selected: SmartCameraMode, onSelect: (SmartCameraMode) 
 @Composable
 private fun ShutterRow(
     mode: SmartCameraMode,
+    busy: Boolean,
     shutterEnabled: Boolean,
     galleryEnabled: Boolean,
     onShutter: () -> Unit,
@@ -588,9 +675,14 @@ private fun ShutterRow(
             contentAlignment = Alignment.Center,
         ) {
             val markModifier = Modifier.size(Sizes.iconSlot)
-            when (mode) {
-                SmartCameraMode.Plant -> GtSpeciesMark(tint = CameraChrome.onContent, modifier = markModifier)
-                SmartCameraMode.Disease -> GtDiagnosisMark(tint = CameraChrome.onContent, modifier = markModifier)
+            when {
+                busy -> CircularProgressIndicator(
+                    color = CameraChrome.onContent,
+                    strokeWidth = Sizes.cameraRing,
+                    modifier = markModifier.testTag("smartcam_shutterBusy"),
+                )
+                mode == SmartCameraMode.Plant -> GtSpeciesMark(tint = CameraChrome.onContent, modifier = markModifier)
+                else -> GtDiagnosisMark(tint = CameraChrome.onContent, modifier = markModifier)
             }
         }
         Spacer(Modifier.weight(1f))
