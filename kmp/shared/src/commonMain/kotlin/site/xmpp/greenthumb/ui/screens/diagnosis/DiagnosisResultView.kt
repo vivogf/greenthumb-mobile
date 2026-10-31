@@ -34,20 +34,48 @@ import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.diagnosis_advice
+import site.xmpp.greenthumb.ui.res.diagnosis_dailyLimit
 import site.xmpp.greenthumb.ui.res.diagnosis_disclaimer
 import site.xmpp.greenthumb.ui.res.diagnosis_done
+import site.xmpp.greenthumb.ui.res.diagnosis_failed
+import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodHigh
+import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodLow
+import site.xmpp.greenthumb.ui.res.diagnosis_likelihoodMedium
+import site.xmpp.greenthumb.ui.res.diagnosis_networkError
 import site.xmpp.greenthumb.ui.res.diagnosis_newDiagnosis
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.diagnosis_resultTitle
 import site.xmpp.greenthumb.ui.res.diagnosis_saveFailed
 import site.xmpp.greenthumb.ui.res.diagnosis_saveToJournal
 import site.xmpp.greenthumb.ui.res.diagnosis_savedToJournal
+import site.xmpp.greenthumb.ui.res.diagnosis_serviceLimit
+import site.xmpp.greenthumb.ui.res.diagnosis_unavailable
 import site.xmpp.greenthumb.ui.theme.GreenThumbExtendedColors
 import site.xmpp.greenthumb.ui.theme.GtParagraph
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 import site.xmpp.greenthumb.ui.theme.greenThumbExtendedColors
+
+@Composable
+public fun likelihoodWord(likelihood: Likelihood): String = stringResource(
+    when (likelihood) {
+        Likelihood.Low -> Res.string.diagnosis_likelihoodLow
+        Likelihood.Medium -> Res.string.diagnosis_likelihoodMedium
+        Likelihood.High -> Res.string.diagnosis_likelihoodHigh
+    },
+)
+
+@Composable
+public fun diagnosisErrorText(error: DiagnosisError): String = stringResource(
+    when (error) {
+        DiagnosisError.Unavailable -> Res.string.diagnosis_unavailable
+        DiagnosisError.DailyLimit -> Res.string.diagnosis_dailyLimit
+        DiagnosisError.ServiceLimit -> Res.string.diagnosis_serviceLimit
+        DiagnosisError.Network -> Res.string.diagnosis_networkError
+        DiagnosisError.Failed -> Res.string.diagnosis_failed
+    },
+)
 
 /** Filled dots of a likelihood: 3 for «Скорее всего», 2 for «Возможно», 1 for «Маловероятно». */
 internal fun likelihoodDots(likelihood: Likelihood): Int = when (likelihood) {

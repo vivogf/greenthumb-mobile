@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.stringResource
@@ -96,6 +98,8 @@ import site.xmpp.greenthumb.ui.res.common_permissionDeniedTitle
 import site.xmpp.greenthumb.ui.res.diagnosis_journalCaptionPrefix
 import site.xmpp.greenthumb.ui.res.diagnosis_loading
 import site.xmpp.greenthumb.ui.res.diagnosis_notePlaceholder
+import site.xmpp.greenthumb.ui.res.diagnosis_photoLoadFailed
+import site.xmpp.greenthumb.ui.res.diagnosis_photoLoading
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.smartcam_addToMine
 import site.xmpp.greenthumb.ui.res.smartcam_cameraDenied
@@ -115,6 +119,8 @@ import site.xmpp.greenthumb.ui.res.smartcam_noMatch
 import site.xmpp.greenthumb.ui.res.smartcam_notInList
 import site.xmpp.greenthumb.ui.res.smartcam_openSettings
 import site.xmpp.greenthumb.ui.res.smartcam_pickPlant
+import site.xmpp.greenthumb.ui.res.smartcam_plantCare
+import site.xmpp.greenthumb.ui.res.smartcam_plantChipClear
 import site.xmpp.greenthumb.ui.res.smartcam_reshoot
 import site.xmpp.greenthumb.ui.res.smartcam_retake
 import site.xmpp.greenthumb.ui.res.smartcam_sendDisease
@@ -136,6 +142,7 @@ import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResultView
 import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
 import site.xmpp.greenthumb.ui.screens.diagnosis.Likelihood
+import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.diagnosis.diagnosisErrorText
 import site.xmpp.greenthumb.ui.screens.diagnosis.likelihoodWord
 import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
@@ -169,6 +176,10 @@ public typealias SmartCameraView = @Composable (CameraShutter, (CameraStatus) ->
  * and species to Add Plant through [onAddToMine]; «Просто узнать» and back save nothing. A disease
  * result is for a plant outside the list; «Это моё растение?» picks one of [myPlants] and saves the
  * result to its journal through [journal].
+ *
+ * From a plant («Что с растением?», «Проверить на болезни») [plant] puts that plant's chip on top of «Болезнь»:
+ * the check goes through [plantDiagnoser] and its result is saved to that plant's journal directly. [initialPhoto]
+ * (the plant cover) starts on the after-shot screen instead of the viewfinder.
  */
 @Composable
 public fun SmartCameraScreen(
@@ -184,12 +195,15 @@ public fun SmartCameraScreen(
     camera: SmartCameraView = { shutter, onStatus, modifier -> CameraCapture(shutter, onStatus, modifier) },
     openSettings: () -> Unit = ::openAppSettings,
     onModeChange: (SmartCameraMode) -> Unit = {},
+    plant: SmartCameraPlant? = null,
+    plantDiagnoser: PlantDiagnoser? = null,
+    initialPhoto: (suspend () -> ByteArray)? = null,
 ) {
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
     val currentModeChange by rememberUpdatedState(onModeChange)
     val shutter = remember { CameraShutter() }
-    val controller = remember(identifier, diagnoser, journal) {
+    val controller = remember(identifier, diagnoser, journal, plantDiagnoser, plant?.id) {
         // Shots left behind by a killed process; this screen does not own any yet.
         deleteStaleCaptures()
         SmartCameraController(
@@ -205,9 +219,14 @@ public fun SmartCameraScreen(
             journal = journal,
             deleteCapture = deleteCapture,
             onModeChange = { currentModeChange(it) },
+            plantDiagnoser = plantDiagnoser,
+            plant = plant,
+            initialPhoto = initialPhoto,
         )
     }
     DisposableEffect(controller) { onDispose { controller.close() } }
+    val loadScope = rememberCoroutineScope()
+    LaunchedEffect(controller) { controller.loadInitialPhoto(loadScope) }
     SmartCameraContent(
         controller = controller,
         onClose = onClose,
@@ -244,7 +263,8 @@ internal fun SmartCameraContent(
     when (controller.phase) {
         // The camera is in composition only on the viewfinder, so it is released as soon as a photo is shown.
         SmartCameraPhase.Viewfinder -> viewfinder()
-        SmartCameraPhase.Captured -> AfterShot(controller, onClose, onSend = { controller.send(scope, language) })
+        SmartCameraPhase.Captured, SmartCameraPhase.PhotoLoading ->
+            AfterShot(controller, onClose, onSend = { controller.send(scope, language) })
         else -> ResultContent(controller, onClose, onAddToMine, myPlants)
     }
 
@@ -311,14 +331,23 @@ private fun Viewfinder(
                 .padding(Spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
                 ChromeButton(
                     label = stringResource(Res.string.smartcam_close),
                     onClick = onClose,
                     modifier = Modifier.testTag("smartcam_close"),
                 ) { GtCloseMark(tint = CameraChrome.content, modifier = Modifier.size(Sizes.iconSlot)) }
-                Spacer(Modifier.weight(1f))
-                if (controller.hasFlash) FlashToggle(controller)
+                // The chip is centred between two equal 48 dp slots, so a missing flash does not shift it.
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    controller.activePlant?.let { PlantChip(it, onClear = controller::clearPlant) }
+                }
+                Box(modifier = Modifier.size(Sizes.touch)) {
+                    if (controller.hasFlash) FlashToggle(controller)
+                }
             }
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -333,7 +362,7 @@ private fun Viewfinder(
                         onSystemCamera = { controller.useSystemCamera(scope) },
                     )
                 } else {
-                    AimingFrame(controller.mode)
+                    AimingFrame(controller.mode, photoLoadFailed = controller.photoLoadFailed)
                 }
             }
             ModeSelector(selected = controller.mode, onSelect = controller::selectMode)
@@ -389,9 +418,12 @@ private fun FlashToggle(controller: SmartCameraController) {
     }
 }
 
-/** Corners of the aim and the hint under them; «Болезнь» uses a smaller frame for a close-up. */
+/**
+ * Corners of the aim and the hint under them; «Болезнь» uses a smaller frame for a close-up. After a failed
+ * plant cover download the hint says to take a new photo instead.
+ */
 @Composable
-private fun AimingFrame(mode: SmartCameraMode) {
+private fun AimingFrame(mode: SmartCameraMode, photoLoadFailed: Boolean) {
     val share = if (mode == SmartCameraMode.Plant) PLANT_FRAME_SHARE else DISEASE_FRAME_SHARE
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Box(
@@ -403,9 +435,10 @@ private fun AimingFrame(mode: SmartCameraMode) {
         )
         Text(
             text = stringResource(
-                when (mode) {
-                    SmartCameraMode.Plant -> Res.string.smartcam_hintPlant
-                    SmartCameraMode.Disease -> Res.string.smartcam_hintDisease
+                when {
+                    photoLoadFailed -> Res.string.diagnosis_photoLoadFailed
+                    mode == SmartCameraMode.Plant -> Res.string.smartcam_hintPlant
+                    else -> Res.string.smartcam_hintDisease
                 },
             ),
             style = MaterialTheme.typography.bodyMedium,
@@ -415,8 +448,57 @@ private fun AimingFrame(mode: SmartCameraMode) {
                 .clip(RoundedCornerShape(Radii.md))
                 .background(CameraChrome.scrim)
                 .padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
-                .testTag("smartcam_hint"),
+                .testTag(if (photoLoadFailed) "smartcam_photoLoadError" else "smartcam_hint"),
         )
+    }
+}
+
+/**
+ * The plant of a check from plant detail: a round thumbnail, the name and its own ✕ (a 48 dp target) that turns
+ * the check into a plant-less one. A long name ends with «…» so the chip never pushes ✕ or the flash away.
+ */
+@Composable
+private fun PlantChip(plant: SmartCameraPlant, onClear: () -> Unit, onCamera: Boolean = true) {
+    val pill = RoundedCornerShape(Radii.xl)
+    val scheme = MaterialTheme.colorScheme
+    val fill = if (onCamera) CameraChrome.scrim else scheme.surfaceVariant
+    val content = if (onCamera) CameraChrome.content else scheme.onSurface
+    val clearLabel = stringResource(Res.string.smartcam_plantChipClear, plant.name)
+    Row(
+        modifier = Modifier
+            .heightIn(min = Sizes.touch)
+            .clip(pill)
+            .background(fill)
+            .padding(start = Spacing.xs)
+            .testTag("smartcam_plantChip"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        GtPlantPhoto(
+            photoUrl = plant.photoUrl,
+            leafSize = Spacing.lg,
+            modifier = Modifier
+                .size(Sizes.iconSlot)
+                .clip(CircleShape)
+                .background(if (onCamera) CameraChrome.scrim else scheme.surface),
+        )
+        Text(
+            text = plant.name,
+            style = MaterialTheme.typography.labelLarge,
+            color = content,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).testTag("smartcam_plantChipName"),
+        )
+        Box(
+            modifier = Modifier
+                .size(Sizes.touch)
+                .clip(CircleShape)
+                .clickable(role = Role.Button, onClick = onClear)
+                .semantics { contentDescription = clearLabel }
+                .testTag("smartcam_plantChipClear"),
+            contentAlignment = Alignment.Center,
+        ) { GtCloseMark(tint = content, modifier = Modifier.size(Spacing.lg)) }
     }
 }
 
@@ -551,11 +633,17 @@ private fun CameraBlocked(
     }
 }
 
-/** The photo stays on the phone here; the one primary button sends it, «Переснять» goes back to the camera. */
+/**
+ * The photo stays on the phone here; the one primary button sends it, «Переснять» goes back to the camera.
+ * A check from plant detail keeps the plant chip and says that the plant's care is taken into account. While the
+ * plant cover is loading, the button waits.
+ */
 @Composable
 private fun AfterShot(controller: SmartCameraController, onClose: () -> Unit, onSend: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val plant = controller.mode == SmartCameraMode.Plant
+    val loadingPhoto = controller.phase == SmartCameraPhase.PhotoLoading
+    val checked = controller.activePlant
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -569,6 +657,31 @@ private fun AfterShot(controller: SmartCameraController, onClose: () -> Unit, on
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
         Header(onClose = onClose, closeTag = "smartcam_close")
+        if (checked != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                PlantChip(checked, onClear = controller::clearPlant, onCamera = false)
+                Text(
+                    text = stringResource(Res.string.smartcam_plantCare, checked.name),
+                    style = GtParagraph.of(MaterialTheme.typography.bodyMedium),
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("smartcam_plantCare"),
+                )
+            }
+        }
+        if (loadingPhoto) {
+            Row(
+                modifier = Modifier.fillMaxWidth().testTag("smartcam_photoLoading"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                CircularProgressIndicator(color = scheme.secondary, modifier = Modifier.size(Spacing.xxl))
+                Text(
+                    text = stringResource(Res.string.diagnosis_photoLoading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        }
         PhotoPreview(controller.photo)
         if (!plant) {
             GtInputField(
@@ -582,6 +695,7 @@ private fun AfterShot(controller: SmartCameraController, onClose: () -> Unit, on
         PrimaryButton(
             text = stringResource(if (plant) Res.string.smartcam_sendPlant else Res.string.smartcam_sendDisease),
             onClick = onSend,
+            enabled = !loadingPhoto,
             modifier = Modifier.gtButtonWidth().testTag("smartcam_send"),
         )
         Text(
@@ -593,6 +707,7 @@ private fun AfterShot(controller: SmartCameraController, onClose: () -> Unit, on
         SecondaryButton(
             text = stringResource(Res.string.smartcam_reshoot),
             onClick = controller::retake,
+            enabled = !loadingPhoto,
             modifier = Modifier.gtButtonWidth().testTag("smartcam_reshoot"),
         )
     }
@@ -661,7 +776,7 @@ private fun ResultContent(
         Header(onClose = onClose, closeTag = "smartcam_back")
 
         when (phase) {
-            SmartCameraPhase.Viewfinder, SmartCameraPhase.Captured -> Unit
+            SmartCameraPhase.Viewfinder, SmartCameraPhase.Captured, SmartCameraPhase.PhotoLoading -> Unit
             SmartCameraPhase.Loading -> {
                 PhotoPreview(controller.photo)
                 Row(
@@ -717,11 +832,12 @@ private fun ResultContent(
                 )
             }
             is SmartCameraPhase.DiseaseResult -> {
-                val chosen = myPlants.firstOrNull { it.id == controller.journalPlantId }
+                val diagnosed = controller.diagnosedPlant
+                val chosen = diagnosed ?: myPlants.firstOrNull { it.id == controller.journalPlantId }
                 DiagnosisResultView(
                     result = phase.result,
                     photo = controller.photo,
-                    saveState = if (chosen != null) controller.journalSave else null,
+                    saveState = if (chosen != null && controller.canSaveToJournal) controller.journalSave else null,
                     onSave = {
                         controller.saveToJournal(
                             scope,
@@ -731,9 +847,10 @@ private fun ResultContent(
                     onDone = onClose,
                     onAgain = controller::retake,
                     beforeActions = {
-                        OwnPlantChoice(
+                        // A plant check without a journal has nothing to say about saving.
+                        if (diagnosed == null || controller.canSaveToJournal) OwnPlantChoice(
                             chosen = chosen,
-                            canChoose = controller.canSaveToJournal && myPlants.isNotEmpty() &&
+                            canChoose = diagnosed == null && controller.canSaveToJournal && myPlants.isNotEmpty() &&
                                 controller.journalSave != JournalSaveState.Saving &&
                                 controller.journalSave != JournalSaveState.Saved,
                             onChoose = controller::openPlantPicker,

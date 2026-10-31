@@ -31,7 +31,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 | Bottom sheets and switches | Shared `GtModal`, `GtSheetTitle` and `GtSheetRow` keep sheets consistent. One scrim dims the background, without a second Android window dim. Switch rows expose one accessible node; tapping the title toggles the switch. |
 | Plant detail | One watering-due line with a progress bar and last-watered date replaces the old days-left pill. Tapping the name opens «Название и место»: name, place chips and a custom place; explicit save, cancel/Back/scrim discard changes. |
 | Care settings | Cards use −/+ steppers within server bounds: watering **1–365 days**, fertilizing **1–3650 days**, repotting/pruning **1–120 months**. Optional care types have switches; watering stays enabled. |
-| Diagnosis | «Что с растением?» shows up to three causes with likelihood words and dots, advice and a disclaimer, not percentages. «Сохранить в журнал растения» optionally saves the photo and short result to an owned plant's journal; failures keep a retry action. |
+| Diagnosis | «Что с растением?» on a plant (and «Проверить на болезни» on its cover) opens the smart camera in «Болезнь» with a chip of that plant; the check uses its care history, and ✕ on the chip makes it a plant-less check. The result shows up to three causes with likelihood words and dots, advice and a disclaimer, not percentages. «Сохранить в журнал растения» optionally saves the photo and short result to an owned plant's journal; failures keep a retry action. |
 | Smart camera | The dashboard's icon-only button opens **«Растение» / «Болезнь»** modes. Both use the system camera or gallery, **not CameraX**. Plant mode uses Pl@ntNet; a result can become an Add Plant draft or be viewed without saving. Disease mode uses OpenAI without requiring a plant; «Это моё растение?» selects an owned plant for an optional journal save **without another diagnosis call**. No usage counter is shown; limits have clear messages. |
 | Add Plant | Choosing a cover photo only sets the cover. Optional **«Узнать вид по фото»** sends that photo to Pl@ntNet; the offline species catalog remains available. A species can fill care defaults but never overwrites a typed name. The watering stepper starts at **7 days**. |
 | Privacy and first sign-in | Outgoing photos lose EXIF/GPS metadata. The short login notice links to the privacy page. The intro appears only before the first sign-in; signing out returns to the login choice, not the intro. Contact: **greenthumbapp@proton.me**. |
@@ -156,7 +156,7 @@ Do not run the whole directory blindly: some stages call live Pl@ntNet/OpenAI or
 | Coverage | Flows in `maestro/` |
 |---|---|
 | Startup, themes, icons and sheets | `m10_flash_login.yaml`, `m10_flash.yaml`, `m10_icons.yaml`, `m10_sheets.yaml`, `m10_login_back.yaml` |
-| Plant detail and care | `m10_water_line.yaml`, `m10_name_place.yaml`, `m10_care_cards.yaml`, `m10_diagnosis_result.yaml` |
+| Plant detail and care | `m10_water_line.yaml`, `m10_name_place.yaml`, `m10_care_cards.yaml`, `m11_plant_camera.yaml` |
 | Smart camera and Add Plant | `m10_smartcam.yaml`, `m10_new_plant.yaml` |
 | Metadata and sign-out routing | `m10_exif.yaml`, `m10_signout_route.yaml` |
 

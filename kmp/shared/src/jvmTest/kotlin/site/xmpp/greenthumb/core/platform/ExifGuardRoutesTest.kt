@@ -23,9 +23,11 @@ import site.xmpp.greenthumb.ui.components.PhotoPickerController
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantFields
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantForm
 import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
-import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisController
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
-import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisPhase
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraController
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraMode
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraPhase
+import site.xmpp.greenthumb.ui.screens.smartcam.SmartCameraPlant
 import site.xmpp.greenthumb.ui.screens.species.ApiSpeciesIdentifier
 import site.xmpp.greenthumb.ui.screens.species.IdentifyController
 import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
@@ -40,11 +42,13 @@ import kotlin.test.assertTrue
 
 /**
  * Privacy guard per route (VAL-LOOK-016): the GPS fixture goes through each photo flow with its production
- * helpers, a MockEngine captures the request body, and the decoded photo has no APP1 `Exif` and no GPS.
+ * helpers, a MockEngine captures the request body, and the decoded photo has no APP1 `Exif` and no GPS. Plant
+ * diagnosis runs through the smart camera bound to the plant.
  */
 class ExifGuardRoutesTest {
 
     private val fixture = gpsExifJpeg()
+    private val rotatedCapture = withExifOrientation(gpsExifJpeg(1600, 1200), 6)
 
     private class Sent(val method: String, val path: String, val body: String)
 
@@ -118,45 +122,62 @@ class ExifGuardRoutesTest {
         client.close()
     }
 
+    /**
+     * «Что с растением?» from plant detail: the smart camera bound to the plant. The in-app camera hands over a
+     * sensor-landscape shot with EXIF Orientation 6 and GPS, as CameraX does.
+     */
+    private fun plantCamera(api: GreenThumbApi, prepareDisease: (ByteArray) -> ByteArray): SmartCameraController {
+        val diagnoser = ApiPlantDiagnoser(api)
+        return SmartCameraController(
+            initialMode = SmartCameraMode.Disease,
+            identifier = null,
+            diagnoser = diagnoser,
+            pick = { PickResult.Picked(rotatedCapture) },
+            preparePlant = { it },
+            prepareDisease = prepareDisease,
+            catalog = { null },
+            capture = { PickResult.Picked(rotatedCapture) },
+            plantDiagnoser = diagnoser,
+            plant = SmartCameraPlant(id = "p-1", name = "Fern", photoUrl = ""),
+        )
+    }
+
     @Test
-    fun diagnosisRequestHasNoExif() = runTest {
+    fun plantDiagnosisRequestIsUprightAndHasNoExif() = runTest {
+        assertTrue(carriesGpsOrMake(rotatedCapture), "the fixture carries GPS")
+        val (rawWidth, rawHeight) = assertNotNull(imageSize(rotatedCapture))
+        assertTrue(rawWidth > rawHeight, "the sensor image is landscape")
         val sent = mutableListOf<Sent>()
         val (api, client) = api(sent)
-        val c = DiagnosisController(
-            plantId = "p-1",
-            diagnoser = ApiPlantDiagnoser(api),
-            pick = { PickResult.Picked(fixture) },
-            prepare = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
-            deleteCapture = {},
-        )
-        c.pickPhoto(this, PickSource.Gallery)
+        val c = plantCamera(api) { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } }
+        c.onCameraStatus(CameraStatus.Ready(hasFlash = false))
+        c.shutter(this)
         advanceUntilIdle()
-        c.submit(this, "ru")
+        c.send(this, "ru")
         advanceUntilIdle()
-        assertIs<DiagnosisPhase.Result>(c.phase)
+        assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
         val request = sent.single()
         assertEquals("POST /api/plants/p-1/diagnose", "${request.method} ${request.path}")
-        assertClean("diagnose", Json.parseToJsonElement(request.body).jsonObject["photo"]!!.jsonPrimitive.content)
+        val dataUri = Json.parseToJsonElement(request.body).jsonObject["photo"]!!.jsonPrimitive.content
+        assertClean("diagnose (plant)", dataUri)
+        val (width, height) = assertNotNull(imageSize(Base64.decode(dataUri.removePrefix("data:image/jpeg;base64,"))))
+        assertTrue(height > width, "the photo is rotated upright: $width×$height")
         client.close()
     }
 
     @Test
-    fun diagnosisWithoutReencodeStillSendsNoExif() = runTest {
+    fun plantDiagnosisWithoutReencodeStillSendsNoExif() = runTest {
         // A future path that forgets to re-encode still goes through photoDataUri.
         val sent = mutableListOf<Sent>()
         val (api, client) = api(sent)
-        val c = DiagnosisController(
-            plantId = "p-1",
-            diagnoser = ApiPlantDiagnoser(api),
-            pick = { PickResult.Picked(fixture) },
-            prepare = { it },
-            deleteCapture = {},
-        )
-        c.pickPhoto(this, PickSource.Gallery)
+        val c = plantCamera(api) { it }
+        c.chooseFromGallery(this)
         advanceUntilIdle()
-        c.submit(this, "en")
+        c.send(this, "en")
         advanceUntilIdle()
-        assertClean("diagnose (raw bytes)", Json.parseToJsonElement(sent.single().body).jsonObject["photo"]!!.jsonPrimitive.content)
+        val request = sent.single()
+        assertEquals("POST /api/plants/p-1/diagnose", "${request.method} ${request.path}")
+        assertClean("diagnose (plant, raw bytes)", Json.parseToJsonElement(request.body).jsonObject["photo"]!!.jsonPrimitive.content)
         client.close()
     }
 

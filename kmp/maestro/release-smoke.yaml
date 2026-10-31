@@ -9,7 +9,7 @@
 #              the system photo picker) and species search; backdate the last watering (TODAY =
 #              today's date field text MM/DD/YYYY, PAST_DAY = full label of a day in the previous
 #              month, e.g. "Monday, September 28, 2026") so the plant
-#              is overdue; detail shows the https photo; open Diagnosis up to the photo input; add
+#              is overdue; detail shows the https photo; open the plant camera with its chip and close it; add
 #              a journal note.
 #   widget     on the home screen, tap the plant row in the placed widget: the plant opens; water
 #              it and see the Watered entry in the journal.
@@ -126,18 +126,23 @@ name: GreenThumb release smoke (${STEP})
       - takeScreenshot: detail-photo
       - scrollUntilVisible:
           element:
-            text: "Diagnosis"
+            text: "What's wrong with my plant\\?"
           direction: DOWN
-      - tapOn: "Diagnosis"
+      - tapOn: "What's wrong with my plant\\?"
+      - runFlow:
+          when:
+            visible: "While using the app|Only this time"
+          commands:
+            - tapOn: "While using the app|Only this time"
       - extendedWaitUntil:
-          visible: "Take a photo of the leaves.*"
+          visible: "Photograph the sick spot"
           timeout: 10000
       - assertVisible: "Choose from gallery"
-      - assertVisible: "Take photo"
-      - takeScreenshot: diagnosis-input
-      - back
+      - assertVisible: "Remove “.*” from the check"
+      - takeScreenshot: diagnosis-camera
+      - tapOn: "Close the camera"
       - extendedWaitUntil:
-          visible: "Diagnosis"
+          visible: "What's wrong with my plant\\?"
           timeout: 10000
       - scrollUntilVisible:
           element: "Add a note…"

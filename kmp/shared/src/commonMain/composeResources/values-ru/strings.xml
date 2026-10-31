@@ -506,30 +506,20 @@
     <!-- diagnosis.* — plant diagnosis by photo (architecture §5.7, §8.7). -->
     <string name="diagnosis_entry">Что с растением?</string>
     <string name="diagnosis_entryDescription">Фото → возможные причины и что делать</string>
-    <string name="diagnosis_title">Что с растением?</string>
-    <string name="diagnosis_intro">Сфотографируйте листья или стебель, которые вас беспокоят. Учитывается недавняя история ухода за этим растением.</string>
-    <string name="diagnosis_takePhoto">Сделать фото</string>
-    <string name="diagnosis_choosePhoto">Выбрать из галереи</string>
     <string name="diagnosis_photoPreview">Выбранное фото</string>
-    <string name="diagnosis_photoMissing">Добавьте фото растения, чтобы начать.</string>
     <string name="diagnosis_notePlaceholder">Что вас беспокоит? (необязательно)</string>
-    <string name="diagnosis_submit">Диагностировать</string>
     <string name="diagnosis_loading">Анализируем фото… Это может занять до минуты.</string>
-    <string name="diagnosis_cancel">Отменить диагностику</string>
     <string name="diagnosis_resultTitle">Возможные причины</string>
     <string name="diagnosis_likelihoodLow">Маловероятно</string>
     <string name="diagnosis_likelihoodMedium">Возможно</string>
     <string name="diagnosis_likelihoodHigh">Скорее всего</string>
     <string name="diagnosis_advice">Что делать</string>
-    <string name="diagnosis_summary">Итог</string>
     <string name="diagnosis_disclaimer">Это подсказка, а не диагноз. Если растению становится хуже, обратитесь к специалисту.</string>
     <string name="diagnosis_unavailable">Проверка растения временно недоступна</string>
     <string name="diagnosis_dailyLimit">Дневной лимит диагностик исчерпан. Попробуйте завтра.</string>
     <string name="diagnosis_networkError">Нет связи с сервером. Проверьте интернет и повторите.</string>
     <string name="diagnosis_failed">Не удалось разобрать фото. Попробуйте другое фото.</string>
-    <string name="diagnosis_retry">Повторить</string>
     <string name="diagnosis_newDiagnosis">Проверить ещё раз</string>
-    <string name="diagnosis_backToPlant">К растению</string>
     <string name="diagnosis_serviceLimit">Сегодня проверки у сервиса закончились. Попробуйте завтра.</string>
     <string name="diagnosis_saveToJournal">Сохранить в журнал растения</string>
     <string name="diagnosis_savedToJournal">Сохранено в журнал</string>
@@ -600,5 +590,7 @@
     <string name="smartcam_isMine">Это моё растение?</string>
     <string name="smartcam_pickPlant">Какое из ваших растений?</string>
     <string name="smartcam_chosenPlant">Сохраним в журнал растения «%1$s»</string>
+    <string name="smartcam_plantChipClear">Убрать растение «%1$s»</string>
+    <string name="smartcam_plantCare">Учтём уход за «%1$s»</string>
     <string name="a11y_smartCamera">Умная камера</string>
 </resources>

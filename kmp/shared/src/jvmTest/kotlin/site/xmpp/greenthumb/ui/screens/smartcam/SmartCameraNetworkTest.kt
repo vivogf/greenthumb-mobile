@@ -239,7 +239,8 @@ class SmartCameraNetworkTest {
         client.close()
     }
 
-    private companion object {        val JSON = headersOf("Content-Type", "application/json")
+    private companion object {
+        val JSON = headersOf("Content-Type", "application/json")
         const val DIAGNOSE_OK =
             """{"causes":[{"title":"Overwatering","likelihood":"high","explanation":"Wet soil.","advice":"Water less."}],"summary":"Too much water."}"""
         const val IDENTIFY_OK =

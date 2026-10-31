@@ -1,17 +1,7 @@
 package site.xmpp.greenthumb.ui.screens.diagnosis
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,9 +9,6 @@ import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.DiagnosisResponse
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.PHOTO_CAPTION_MAX_LENGTH
-import site.xmpp.greenthumb.core.platform.PickResult
-import site.xmpp.greenthumb.core.platform.PickSource
-import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.ui.screens.smartcam.StandaloneDiagnoser
 
 /** Likelihood of a cause, shown only as a word (architecture §8.7: no numbers). */
@@ -38,13 +25,6 @@ public data class DiagnosisResult(
     public val causes: List<DiagnosisCause>,
     public val summary: String,
 )
-
-public sealed interface DiagnosisPhase {
-    /** Photo and note can be edited; [DiagnosisController.error] may describe the last failed attempt. */
-    public data object Input : DiagnosisPhase
-    public data object Loading : DiagnosisPhase
-    public data class Result(public val result: DiagnosisResult) : DiagnosisPhase
-}
 
 public enum class DiagnosisError {
     /** 503 `diagnosis_unavailable`, other 5xx or an answer the app cannot show. */
@@ -163,8 +143,6 @@ public object DiagnosisLogic {
         return bytes
     }
 
-    public fun photoDataUrl(jpeg: ByteArray): String = photoDataUri(jpeg)
-
     /** `scope` of a 429 `daily_limit` body, or null when the body has none. */
     private fun limitScope(body: String): String? = try {
         Json.parseToJsonElement(body).jsonObject["scope"]?.jsonPrimitive?.content
@@ -186,250 +164,6 @@ public object DiagnosisLogic {
             return Base64.decode(url.substring(comma + 1))
         }
         return download(url)
-    }
-}
-
-/**
- * State of one diagnosis screen. Nothing outlives the screen: the photo and
- * note live in memory, a kept camera shot is deleted on replace and on [close],
- * and a cancelled request can never publish its answer.
- */
-public class DiagnosisController(
-    private val plantId: String,
-    private val diagnoser: PlantDiagnoser,
-    private val pick: suspend (PickSource) -> PickResult,
-    private val prepare: (ByteArray) -> ByteArray,
-    private val deleteCapture: (String) -> Unit,
-    private val workContext: CoroutineContext = EmptyCoroutineContext,
-    private val journal: DiagnosisJournalSaver? = null,
-    private val initialPhoto: (suspend () -> ByteArray)? = null,
-) {
-    public var phase: DiagnosisPhase by mutableStateOf(DiagnosisPhase.Input)
-        private set
-
-    public var error: DiagnosisError? by mutableStateOf(null)
-        private set
-
-    public var note: String by mutableStateOf("")
-        private set
-
-    /** Prepared JPEG shown as the preview and sent as the photo. */
-    public var photo: ByteArray? by mutableStateOf(null)
-        private set
-
-    public var picking: Boolean by mutableStateOf(false)
-        private set
-
-    public var deniedSource: PickSource? by mutableStateOf(null)
-        private set
-
-    public var pickErrorMessage: String? by mutableStateOf(null)
-        private set
-
-    /** The cover photo of «Проверить на болезни» is being downloaded and prepared. */
-    public var photoLoading: Boolean by mutableStateOf(false)
-        private set
-
-    /** The cover photo could not be loaded; the normal input is shown instead. */
-    public var photoLoadFailed: Boolean by mutableStateOf(false)
-        private set
-
-    public var journalSave: JournalSaveState by mutableStateOf(JournalSaveState.Idle)
-        private set
-
-    public val hasPhoto: Boolean get() = photo != null
-
-    /** Only a screen opened from a plant of this account gets a journal. */
-    public val canSaveToJournal: Boolean get() = journal != null
-
-    public val canRetry: Boolean
-        get() = error != null && error != DiagnosisError.DailyLimit && error != DiagnosisError.ServiceLimit && photo != null
-
-    /** The prepared JPEG of the shown result; it is the photo saved to the journal. */
-    private var resultPhoto: ByteArray? = null
-    private var journalJob: Job? = null
-    private var initialJob: Job? = null
-
-    private var capturePath: String? = null
-    private var pickJob: Job? = null
-    private var requestJob: Job? = null
-    private var requestId = 0
-    private var closed = false
-
-    public fun updateNote(value: String) {
-        note = DiagnosisLogic.clampNote(value)
-    }
-
-    /** Loads the preset photo once; without one, or on failure, the input works as usual. */
-    public fun loadInitialPhoto(scope: CoroutineScope) {
-        val load = initialPhoto ?: return
-        if (closed || initialJob != null || photo != null) return
-        photoLoading = true
-        initialJob = scope.launch {
-            try {
-                val prepared = withContext(workContext) { prepare(load()) }
-                if (!closed && photo == null) {
-                    photo = prepared
-                    photoLoadFailed = false
-                }
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Throwable) {
-                if (photo == null) photoLoadFailed = true
-            } finally {
-                photoLoading = false
-            }
-        }
-    }
-
-    public fun pickPhoto(scope: CoroutineScope, source: PickSource) {
-        if (closed || picking || phase == DiagnosisPhase.Loading) return
-        picking = true
-        pickJob = scope.launch {
-            try {
-                val picked = try {
-                    pick(source)
-                } catch (cancellation: CancellationException) {
-                    throw cancellation
-                } catch (failure: Throwable) {
-                    pickErrorMessage = failure.message ?: failure.toString()
-                    return@launch
-                }
-                when (picked) {
-                    PickResult.Cancelled -> Unit
-                    is PickResult.PermissionDenied -> deniedSource = picked.source
-                    is PickResult.Picked -> accept(picked)
-                }
-            } finally {
-                picking = false
-            }
-        }
-    }
-
-    private suspend fun accept(picked: PickResult.Picked) {
-        val prepared = try {
-            withContext(workContext) { prepare(picked.bytes) }
-        } catch (failure: Throwable) {
-            picked.capturePath?.let(deleteCapture)
-            if (failure is CancellationException) throw failure
-            pickErrorMessage = failure.message ?: failure.toString()
-            return
-        }
-        if (closed) {
-            picked.capturePath?.let(deleteCapture)
-            return
-        }
-        capturePath?.let(deleteCapture)
-        capturePath = picked.capturePath
-        photo = prepared
-        photoLoadFailed = false
-        error = null
-        if (phase is DiagnosisPhase.Result) phase = DiagnosisPhase.Input
-    }
-
-    public fun submit(scope: CoroutineScope, language: String) {
-        val current = photo ?: return
-        if (closed || phase == DiagnosisPhase.Loading || photoLoading) return
-        val id = ++requestId
-        val noteToSend = DiagnosisLogic.wireNote(note)
-        error = null
-        phase = DiagnosisPhase.Loading
-        requestJob = scope.launch {
-            val outcome = try {
-                val dataUrl = withContext(workContext) { DiagnosisLogic.photoDataUrl(current) }
-                val response = diagnoser.diagnose(plantId, dataUrl, noteToSend, language)
-                DiagnosisLogic.toResult(response)?.let { Result.success(it) }
-                    ?: Result.failure(IllegalStateException("no displayable cause"))
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (failure: Throwable) {
-                Result.failure(failure)
-            }
-            // A cancelled or replaced request never publishes, even if its transport finished anyway.
-            if (id != requestId) return@launch
-            requestJob = null
-            outcome.fold(
-                onSuccess = {
-                    resultPhoto = current
-                    journalJob?.cancel()
-                    journalJob = null
-                    journalSave = JournalSaveState.Idle
-                    phase = DiagnosisPhase.Result(it)
-                },
-                onFailure = {
-                    error = DiagnosisLogic.errorFor(it)
-                    phase = DiagnosisPhase.Input
-                },
-            )
-        }
-    }
-
-    /**
-     * Saves the shown result to the plant journal: one upload of the diagnosed photo with
-     * [caption]. Saved or in-flight saves ignore further taps; a failure can be retried and
-     * sends the same photo and caption again. No diagnosis request is made.
-     */
-    public fun saveToJournal(scope: CoroutineScope, caption: String) {
-        val saver = journal ?: return
-        val jpeg = resultPhoto ?: return
-        if (closed || phase !is DiagnosisPhase.Result) return
-        if (journalSave == JournalSaveState.Saving || journalSave == JournalSaveState.Saved) return
-        journalSave = JournalSaveState.Saving
-        journalJob = scope.launch {
-            journalSave = try {
-                val dataUri = withContext(workContext) { DiagnosisLogic.photoDataUrl(jpeg) }
-                saver.save(plantId, dataUri, caption)
-                JournalSaveState.Saved
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Throwable) {
-                JournalSaveState.Failed
-            }
-        }
-    }
-
-    /** Sends the same photo and note again. */
-    public fun retry(scope: CoroutineScope, language: String) {
-        if (canRetry) submit(scope, language)
-    }
-
-    /** Stops a running request and returns to the input with the photo and note kept. */
-    public fun cancel() {
-        requestId++
-        requestJob?.cancel()
-        requestJob = null
-        if (phase == DiagnosisPhase.Loading) phase = DiagnosisPhase.Input
-    }
-
-    /** From the result back to the input for a new diagnosis with another photo or note. */
-    public fun startOver() {
-        if (phase is DiagnosisPhase.Result) phase = DiagnosisPhase.Input
-    }
-
-    public fun dismissDenied() {
-        deniedSource = null
-    }
-
-    public fun dismissPickError() {
-        pickErrorMessage = null
-    }
-
-    /** The screen is gone: stop work and delete the kept camera shot. */
-    public fun close() {
-        closed = true
-        cancel()
-        pickJob?.cancel()
-        pickJob = null
-        initialJob?.cancel()
-        journalJob?.cancel()
-        journalJob = null
-        resultPhoto = null
-        capturePath?.let(deleteCapture)
-        capturePath = null
-        photo = null
-        note = ""
-        error = null
-        phase = DiagnosisPhase.Input
     }
 }
 

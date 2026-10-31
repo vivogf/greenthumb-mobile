@@ -1,0 +1,179 @@
+# Plant camera (feature m11-plant-camera-route; VAL-CAM11-019..021, VAL-CARD-018, VAL-CROSS-023).
+# Run every stage through render-smoke.sh (GT_FLOW=m11_plant_camera.yaml GT_STEP=<stage> GT_KEY_FILE=<600 key file>)
+# from the directory that should get the screenshots. Sign in and pick the language with m10_smartcam.yaml
+# (`login`, `ru` / `en`). The caller seeds a plant named "Basil" with an https cover photo. Maestro cannot type
+# Cyrillic, so the plant name and the note are ASCII. Nothing is sent before «Проверить растение».
+#   open    Basil → «Что с растением?» → camera in «Болезнь» with the chip «Basil» and its ✕, no system camera;
+#           ✕ «Закрыть камеру» → the same plant detail
+#   clear   open the plant camera → ✕ on the chip → no chip, «Болезнь» stays, nothing sent; close
+#   check   open the plant camera → shutter → after-shot with the chip and «Учтём уход за «Basil»» → note
+#           "Yellow leaf edges" → «Проверить растение» (1 live OpenAI call) → result without «Это моё растение?»
+#           → «Сохранить в журнал растения» → «Сохранено в журнал» → «Готово» → detail, the journal shows
+#           «Что с растением?: …»
+#   cover   photo sheet → «Проверить на болезни» → after-shot with the cover and the chip, no viewfinder, no
+#           request; close → detail
+#   broken  the caller has airplane mode on: photo sheet → «Проверить на болезни» → the cover download fails →
+#           the camera with the chip and «Не удалось загрузить фото. Снимите новое.»; close → detail
+#   en      English UI: Basil → «What's wrong with my plant?» → chip with “Remove “Basil” from the check”; close
+appId: com.greenthumbplantcare.debug
+name: GreenThumb plant camera (${STEP})
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Профиль|Profile"
+    timeout: 30000
+- tapOn: "Basil"
+- extendedWaitUntil:
+    visible: "Полить|Water Plant"
+    timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'open' || STEP == 'clear' || STEP == 'check' || STEP == 'en'}
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Что с растением\\?|What's wrong with my plant\\?"
+          direction: DOWN
+      - tapOn: "Что с растением\\?|What's wrong with my plant\\?"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Снять больное место|Photograph the sick spot"
+          timeout: 3000
+      - assertVisible: "Basil"
+      - assertVisible: "Больное место крупно, в фокусе|The sick spot close up, in focus"
+
+- runFlow:
+    when:
+      true: ${STEP == 'open'}
+    commands:
+      - assertVisible: "Убрать растение «Basil»"
+      - takeScreenshot: open-chip
+      - tapOn: "Закрыть камеру"
+      - extendedWaitUntil:
+          visible: "Полить"
+          timeout: 10000
+      - assertVisible: "Basil"
+      - takeScreenshot: open-back-detail
+
+- runFlow:
+    when:
+      true: ${STEP == 'en'}
+    commands:
+      - assertVisible: "Remove “Basil” from the check"
+      - takeScreenshot: en-chip
+      - tapOn: "Close the camera"
+      - extendedWaitUntil:
+          visible: "Water Plant"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'clear'}
+    commands:
+      - tapOn: "Убрать растение «Basil»"
+      - assertNotVisible: "Убрать растение.*"
+      - assertVisible: "Снять больное место"
+      - takeScreenshot: clear-no-chip
+      - tapOn: "Закрыть камеру"
+      - extendedWaitUntil:
+          visible: "Полить"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'check'}
+    commands:
+      - tapOn: "Снять больное место"
+      - extendedWaitUntil:
+          visible: "Проверить растение"
+          timeout: 15000
+      - assertVisible: "Учтём уход за «Basil»"
+      - assertVisible: "Basil"
+      - tapOn: "Что вас беспокоит\\? \\(необязательно\\)"
+      - inputText: "Yellow leaf edges"
+      - hideKeyboard
+      - takeScreenshot: check-aftershot
+      - tapOn: "Проверить растение"
+      - extendedWaitUntil:
+          visible: "Возможные причины"
+          timeout: 90000
+      - assertVisible: "Скорее всего|Возможно|Маловероятно"
+      - assertNotVisible: ".*\\d+ ?%.*"
+      - takeScreenshot: check-result-top
+      - scrollUntilVisible:
+          element:
+            text: "Сохранить в журнал растения"
+          direction: DOWN
+      - assertNotVisible: "Это моё растение\\?"
+      - assertVisible: "Сохраним в журнал растения «Basil»"
+      - takeScreenshot: check-result-bottom
+      - tapOn: "Сохранить в журнал растения"
+      - extendedWaitUntil:
+          visible: "Сохранено в журнал"
+          timeout: 30000
+      - takeScreenshot: check-saved
+      - scrollUntilVisible:
+          element:
+            text: "Готово"
+          direction: DOWN
+      - tapOn: "Готово"
+      - extendedWaitUntil:
+          visible: "Полить"
+          timeout: 10000
+      - scrollUntilVisible:
+          element:
+            text: "Что с растением\\?: .*"
+          direction: DOWN
+          timeout: 20000
+      - takeScreenshot: check-journal
+
+- runFlow:
+    when:
+      true: ${STEP == 'cover' || STEP == 'broken'}
+    commands:
+      - tapOn: "Изменить фото растения"
+      - extendedWaitUntil:
+          visible: "Проверить на болезни"
+          timeout: 5000
+      - assertVisible: "по этому фото"
+      - takeScreenshot: ${STEP}-photo-sheet
+      - tapOn: "Проверить на болезни"
+
+- runFlow:
+    when:
+      true: ${STEP == 'cover'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Проверить растение"
+          timeout: 20000
+      - assertVisible: "Basil"
+      - assertVisible: "Учтём уход за «Basil»"
+      - assertNotVisible: "Снять больное место"
+      - takeScreenshot: cover-aftershot
+      - tapOn: "Закрыть камеру"
+      - extendedWaitUntil:
+          visible: "Полить"
+          timeout: 10000
+
+- runFlow:
+    when:
+      true: ${STEP == 'broken'}
+    commands:
+      # The cover download gives up after its 30 s request timeout.
+      - extendedWaitUntil:
+          visible: "Не удалось загрузить фото. Снимите новое."
+          timeout: 45000
+      - assertVisible: "Basil"
+      - assertVisible: "Снять больное место"
+      - assertNotVisible: "Проверить растение"
+      - takeScreenshot: broken-camera
+      - tapOn: "Закрыть камеру"
+      - extendedWaitUntil:
+          visible: "Полить"
+          timeout: 10000

@@ -23,6 +23,7 @@ import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResult
 import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
+import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
 import site.xmpp.greenthumb.ui.screens.species.SpeciesIdentifier
@@ -87,6 +88,9 @@ public sealed interface SmartCameraPhase {
     /** The live camera with the mode switch, the shutter and the gallery button (or the camera fallback). */
     public data object Viewfinder : SmartCameraPhase
 
+    /** The plant cover of «Проверить на болезни» is being loaded; no camera is open. */
+    public data object PhotoLoading : SmartCameraPhase
+
     /** The photo is shown and stays on the phone until «Узнать вид» / «Проверить растение». */
     public data object Captured : SmartCameraPhase
     public data object Loading : SmartCameraPhase
@@ -103,6 +107,11 @@ public sealed interface SmartCameraPhase {
  * arrives after the attempt ended is deleted at once. A cancelled request never publishes its answer.
  * A disease result can be saved to one of the user's plants through [journal] («Это моё растение?»)
  * without another diagnosis request.
+ *
+ * Opened from a plant (owner item 6, variant B1), [plant] is the chip of the «Болезнь» mode: the check goes
+ * through [plantDiagnoser] with that plant's care history, and its result is saved to that plant's journal
+ * directly. ✕ on the chip ([clearPlant]) makes it a plant-less check. [initialPhoto] (the plant cover of
+ * «Проверить на болезни») starts on the after-shot screen; if it cannot be loaded, the viewfinder opens instead.
  */
 public class SmartCameraController(
     initialMode: SmartCameraMode,
@@ -122,11 +131,32 @@ public class SmartCameraController(
     private val deleteCapture: (String) -> Unit = {},
     /** Called on every mode change, so the next camera opens in the same mode. */
     private val onModeChange: (SmartCameraMode) -> Unit = {},
+    /** Diagnosis of [plant] with its care history (`POST /api/plants/:id/diagnose`). */
+    private val plantDiagnoser: PlantDiagnoser? = null,
+    plant: SmartCameraPlant? = null,
+    private val initialPhoto: (suspend () -> ByteArray)? = null,
 ) {
+    /** The plant of the chip; null for a plant-less check. */
+    public var plant: SmartCameraPlant? by mutableStateOf(plant)
+        private set
+
+    /** The chip belongs to «Болезнь»; identification never uses it. */
+    public val activePlant: SmartCameraPlant? get() = plant.takeIf { mode == SmartCameraMode.Disease }
+
+    /** The plant the shown result was checked for; its journal save needs no «Это моё растение?». */
+    public var diagnosedPlant: SmartCameraPlant? by mutableStateOf(null)
+        private set
+
+    /** The preset photo could not be loaded; the viewfinder shows a message until the next photo. */
+    public var photoLoadFailed: Boolean by mutableStateOf(false)
+        private set
+
     public var mode: SmartCameraMode by mutableStateOf(initialMode)
         private set
 
-    public var phase: SmartCameraPhase by mutableStateOf(SmartCameraPhase.Viewfinder)
+    public var phase: SmartCameraPhase by mutableStateOf(
+        if (initialPhoto != null) SmartCameraPhase.PhotoLoading else SmartCameraPhase.Viewfinder,
+    )
         private set
 
     public var cameraStatus: CameraStatus by mutableStateOf(CameraStatus.Starting)
@@ -180,6 +210,40 @@ public class SmartCameraController(
     private var closed = false
 
     private val onViewfinder: Boolean get() = !closed && phase == SmartCameraPhase.Viewfinder && !picking
+
+    /** Loads [initialPhoto] once and shows it on the after-shot screen; nothing is sent. */
+    public fun loadInitialPhoto(scope: CoroutineScope) {
+        val load = initialPhoto ?: return
+        if (closed || phase != SmartCameraPhase.PhotoLoading || job != null) return
+        val id = ++attempt
+        val current = mode
+        job = scope.launch {
+            val prepared = try {
+                val raw = load()
+                withContext(workContext) {
+                    if (current == SmartCameraMode.Plant) preparePlant(raw) else prepareDisease(raw)
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                null
+            }
+            if (id != attempt || closed) return@launch
+            if (prepared == null) {
+                photoLoadFailed = true
+                phase = SmartCameraPhase.Viewfinder
+            } else {
+                photo = prepared
+                phase = SmartCameraPhase.Captured
+            }
+        }
+    }
+
+    /** ✕ on the plant chip: the check becomes plant-less; only before the photo is sent. */
+    public fun clearPlant() {
+        if (closed || (phase != SmartCameraPhase.Viewfinder && phase != SmartCameraPhase.Captured)) return
+        plant = null
+    }
 
     public fun onCameraStatus(status: CameraStatus) {
         cameraStatus = status
@@ -244,7 +308,10 @@ public class SmartCameraController(
                 when (picked) {
                     null, PickResult.Cancelled -> Unit
                     is PickResult.PermissionDenied -> deniedSource = picked.source
-                    is PickResult.Picked -> show(id, current, picked.bytes)
+                    is PickResult.Picked -> {
+                        photoLoadFailed = false
+                        show(id, current, picked.bytes)
+                    }
                 }
             } finally {
                 if (id == attempt) picking = false
@@ -297,6 +364,7 @@ public class SmartCameraController(
         if (closed || phase != SmartCameraPhase.Captured) return
         val id = ++attempt
         val current = mode
+        val checked = activePlant
         val wireNote = DiagnosisLogic.wireNote(note)
         phase = SmartCameraPhase.Loading
         job = scope.launch {
@@ -304,14 +372,19 @@ public class SmartCameraController(
                 val dataUri = withContext(workContext) { photoDataUri(prepared) }
                 when (current) {
                     SmartCameraMode.Plant -> identify(dataUri, language)
-                    SmartCameraMode.Disease -> diagnose(dataUri, wireNote, language)
+                    SmartCameraMode.Disease -> diagnose(checked, dataUri, wireNote, language)
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (failure: Throwable) {
                 SmartCameraPhase.Failed(failureFor(current, failure))
             }
-            if (id == attempt) phase = outcome
+            if (id != attempt) return@launch
+            if (outcome is SmartCameraPhase.DiseaseResult && checked != null) {
+                diagnosedPlant = checked
+                journalPlantId = checked.id
+            }
+            phase = outcome
         }
     }
 
@@ -325,9 +398,17 @@ public class SmartCameraController(
         }
     }
 
-    private suspend fun diagnose(dataUri: String, note: String?, language: String): SmartCameraPhase {
-        val seam = diagnoser ?: return SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.Unavailable))
-        val result = DiagnosisLogic.toResult(seam.diagnose(dataUri, note, language))
+    private suspend fun diagnose(checked: SmartCameraPlant?, dataUri: String, note: String?, language: String): SmartCameraPhase {
+        val unavailable = SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.Unavailable))
+        val response = if (checked != null) {
+            // A plant check never falls back to the plant-less route: that would drop the care history silently.
+            val seam = plantDiagnoser ?: return unavailable
+            seam.diagnose(checked.id, dataUri, note, language)
+        } else {
+            val seam = diagnoser ?: return unavailable
+            seam.diagnose(dataUri, note, language)
+        }
+        val result = DiagnosisLogic.toResult(response)
             ?: return SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.Unavailable))
         return SmartCameraPhase.DiseaseResult(result)
     }
@@ -353,9 +434,11 @@ public class SmartCameraController(
     private val savingOrSaved: Boolean
         get() = journalSave == JournalSaveState.Saving || journalSave == JournalSaveState.Saved
 
-    /** «Это моё растение?»: only on a disease result that is not saved yet. */
+    /** «Это моё растение?»: only on a plant-less disease result that is not saved yet. */
     public fun openPlantPicker() {
-        if (journal != null && phase is SmartCameraPhase.DiseaseResult && !savingOrSaved) plantPickerOpen = true
+        if (journal != null && diagnosedPlant == null && phase is SmartCameraPhase.DiseaseResult && !savingOrSaved) {
+            plantPickerOpen = true
+        }
     }
 
     public fun dismissPlantPicker() {
@@ -365,7 +448,7 @@ public class SmartCameraController(
     /** Sets the plant the result is saved to; a failed save is reset, a saved result keeps its plant. */
     public fun choosePlant(plantId: String) {
         plantPickerOpen = false
-        if (journal == null || phase !is SmartCameraPhase.DiseaseResult || savingOrSaved) return
+        if (journal == null || diagnosedPlant != null || phase !is SmartCameraPhase.DiseaseResult || savingOrSaved) return
         journalPlantId = plantId
         journalSave = JournalSaveState.Idle
     }
@@ -402,7 +485,7 @@ public class SmartCameraController(
         phase = SmartCameraPhase.Captured
     }
 
-    /** «Переснять» / «Снять ещё раз»: back to the viewfinder in the same mode; nothing is sent. */
+    /** «Переснять» / «Снять ещё раз»: back to the viewfinder in the same mode and with the same chip; nothing is sent. */
     public fun retake() {
         reset()
         phase = SmartCameraPhase.Viewfinder
@@ -418,6 +501,7 @@ public class SmartCameraController(
         photo = null
         note = ""
         journalPlantId = null
+        diagnosedPlant = null
         journalSave = JournalSaveState.Idle
         plantPickerOpen = false
         dropCapture()

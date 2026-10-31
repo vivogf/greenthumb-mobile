@@ -496,30 +496,20 @@
     <!-- diagnosis.* — plant diagnosis by photo (architecture §5.7, §8.7). -->
     <string name="diagnosis_entry">What's wrong with my plant?</string>
     <string name="diagnosis_entryDescription">Photo → likely causes and what to do</string>
-    <string name="diagnosis_title">What's wrong with my plant?</string>
-    <string name="diagnosis_intro">Take a photo of the leaves or stem that worry you. The recent care history of this plant is taken into account.</string>
-    <string name="diagnosis_takePhoto">Take photo</string>
-    <string name="diagnosis_choosePhoto">Choose from gallery</string>
     <string name="diagnosis_photoPreview">Selected photo</string>
-    <string name="diagnosis_photoMissing">Add a photo of the plant to start.</string>
     <string name="diagnosis_notePlaceholder">What worries you? (optional)</string>
-    <string name="diagnosis_submit">Diagnose</string>
     <string name="diagnosis_loading">Analyzing the photo… This can take up to a minute.</string>
-    <string name="diagnosis_cancel">Cancel diagnosis</string>
     <string name="diagnosis_resultTitle">Possible causes</string>
     <string name="diagnosis_likelihoodLow">Unlikely</string>
     <string name="diagnosis_likelihoodMedium">Possible</string>
     <string name="diagnosis_likelihoodHigh">Most likely</string>
     <string name="diagnosis_advice">What to do</string>
-    <string name="diagnosis_summary">Summary</string>
     <string name="diagnosis_disclaimer">This is a hint, not a verdict. If the plant keeps getting worse, ask a specialist.</string>
     <string name="diagnosis_unavailable">Plant check is temporarily unavailable</string>
     <string name="diagnosis_dailyLimit">Daily diagnosis limit reached. Try again tomorrow.</string>
     <string name="diagnosis_networkError">Could not reach the server. Check your connection and try again.</string>
     <string name="diagnosis_failed">The photo could not be analyzed. Try another photo.</string>
-    <string name="diagnosis_retry">Retry</string>
     <string name="diagnosis_newDiagnosis">Check again</string>
-    <string name="diagnosis_backToPlant">Back to plant</string>
     <string name="diagnosis_serviceLimit">The service has used up today's checks. Try again tomorrow.</string>
     <string name="diagnosis_saveToJournal">Save to plant journal</string>
     <string name="diagnosis_savedToJournal">Saved to journal</string>
@@ -590,5 +580,7 @@
     <string name="smartcam_isMine">Is this my plant?</string>
     <string name="smartcam_pickPlant">Which of your plants?</string>
     <string name="smartcam_chosenPlant">Will be saved to the journal of “%1$s”</string>
+    <string name="smartcam_plantChipClear">Remove “%1$s” from the check</string>
+    <string name="smartcam_plantCare">The care history of “%1$s” is taken into account</string>
     <string name="a11y_smartCamera">Smart camera</string>
 </resources>
