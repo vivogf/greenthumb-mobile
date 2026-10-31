@@ -8,6 +8,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -229,6 +231,18 @@ class SessionManagerRotationSafetyTest {
         }
     }
 
+    /**
+     * Waits for the flow itself to reach the state. Background key-change work updates several
+     * flows in separate steps, so waiting on one flow (or on the store) does not mean the others
+     * are already set.
+     */
+    private suspend fun <T> StateFlow<T>.awaitState(what: String, predicate: (T) -> Boolean): T =
+        try {
+            withTimeout(5_000) { first(predicate) }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            throw AssertionError("timed out waiting for: $what (last value: $value)")
+        }
+
     private fun restart(): SessionManager {
         store = Store(store.map)
         server.sessionAlive = false
@@ -417,9 +431,9 @@ class SessionManagerRotationSafetyTest {
         server.commitThenDropConfirm = false
         val restarted = restart()
         assertIs<SessionState.SignedIn>(restarted.startup())
-        waitFor("promoted") { slots() == (KEY_C to null) }
+        restarted.keyChangeFinishedNotice.awaitState("background finish: tell the user to save the new key") { it }
 
-        assertTrue(restarted.keyChangeFinishedNotice.value, "background finish: tell the user to save the new key")
+        assertEquals(KEY_C to null, slots(), "promoted")
         restarted.dismissKeyChangeFinishedNotice()
         assertFalse(restarted.keyChangeFinishedNotice.value)
     }
@@ -505,12 +519,12 @@ class SessionManagerRotationSafetyTest {
         server.pending = null
         val m = restart()
         assertIs<SessionState.SignedIn>(m.startup())
-        waitFor("the probe settled the change") { !m.keyChangePending.value }
+        m.keyChangeFailedNotice.awaitState("the user is told the new key did not take effect") { it }
 
+        assertFalse(m.keyChangePending.value, "the probe settled the change")
         assertTrue(accepted(m.shownKey()), "the key on screen is accepted")
         assertEquals(KEY_A to null, slots(), "pending dropped, RECOVERY_KEY untouched")
         assertEquals(null, m.unconfirmedRecoveryKey.value)
-        assertTrue(m.keyChangeFailedNotice.value, "the user is told the new key did not take effect")
         val check = m.prepareSignOut()
         assertIs<SignOutCheck.Clear>(check, "nothing unfinished is left")
         // "Sign out anyway" now erases only after the user has seen K1, the only accepted key.
@@ -565,8 +579,8 @@ class SessionManagerRotationSafetyTest {
         server.confirmUnavailable = false
         server.sessionAlive = false
         m.refreshUser()
-        waitFor("background promote") { slots() == (KEY_B to null) }
-        assertTrue(m.keyChangeFinishedNotice.value)
+        m.keyChangeFinishedNotice.awaitState("background promote raised the notice") { it }
+        assertEquals(KEY_B to null, slots(), "background promote")
         m.signOut()
         server.userId = 77
         server.createKey = KEY_C
@@ -644,11 +658,11 @@ class SessionManagerRotationSafetyTest {
         val m = restart()
 
         assertIs<SessionState.SignedIn>(m.startup())
-        waitFor("background confirm settled") { !m.keyChangePending.value }
+        m.keyChangeFailedNotice.awaitState("background confirm raised the failed notice") { it }
 
+        assertFalse(m.keyChangePending.value, "background confirm settled")
         assertEquals(KEY_A to null, slots())
         assertEquals(KEY_A, m.shownKey())
-        assertTrue(m.keyChangeFailedNotice.value)
         m.dismissKeyChangeFailedNotice()
         assertFalse(m.keyChangeFailedNotice.value)
     }
@@ -720,8 +734,8 @@ class SessionManagerRotationSafetyTest {
         // A background finish raised the notice for this account; a new change is unproven again.
         server.sessionAlive = false
         m.refreshUser()
-        waitFor("background promote") { slots() == (KEY_B to null) }
-        assertTrue(m.keyChangeFinishedNotice.value)
+        m.keyChangeFinishedNotice.awaitState("background promote raised the notice") { it }
+        assertEquals(KEY_B to null, slots(), "background promote")
         server.nextKey = KEY_C
         server.confirmUnavailable = true
         m.regenerateRecoveryKey()
