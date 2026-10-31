@@ -225,9 +225,8 @@ public fun AddPlantScreen(
         }
     }
 
-    // Пикер фото (Stage 8 п.1): пикер → квадратный кроп → data-URI в форму.
-    // rememberUpdatedState внутри не даёт рекомпозиции потерять открытый кроп.
-    val photoPicker = rememberPhotoPicker { bytes ->
+    // The cover keeps the picked photo's aspect (long side 800), like a smart camera cover (M11c); no crop screen.
+    val photoPicker = rememberPhotoPicker(keepAspect = true) { bytes ->
         coverBytes = bytes
         fields = fields.copy(photoUrl = photoDataUri(bytes))
     }

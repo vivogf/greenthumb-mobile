@@ -6,7 +6,7 @@
 #             screen; no «Узнать вид по фото», no note, no species entry while there is no photo; stays open
 #   more      (form open) «Ещё параметры» opens place, species list, last watering, extra care, notes; closing
 #             hides them again
-#   photo     (form open) the photo box → «Галерея» → ${PHOTO} → crop «Готово»: the cover is set, «Узнать вид по
+#   photo     (form open) the photo box → «Галерея» → ${PHOTO} (no crop screen since M11c): the cover is set, «Узнать вид по
 #             фото» and the Pl@ntNet note appear, no candidates (0 Pl@ntNet calls)
 #   unphoto   (form open with a photo) photo box → «Удалить фото»: identify button and note are gone
 #   manual    (form open) name ${NAME}, «+» tapped ${PLUS} times, «Добавить» → dashboard, scrolled until ${NAME} shows
@@ -92,10 +92,6 @@ name: GreenThumb new plant (${STEP})
           visible: ${PHOTO}
           timeout: 15000
       - tapOn: ${PHOTO}
-      - extendedWaitUntil:
-          visible: "Готово|Done"
-          timeout: 15000
-      - tapOn: "Готово|Done"
       - extendedWaitUntil:
           visible: "Узнать вид по фото|Find species by photo"
           timeout: 15000

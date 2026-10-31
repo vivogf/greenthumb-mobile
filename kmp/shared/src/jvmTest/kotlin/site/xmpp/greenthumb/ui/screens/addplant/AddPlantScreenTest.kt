@@ -747,29 +747,23 @@ class AddPlantScreenTest {
         onAllNodes(hasTestTag(tag), useUnmergedTree = true)[0].performSemanticsAction(SemanticsActions.OnClick)
     }
 
-    /** Answers the desktop file picker with [file] and confirms the crop screen. */
-    private fun ComposeUiTest.answerPickerAndCrop(file: File, done: String) {
+    /** Answers the desktop file picker with [file]; Add Plant has no crop screen since M11c. */
+    private fun ComposeUiTest.answerPicker(file: File, done: String) {
         waitUntil(timeoutMillis = TIMEOUT) { FilePickBridge.pending != null }
         runOnIdle {
             val request = FilePickBridge.pending!!
             FilePickBridge.clear(request)
             request.deferred.complete(file.absolutePath)
         }
-        val doneButton = hasClickAction() and hasText(done)
-        waitUntil(timeoutMillis = TIMEOUT) {
-            onAllNodes(doneButton).fetchSemanticsNodes().any { node ->
-                !node.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
-            }
-        }
-        clickAt(doneButton)
-        waitUntilDoesNotExist(doneButton, TIMEOUT)
+        waitForIdle()
+        assertEquals(0, onAllNodes(hasClickAction() and hasText(done)).fetchSemanticsNodes().size, "no crop screen")
     }
 
-    /** Photo box → Gallery → file → crop Done: the cover is set. */
+    /** Photo box → Gallery → file: the cover is set with the photo's own aspect. */
     private fun ComposeUiTest.chooseCover(file: File, addPhoto: String, done: String) {
         clickAt(hasClickAction() and hasContentDescription(addPhoto))
         clickUnmergedTag("addPlant_photo_gallery")
-        answerPickerAndCrop(file, done)
+        answerPicker(file, done)
     }
 
     private fun ComposeUiTest.setAddPlant(graph: Harness, identifier: SpeciesIdentifier?, locale: String) {

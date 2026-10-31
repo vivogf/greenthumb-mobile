@@ -70,10 +70,10 @@ name: M10 EXIF guard (${STEP})
       - tapOn:
           text: "Photo taken on.*"
           index: 0
+      # No crop screen on Add Plant since M11c: the cover keeps the photo's aspect.
       - extendedWaitUntil:
-          visible: "Done|Готово"
-          timeout: 10000
-      - tapOn: "Done|Готово"
+          visible: "Find species by photo|Узнать вид по фото"
+          timeout: 15000
       - tapOn: "e.g., Monstera Deliciosa|например, Монстера деликатесная"
       - inputText: "ExifFern"
       - hideKeyboard

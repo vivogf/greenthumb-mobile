@@ -154,9 +154,9 @@ class IdentifyScreenFlowTest {
     }
 
     /**
-     * With [pick] the photo box sets the fixture JPEG as the cover first (Gallery → file → crop
-     * [done]); «Find species by photo» exists only with a cover. Then the button sends that cover,
-     * with no second picker.
+     * With [pick] the photo box sets the fixture JPEG as the cover first (Gallery → file; no crop
+     * screen [done] since M11c); «Find species by photo» exists only with a cover. Then the button
+     * sends that cover, with no second picker.
      */
     private fun ComposeUiTest.identifyFromGallery(h: Harness, done: String = "Done", pick: Boolean = true) {
         val before = h.server.count()
@@ -170,14 +170,8 @@ class IdentifyScreenFlowTest {
                 FilePickBridge.clear(request)
                 request.deferred.complete(h.photo.absolutePath)
             }
-            val doneButton = hasClickAction() and hasText(done)
-            waitUntil(timeoutMillis = TIMEOUT) {
-                onAllNodes(doneButton).fetchSemanticsNodes().any { node ->
-                    !node.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
-                }
-            }
-            onAllNodes(doneButton)[0].performSemanticsAction(SemanticsActions.OnClick)
-            waitUntilDoesNotExist(doneButton, TIMEOUT)
+            waitForTag("addPlant_identify")
+            assertEquals(0, onAllNodes(hasClickAction() and hasText(done)).fetchSemanticsNodes().size, "no crop screen")
             assertEquals(before, h.server.count(), "choosing the cover sends nothing")
         }
         clickTag("addPlant_identify")

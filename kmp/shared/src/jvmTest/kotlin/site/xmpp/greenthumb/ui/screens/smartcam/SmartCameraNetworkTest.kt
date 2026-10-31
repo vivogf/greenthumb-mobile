@@ -36,7 +36,6 @@ import site.xmpp.greenthumb.core.platform.carriesGpsOrMake
 import site.xmpp.greenthumb.core.platform.gpsExifJpeg
 import site.xmpp.greenthumb.core.platform.imageSize
 import site.xmpp.greenthumb.core.platform.jpegMarkerList
-import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.core.platform.withExifOrientation
 import site.xmpp.greenthumb.ui.screens.diagnosis.ApiPlantDiagnoser
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisError
@@ -44,7 +43,6 @@ import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.JournalSaveState
 import site.xmpp.greenthumb.ui.screens.species.ApiSpeciesIdentifier
-import site.xmpp.greenthumb.ui.screens.species.IdentifyLogic
 
 /**
  * VAL-CAM-009/010/018 over the real [ApiClient] stack with a MockEngine: «Болезнь» sends a plant-less
@@ -87,8 +85,8 @@ class SmartCameraNetworkTest {
         diagnoser = ApiPlantDiagnoser(api),
         pick = { PickResult.Picked(fixture) },
         capture = { PickResult.Picked(captureFixture) },
-        preparePlant = { raw -> resizeJpeg(raw, maxSide = IdentifyLogic.PHOTO_MAX_SIDE, quality = 0.85) },
-        prepareDisease = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
+        preparePlant = SmartCameraPhoto::prepare,
+        prepareDisease = SmartCameraPhoto::prepare,
         catalog = { null },
         journal = journal,
     )

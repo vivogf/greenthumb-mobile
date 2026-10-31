@@ -10,7 +10,11 @@ import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import site.xmpp.greenthumb.core.platform.CropRect
 import site.xmpp.greenthumb.core.platform.FilePickBridge
 import site.xmpp.greenthumb.core.platform.PickResult
@@ -18,6 +22,7 @@ import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.UNSUPPORTED_IMAGE_MESSAGE
 import site.xmpp.greenthumb.core.platform.cropSquareJpeg
 import site.xmpp.greenthumb.core.platform.pickImage
+import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.common_cameraPermissionDenied
 import site.xmpp.greenthumb.ui.res.common_error
@@ -36,6 +41,9 @@ import site.xmpp.greenthumb.ui.res.photoPick_unreadable
  * - ошибка платформенного пикера — алерт `common.error` c `err.message`
  *   (как RN `processPhoto` в `app/plant/[id].tsx:203-207`).
  *
+ * With [fit] (Add Plant, M11c) there is no crop screen: the picked photo keeps its own aspect and [fit]
+ * makes the cover from it.
+ *
  * Логика отделена от Composable: тесты крутят состояние машину с подставными
  * pick/crop (jvmTest PhotoPickerFlowTest), UI рисует [PhotoPickerHost].
  */
@@ -43,6 +51,8 @@ class PhotoPickerController internal constructor(
     private val pick: suspend (PickSource) -> PickResult,
     private val crop: (ByteArray, CropRect) -> ByteArray,
     private val onPicked: (ByteArray) -> Unit,
+    private val fit: ((ByteArray) -> ByteArray)? = null,
+    private val workContext: CoroutineContext = EmptyCoroutineContext,
 ) {
     /** Байты, ожидающие решения кропа; null — кроп не активен. */
     var cropping by mutableStateOf<ByteArray?>(null)
@@ -74,9 +84,22 @@ class PhotoPickerController internal constructor(
             when (result) {
                 is PickResult.Cancelled -> Unit
                 is PickResult.PermissionDenied -> deniedSource = result.source
-                is PickResult.Picked -> awaitCrop(result.bytes, then)
+                is PickResult.Picked -> if (fit != null) deliverFitted(result.bytes, fit, then) else awaitCrop(result.bytes, then)
             }
         }
+    }
+
+    private suspend fun deliverFitted(bytes: ByteArray, fit: (ByteArray) -> ByteArray, then: ((ByteArray) -> Unit)?) {
+        val output = try {
+            withContext(workContext) { fit(bytes) }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Throwable) {
+            pickErrorMessage = error.message ?: error.toString()
+            return
+        }
+        onPicked(output)
+        then?.invoke(output)
     }
 
     private suspend fun awaitCrop(bytes: ByteArray, then: ((ByteArray) -> Unit)?) {
@@ -123,15 +146,19 @@ class PhotoPickerController internal constructor(
  * Контроллер, привязанный к scope экрана. Колбэк [onPicked] читается через
  * `rememberUpdatedState` — рекомпозиция экрана не пересоздаёт контроллер
  * (иначе открытый кроп терялся бы на каждом кадре).
+ *
+ * [keepAspect]: no crop screen, the photo keeps its aspect with the long side 800 (Add Plant cover, M11c).
  */
 @Composable
-fun rememberPhotoPicker(onPicked: (ByteArray) -> Unit): PhotoPickerController {
+fun rememberPhotoPicker(keepAspect: Boolean = false, onPicked: (ByteArray) -> Unit): PhotoPickerController {
     val current = rememberUpdatedState(onPicked)
-    return remember {
+    return remember(keepAspect) {
         PhotoPickerController(
             pick = { source -> pickImage(source) },
             crop = { bytes, rect -> cropSquareJpeg(bytes, rect) },
             onPicked = { current.value(it) },
+            fit = if (keepAspect) { bytes -> resizeJpeg(bytes) } else null,
+            workContext = Dispatchers.Default,
         )
     }
 }

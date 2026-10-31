@@ -18,6 +18,8 @@ import site.xmpp.greenthumb.core.platform.CameraStatus
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
 import site.xmpp.greenthumb.core.platform.photoDataUri
+import site.xmpp.greenthumb.core.platform.resizeJpeg
+import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraft
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisError
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
@@ -56,6 +58,29 @@ public class SmartCameraModeMemory {
     public companion object {
         /** The app's memory; tests create their own instance. */
         public val App: SmartCameraModeMemory = SmartCameraModeMemory()
+    }
+}
+
+/**
+ * The one photo of the smart camera (M11c item 4): a shot keeps the 3:4 sensor frame and a gallery pick its own
+ * aspect, the long side is [MAX_SIDE] (a portrait shot is 600×800), upright, re-encoded without EXIF. The same bytes
+ * go to identify, both diagnosis routes, the journal and the Add Plant cover.
+ */
+public object SmartCameraPhoto {
+    public const val MAX_SIDE: Int = 800
+    private const val QUALITY: Double = 0.85
+
+    public fun prepare(raw: ByteArray): ByteArray = prepare(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) }
+
+    /** A photo still above [DiagnosisLogic.MAX_PHOTO_BYTES] is shrunk further, so no request exceeds the server limit. */
+    internal fun prepare(raw: ByteArray, resize: (ByteArray, Int, Double) -> ByteArray): ByteArray {
+        var side = MAX_SIDE
+        var bytes = resize(raw, side, QUALITY)
+        while (bytes.size > DiagnosisLogic.MAX_PHOTO_BYTES && side > 320) {
+            side = side * 3 / 4
+            bytes = resize(raw, side, QUALITY)
+        }
+        return bytes
     }
 }
 
@@ -119,9 +144,9 @@ public class SmartCameraController(
     private val diagnoser: StandaloneDiagnoser?,
     /** Gallery and the system-camera fallback. */
     private val pick: suspend (PickSource) -> PickResult,
-    /** JPEG for identify (and for the add-plant draft). */
+    /** JPEG for identify (and the add-plant cover); the app passes [SmartCameraPhoto.prepare]. */
     private val preparePlant: (ByteArray) -> ByteArray,
-    /** JPEG for diagnosis (size-capped by [DiagnosisLogic.preparePhoto]). */
+    /** JPEG for diagnosis; the app passes [SmartCameraPhoto.prepare] as well. */
     private val prepareDisease: (ByteArray) -> ByteArray,
     private val catalog: () -> CatalogRepository?,
     /** The in-app camera shot with the flash on or off. */
@@ -442,6 +467,13 @@ public class SmartCameraController(
 
     public fun chosenCandidate(): IdentifyCandidate? =
         (phase as? SmartCameraPhase.PlantResult)?.candidates?.getOrNull(selectedCandidate)
+
+    /** «Добавить к моим растениям»: the chosen species and the identified photo, unchanged, as the cover. */
+    public fun addPlantDraft(): AddPlantDraft? {
+        val candidate = chosenCandidate() ?: return null
+        val jpeg = photo ?: return null
+        return AddPlantDraft(candidate, jpeg)
+    }
 
     private val savingOrSaved: Boolean
         get() = journalSave == JournalSaveState.Saving || journalSave == JournalSaveState.Saved

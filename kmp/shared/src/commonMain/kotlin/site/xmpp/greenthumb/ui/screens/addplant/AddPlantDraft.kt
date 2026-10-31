@@ -4,8 +4,8 @@ import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.ui.screens.species.IdentifyCandidate
 
 /**
- * What the smart camera hands to Add Plant: the chosen candidate and the identified photo,
- * already cropped to the square cover.
+ * What the smart camera hands to Add Plant: the chosen candidate and the identified photo as the cover
+ * (3:4 for a shot, the picked aspect for a gallery photo; long side 800).
  */
 public class AddPlantDraft(
     public val candidate: IdentifyCandidate,

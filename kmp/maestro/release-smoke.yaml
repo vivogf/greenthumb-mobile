@@ -70,13 +70,11 @@ name: GreenThumb release smoke (${STEP})
           visible: ${PHOTO}
           timeout: 15000
       - tapOn: ${PHOTO}
+      # No crop screen on Add Plant since M11c: the cover keeps the photo's aspect.
       - extendedWaitUntil:
-          visible: "Crop photo"
+          visible: "Find species by photo"
           timeout: 15000
-      - tapOn: Done
-      - extendedWaitUntil:
-          notVisible: "Crop photo"
-          timeout: 15000
+      - assertNotVisible: "Crop photo"
       # M11a short form: the species list sits under the collapsed "More options".
       - tapOn: "More options"
       - extendedWaitUntil:

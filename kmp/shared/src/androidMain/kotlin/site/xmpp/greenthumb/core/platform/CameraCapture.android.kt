@@ -13,6 +13,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -23,7 +25,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -42,6 +46,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * CameraX actual (architecture §10.1): the back camera with [Preview] shown by [CameraXViewfinder] and
  * [ImageCapture] writing `cacheDir/gt-pick/gt-diag-*.jpg` — the same kept-capture files as
  * [pickImageKeepingCapture], so [deleteCaptureFile] and [deleteStaleCaptures] cover them.
+ *
+ * Preview and capture both use the sensor's 4:3 (3:4 in portrait), and the viewfinder fits the preview into
+ * [modifier] without cropping, so the frame on screen is the frame of the shot.
  *
  * The camera is bound to the composition's lifecycle owner (the navigation entry): it stops when the app
  * goes to the background and is unbound when the screen leaves composition.
@@ -80,10 +87,14 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
         DisposableEffect(lifecycleOwner) {
             report(CameraStatus.Starting)
             val providerFuture = ProcessCameraProvider.getInstance(context)
-            val preview = Preview.Builder().build()
+            val sensorFrame = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                .build()
+            val preview = Preview.Builder().setResolutionSelector(sensorFrame).build()
             preview.setSurfaceProvider { request -> surfaceRequest = request }
             val imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setResolutionSelector(sensorFrame)
                 .build()
             val take: suspend (Boolean) -> PickResult = { flash -> takePicture(context, imageCapture, flash) }
             var provider: ProcessCameraProvider? = null
@@ -133,7 +144,14 @@ actual fun CameraCapture(shutter: CameraShutter, onStatus: (CameraStatus) -> Uni
     }
 
     Box(modifier) {
-        surfaceRequest?.let { request -> CameraXViewfinder(surfaceRequest = request, modifier = Modifier.matchParentSize()) }
+        surfaceRequest?.let { request ->
+            CameraXViewfinder(
+                surfaceRequest = request,
+                modifier = Modifier.matchParentSize(),
+                alignment = Alignment.Center,
+                contentScale = ContentScale.Fit,
+            )
+        }
     }
 }
 

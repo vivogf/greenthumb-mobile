@@ -58,16 +58,13 @@ import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.platform.CameraCapture
 import site.xmpp.greenthumb.core.platform.CameraShutter
 import site.xmpp.greenthumb.core.platform.CameraStatus
-import site.xmpp.greenthumb.core.platform.CropRect
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickResult
 import site.xmpp.greenthumb.core.platform.PickSource
-import site.xmpp.greenthumb.core.platform.cropSquareJpeg
 import site.xmpp.greenthumb.core.platform.deleteCaptureFile
 import site.xmpp.greenthumb.core.platform.deleteStaleCaptures
 import site.xmpp.greenthumb.core.platform.openAppSettings
 import site.xmpp.greenthumb.core.platform.pickImageKeepingCapture
-import site.xmpp.greenthumb.core.platform.resizeJpeg
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
@@ -138,7 +135,6 @@ import site.xmpp.greenthumb.ui.res.species_identifyUnavailable
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraft
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournal
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
-import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisResultView
 import site.xmpp.greenthumb.ui.screens.diagnosis.Likelihood
 import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
@@ -157,10 +153,14 @@ import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
-/** JPEG quality of the identify photo (the same as Add Plant identification). */
-private const val PLANT_PHOTO_QUALITY = 0.85
+/** The camera frame on screen: the sensor's 4:3 held in portrait. */
+private const val CAMERA_FRAME_ASPECT = 3f / 4f
 
-/** Width of the aiming frame as a share of the screen: the whole plant, or one sick spot up close. */
+/** A gallery photo keeps its aspect on screen within these bounds; outside them it is fitted, never stretched. */
+private const val PREVIEW_ASPECT_MIN = 9f / 16f
+private const val PREVIEW_ASPECT_MAX = 16f / 9f
+
+/** Width of the aiming frame as a share of the camera frame: the whole plant, or one sick spot up close. */
 private const val PLANT_FRAME_SHARE = 0.8f
 private const val DISEASE_FRAME_SHARE = 0.5f
 
@@ -210,8 +210,8 @@ public fun SmartCameraScreen(
             identifier = identifier,
             diagnoser = diagnoser,
             pick = pick,
-            preparePlant = { raw -> resizeJpeg(raw, maxSide = IdentifyLogic.PHOTO_MAX_SIDE, quality = PLANT_PHOTO_QUALITY) },
-            prepareDisease = { raw -> DiagnosisLogic.preparePhoto(raw) { bytes, side, quality -> resizeJpeg(bytes, side, quality) } },
+            preparePlant = SmartCameraPhoto::prepare,
+            prepareDisease = SmartCameraPhoto::prepare,
             catalog = { currentCatalog },
             capture = { flash -> shutter.take(flash) },
             workContext = Dispatchers.Default,
@@ -241,12 +241,6 @@ public fun SmartCameraScreen(
             )
         },
     )
-}
-
-/** Square cover of the identified photo for Add Plant; the full photo when it cannot be decoded. */
-internal fun draftPhoto(photo: ByteArray): ByteArray {
-    val bitmap = runCatching { photo.decodeToImageBitmap() }.getOrNull() ?: return photo
-    return cropSquareJpeg(photo, CropRect.centerSquare(bitmap.width, bitmap.height))
 }
 
 @Composable
@@ -320,18 +314,15 @@ private fun Viewfinder(
             }
             .testTag("smartcam_viewfinder"),
     ) {
-        // Stays composed while blocked: after «Открыть настройки» it reports the new permission state itself.
-        camera(shutter, controller::onCameraStatus, Modifier.fillMaxSize())
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(Spacing.lg),
+                .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
@@ -352,28 +343,45 @@ private fun Viewfinder(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
+                // The whole sensor frame, as large as fits: what the box shows is what the shot keeps.
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(CAMERA_FRAME_ASPECT)
+                        .clip(RoundedCornerShape(Radii.md))
+                        .testTag("smartcam_preview"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Stays composed while blocked: after «Открыть настройки» it reports the new permission state itself.
+                    camera(shutter, controller::onCameraStatus, Modifier.fillMaxSize())
+                    if (!blocked) AimingFrame(controller.mode, photoLoadFailed = controller.photoLoadFailed)
+                }
                 if (blocked) {
-                    CameraBlocked(
-                        status = status,
-                        enabled = !controller.picking,
-                        onGallery = { controller.chooseFromGallery(scope) },
-                        onSettings = openSettings,
-                        onSystemCamera = { controller.useSystemCamera(scope) },
-                    )
-                } else {
-                    AimingFrame(controller.mode, photoLoadFailed = controller.photoLoadFailed)
+                    Box(modifier = Modifier.padding(horizontal = Spacing.lg)) {
+                        CameraBlocked(
+                            status = status,
+                            enabled = !controller.picking,
+                            onGallery = { controller.chooseFromGallery(scope) },
+                            onSettings = openSettings,
+                            onSystemCamera = { controller.useSystemCamera(scope) },
+                        )
+                    }
                 }
             }
-            ModeSelector(selected = controller.mode, onSelect = controller::selectMode)
-            if (!blocked) {
-                Spacer(Modifier.size(Spacing.lg))
-                ShutterRow(
-                    mode = controller.mode,
-                    shutterEnabled = status is CameraStatus.Ready && !controller.picking,
-                    galleryEnabled = !controller.picking,
-                    onShutter = { controller.shutter(scope) },
-                    onGallery = { controller.chooseFromGallery(scope) },
-                )
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ModeSelector(selected = controller.mode, onSelect = controller::selectMode)
+                if (!blocked) {
+                    Spacer(Modifier.size(Spacing.lg))
+                    ShutterRow(
+                        mode = controller.mode,
+                        shutterEnabled = status is CameraStatus.Ready && !controller.picking,
+                        galleryEnabled = !controller.picking,
+                        onShutter = { controller.shutter(scope) },
+                        onGallery = { controller.chooseFromGallery(scope) },
+                    )
+                }
             }
         }
     }
@@ -813,11 +821,7 @@ private fun ResultContent(
                 PlantNetAttribution()
                 PrimaryButton(
                     text = stringResource(Res.string.smartcam_addToMine),
-                    onClick = {
-                        val candidate = controller.chosenCandidate()
-                        val photo = controller.photo
-                        if (candidate != null && photo != null) onAddToMine(AddPlantDraft(candidate, draftPhoto(photo)))
-                    },
+                    onClick = { controller.addPlantDraft()?.let(onAddToMine) },
                     modifier = Modifier.gtButtonWidth().testTag("smartcam_addToMine"),
                 )
                 SecondaryButton(
@@ -1038,14 +1042,16 @@ private fun failureText(failure: SmartCameraFailure): String = when (failure) {
 private fun PhotoPreview(photo: ByteArray?) {
     // Decoded in memory: the image loader would write the photo to its disk cache.
     val bitmap: ImageBitmap? = remember(photo) { photo?.let { runCatching { it.decodeToImageBitmap() }.getOrNull() } }
-    if (bitmap != null) {
+    if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
+        // A shot is shown in its 3:4 frame and a gallery photo in its own aspect, whole.
+        val aspect = (bitmap.width.toFloat() / bitmap.height).coerceIn(PREVIEW_ASPECT_MIN, PREVIEW_ASPECT_MAX)
         Image(
             bitmap = bitmap,
             contentDescription = stringResource(Res.string.diagnosis_photoPreview),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(4f / 3f)
+                .aspectRatio(aspect)
                 .clip(RoundedCornerShape(Radii.lg))
                 .testTag("smartcam_photo"),
         )

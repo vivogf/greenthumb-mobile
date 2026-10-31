@@ -284,7 +284,7 @@ class SmartCameraScreenTest {
         val handed = assertNotNull(h.draft)
         assertEquals("Monstera deliciosa", handed.candidate.scientificName)
         val image = ImageIO.read(ByteArrayInputStream(handed.photoJpeg))
-        assertEquals(image.width, image.height, "the cover is centre-cropped to a square")
+        assertEquals(400 to 200, image.width to image.height, "the cover keeps the picked photo's aspect, no square crop")
 
         onNode(hasTestTag("smartcam_retake")).performScrollTo().performClick()
         waitUntilAtLeastOneExists(hasTestTag("smartcam_shutter"), TIMEOUT)
