@@ -177,9 +177,10 @@ import site.xmpp.greenthumb.ui.theme.Spacing
  * - RN-заголовки секций с эмодзи («🌱 Удобрение») захардкожены в
  *   RN-исходнике вне i18n; KMP берёт их из ключей `addPlant.section*`.
  *
- * Экран живёт под [AppLocalizedContent] (GtAppNavGraph): смена языка
- * перекомпоновывает remember-состояние формы вместе с подписями (правило
- * parity-файла для Stage 7 экранов). Репозиторий открывает opener
+ * Экран живёт под [AppLocalizedContent] (GtAppNavGraph). В графе форма
+ * ([AddPlantFormState]) принадлежит записи навигации через [AddPlantRoute]:
+ * смена языка, шрифта, темы или размера окна пересоздаёт подписи, но не
+ * введённые поля, фото и черновик камеры. Репозиторий открывает opener
  * ([AccountPlantGate] — один инстанс на пользователя); экран его НЕ закрывает
  * (правило DashboardScreen: смена вкладки/темы не закрывает базу).
  */
@@ -192,21 +193,19 @@ public fun AddPlantScreen(
     identifier: SpeciesIdentifier? = null,
     /** Species and photo from the smart camera; the form opens prefilled with them. */
     draft: AddPlantDraft? = null,
+    /** The form held by the navigation entry ([AddPlantRoute]); null keeps it in this composition only. */
+    form: AddPlantFormState? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val locale = LocalAppLocale.current
 
-    // Локальное состояние формы RN add-plant.tsx (поля + submitting). Дефолт даты — todayString() (RN defaultValues).
-    var fields by remember {
-        val today = pickerToday().toString()
-        mutableStateOf(
-            draft?.let { AddPlantDraft.initialFields(it, today, locale) } ?: AddPlantFields(lastWateredDate = today),
-        )
-    }
-    // «Ещё параметры» (M11 item 5): closed on every new form, the camera draft included (its species stays in [fields]).
-    var moreOpen by remember { mutableStateOf(false) }
+    // Состояние формы RN add-plant.tsx. Дефолт даты — todayString() (RN defaultValues).
+    // «Ещё параметры» (M11 item 5) start closed on every new form, the camera draft included.
+    val state = form ?: remember { AddPlantFormState.create(draft, pickerToday().toString(), locale) }
+    var fields by state::fields
+    var moreOpen by state::moreOpen
     var submitting by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
@@ -214,7 +213,7 @@ public fun AddPlantScreen(
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
     // Bytes of the cover: «Узнать вид по фото» identifies this photo, never a second pick.
-    var coverBytes by remember { mutableStateOf(draft?.photoJpeg) }
+    var coverBytes by state::coverBytes
     val focusManager = LocalFocusManager.current
     val identify = remember(identifier) {
         identifier?.let { seam ->

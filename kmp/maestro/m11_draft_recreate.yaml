@@ -1,0 +1,125 @@
+# Add Plant keeps its form across an Activity recreation (feature m11-addplant-draft-survives-recreation).
+# Keyless: the app is already signed in (m10_smartcam.yaml STEP=login through render-smoke.sh). Between stages the
+# caller recreates the Activity with adb (`settings put system font_scale 1.3`, `cmd uimode night yes`, a locale
+# change) and restores the setting afterwards. Stages:
+#   draft       dashboard camera «Растение» → gallery ${PHOTO} → «Узнать вид» (1 live Pl@ntNet call) →
+#               «Добавить к моим растениям» → the prefilled Add Plant form stays open
+#   draftcheck  (draft form open, after a recreation) the photo, the name ${NAME} with «по виду», the watering
+#               «по виду», «Ещё параметры» collapsed and «Добавить» are shown; screenshot ${SHOT}
+#   fresh       dashboard «Добавить растение» → name ${NAME} → «+» once; the form stays open
+#   freshcheck  (fresh form open, after a recreation) the name ${NAME} and the watering ${WATER}; screenshot ${SHOT}
+#   back        «Назад» → dashboard; nothing saved
+#   save        «Добавить» → dashboard shows ${NAME}
+# NAME must be Latin (Maestro inputText drops Cyrillic on elt_test). Selectors are bilingual ru|en.
+appId: com.greenthumbplantcare.debug
+name: GreenThumb Add Plant recreation (${STEP})
+---
+- runFlow:
+    when:
+      true: ${STEP == 'draft'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - tapOn: "Умная камера|Smart camera"
+      - runFlow:
+          when:
+            visible: "While using the app|При использовании приложения"
+          commands:
+            - tapOn: "While using the app|При использовании приложения"
+      - extendedWaitUntil:
+          visible: "Растение|Plant"
+          timeout: 15000
+      - tapOn: "Растение|Plant"
+      - tapOn: "Выбрать из галереи|Choose from gallery"
+      - extendedWaitUntil:
+          visible: ${PHOTO}
+          timeout: 15000
+      - tapOn: ${PHOTO}
+      - extendedWaitUntil:
+          visible: "Узнать вид|Identify species"
+          timeout: 15000
+      - tapOn: "Узнать вид|Identify species"
+      - extendedWaitUntil:
+          visible: "Добавить к моим растениям|Add to my plants"
+          timeout: 70000
+      - assertVisible: "Monstera deliciosa"
+      - takeScreenshot: draft-results
+      - tapOn: "Добавить к моим растениям|Add to my plants"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+      - takeScreenshot: draft-form
+
+- runFlow:
+    when:
+      true: ${STEP == 'draftcheck'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 15000
+      - waitForAnimationToEnd
+      - assertVisible: "Фото растения|Plant Photo"
+      - assertVisible: ${NAME}
+      - assertVisible: "по виду|from species"
+      - assertVisible: "Ещё параметры|More options"
+      - assertNotVisible: "Расположение|Location"
+      - assertNotVisible: "Дата последнего полива|Last Watered Date"
+      - assertVisible: "Добавить|Add"
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'fresh'}
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Профиль|Profile"
+          timeout: 30000
+      - tapOn: "Добавить растение|Add Plant|Добавить новое растение|Add a new plant"
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 10000
+      - tapOn: "(например|e\\.g\\.).*"
+      - inputText: ${NAME}
+      # No hideKeyboard here: without a drawn keyboard it presses Back and closes the form.
+      - tapOn: ".*: (больше|increase)"
+      - assertVisible: "8"
+      - takeScreenshot: fresh-typed
+
+- runFlow:
+    when:
+      true: ${STEP == 'freshcheck'}
+    commands:
+      - extendedWaitUntil:
+          visible: "Новое растение|Add New Plant"
+          timeout: 15000
+      - waitForAnimationToEnd
+      - assertVisible: ${NAME}
+      - assertVisible: ${WATER}
+      - assertVisible: "Ещё параметры|More options"
+      - takeScreenshot: ${SHOT}
+
+- runFlow:
+    when:
+      true: ${STEP == 'back'}
+    commands:
+      - tapOn: "Назад|Back"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 10000
+      - takeScreenshot: back-dashboard
+
+- runFlow:
+    when:
+      true: ${STEP == 'save'}
+    commands:
+      - tapOn: "Добавить|Add"
+      - extendedWaitUntil:
+          visible: "Умная камера|Smart camera"
+          timeout: 30000
+      - assertVisible: ${NAME}
+      - takeScreenshot: saved-dashboard

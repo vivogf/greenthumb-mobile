@@ -48,7 +48,7 @@ import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedMessage
 import site.xmpp.greenthumb.ui.res.plantDetails_deleteQueuedTitle
 import site.xmpp.greenthumb.ui.screens.addplant.AddPlantDraftStore
-import site.xmpp.greenthumb.ui.screens.addplant.AddPlantScreen
+import site.xmpp.greenthumb.ui.screens.addplant.AddPlantRoute
 import site.xmpp.greenthumb.ui.screens.dashboard.DashboardScreen
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisJournalSaver
 import site.xmpp.greenthumb.ui.screens.diagnosis.DiagnosisLogic
@@ -312,10 +312,11 @@ public fun GtAppNavGraph(
                     }
                 }
             }
-            composable(NavRoutes.ADD_PLANT) {
+            composable(NavRoutes.ADD_PLANT) { entry ->
                 AppLocalizedContent {
                     if (sessionUserId != null) {
-                        AddPlantScreen(
+                        AddPlantRoute(
+                            owner = entry,
                             userId = sessionUserId,
                             opener = plants,
                             onBack = { navController.popBackStack() },
@@ -358,16 +359,15 @@ public fun GtAppNavGraph(
             }
             composable(NavRoutes.ADD_PLANT_DRAFT) { entry ->
                 val token = entry.arguments?.read { getStringOrNull(NavRoutes.ADD_PLANT_DRAFT_ARG) }.orEmpty()
-                // Taken outside the localized subtree, so a language change keeps the prefilled form.
-                val draft = remember(token) { addPlantDrafts.take(token) }
                 AppLocalizedContent {
                     if (sessionUserId != null) {
-                        AddPlantScreen(
+                        AddPlantRoute(
+                            owner = entry,
                             userId = sessionUserId,
                             opener = plants,
                             onBack = { navController.popBackStack() },
                             identifier = speciesIdentifier,
-                            draft = draft,
+                            takeDraft = { addPlantDrafts.take(token) },
                         )
                     }
                 }

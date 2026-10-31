@@ -68,6 +68,9 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.layout.width
 import org.junit.Rule
 import site.xmpp.greenthumb.core.network.SpeciesCandidateDto
@@ -1180,6 +1183,184 @@ class AddPlantScreenTest {
     @Test
     fun draftFromCamera_en_opensCollapsed_andSavesTheSpecies() =
         draftFormCase(locale = "en", fontScale = 1.3f, name = "Swiss cheese plant", add = "Add")
+
+    // ------------------------------------------------------------------
+    // Activity recreation (font scale, night mode, locale): the form lives in the navigation entry
+    // ------------------------------------------------------------------
+
+    /**
+     * Activity recreation on the desktop: [androidx.compose.ui.test.StateRestorationTester] is a TODO on
+     * skiko (platformEncodeDecode), so this host does the same by hand. The content is disposed and
+     * composed again with the saved-state map of its SaveableStateRegistry (the Android Bundle), while the
+     * window's ViewModelStoreOwner above it stays, as the Activity ViewModelStore does across a config change.
+     */
+    private class Recreation(private val test: ComposeUiTest) {
+        private val shown = androidx.compose.runtime.mutableStateOf(true)
+        private var saved: Map<String, List<Any?>>? = null
+        private var registry: androidx.compose.runtime.saveable.SaveableStateRegistry? = null
+        var recreations = 0
+            private set
+
+        fun setContent(content: @androidx.compose.runtime.Composable () -> Unit) {
+            test.setContent {
+                if (shown.value) {
+                    val current = androidx.compose.runtime.remember {
+                        androidx.compose.runtime.saveable.SaveableStateRegistry(saved) { true }
+                    }
+                    registry = current
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.runtime.saveable.LocalSaveableStateRegistry provides current,
+                    ) { content() }
+                }
+            }
+        }
+
+        fun recreate() {
+            test.runOnIdle {
+                saved = registry!!.performSave()
+                shown.value = false
+            }
+            test.waitForIdle()
+            test.runOnIdle {
+                recreations++
+                shown.value = true
+            }
+            test.waitForIdle()
+        }
+    }
+
+    private fun ComposeUiTest.typedName(): String =
+        onAllNodes(isEditable())[0].fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text
+
+    @Test
+    fun freshForm_keepsTypedFieldsAcrossRecreation() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            val restoration = Recreation(this)
+            restoration.setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openAddPlantForm()
+            onAllNodes(isEditable())[0].performTextInput("Fern")
+            clickUnmergedTag("addPlant_water_inc")
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 1 }
+            onNodeWithTag("addPlant_location").performTextInput("Kitchen")
+
+            restoration.recreate()
+
+            waitUntilAtLeastOneExists(hasText("Add New Plant"), TIMEOUT)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_location") == 1 }
+            onAllNodes(isEditable())[0].assertTextEquals("Fern", includeEditableText = true)
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+            onNodeWithTag("addPlant_location").assertTextEquals("Kitchen", includeEditableText = true)
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"Fern\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":8"), body)
+            assertTrue(body.contains("\"location\":\"Kitchen\""), body)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /** The camera draft goes through the same route glue as the app graph, inside a NavHost. */
+    private fun ComposeUiTest.setDraftHost(restoration: Recreation, graph: Harness, store: AddPlantDraftStore, token: String) {
+        restoration.setContent {
+            site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
+                site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                    val nav = rememberNavController()
+                    NavHost(nav, startDestination = "home") {
+                        composable("home") {
+                            androidx.compose.material3.TextButton(onClick = { nav.navigate("add-plant/draft/$token") }) {
+                                androidx.compose.material3.Text("Open draft")
+                            }
+                        }
+                        composable(site.xmpp.greenthumb.ui.nav.NavRoutes.ADD_PLANT_DRAFT) { entry ->
+                            AddPlantRoute(
+                                owner = entry,
+                                userId = "73",
+                                opener = graph.opener,
+                                onBack = { nav.popBackStack() },
+                                identifier = CountingIdentifier(),
+                                takeDraft = { store.take(token) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun cameraDraft_survivesRecreation_collapsed_withTheEditedName() {
+        val graph = newHarness()
+        val store = AddPlantDraftStore()
+        val token = store.put(cameraDraft())
+        runDesktopComposeUiTest {
+            val restoration = Recreation(this)
+            setDraftHost(restoration, graph, store, token)
+            clickAt(hasClickAction() and hasText("Open draft"))
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onAllNodes(isEditable())[0].assertTextEquals("Swiss cheese plant", includeEditableText = true)
+            assertEquals(1, unmergedCount("addPlant_waterFromSpecies"))
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+
+            restoration.recreate()
+
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onAllNodes(isEditable())[0].assertTextEquals("Swiss cheese plant", includeEditableText = true)
+            assertEquals(1, unmergedCount("addPlant_nameFromSpecies"), "the species name keeps «по виду»")
+            assertEquals(1, unmergedCount("addPlant_waterFromSpecies"), "the species watering keeps «по виду»")
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+            waitUntilAtLeastOneExists(hasContentDescription("Plant Photo"), TIMEOUT)
+            listOf("addPlant_location", "addPlant_lastWatered", "addPlant_notes")
+                .forEach { tag -> assertEquals(0, unmergedCount(tag), "$tag stays hidden: «More options» is still collapsed") }
+
+            // A stepper change survives the next recreation.
+            clickUnmergedTag("addPlant_water_dec")
+            restoration.recreate()
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("7")
+
+            // A typed name survives a second recreation too.
+            onAllNodes(isEditable())[0].performTextClearance()
+            onAllNodes(isEditable())[0].performTextInput("My monstera")
+            restoration.recreate()
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            onAllNodes(isEditable())[0].assertTextEquals("My monstera", includeEditableText = true)
+
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"name\":\"My monstera\""), body)
+            assertTrue(body.contains("\"species_id\":\"monstera-deliciosa\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":7"), body)
+            assertTrue(body.contains("\"photo_url\":\"data:image/jpeg;base64,"), "the camera photo is still the cover")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun cameraDraft_isGoneAfterBack() {
+        val graph = newHarness()
+        val store = AddPlantDraftStore()
+        val token = store.put(cameraDraft())
+        runDesktopComposeUiTest {
+            val restoration = Recreation(this)
+            setDraftHost(restoration, graph, store, token)
+            clickAt(hasClickAction() and hasText("Open draft"))
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            clickAt(hasClickAction() and hasContentDescription("Back"))
+            waitUntilAtLeastOneExists(hasText("Open draft"), TIMEOUT)
+            // The entry and its form are gone: the same token opens an empty form.
+            clickAt(hasClickAction() and hasText("Open draft"))
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_submit") == 1 }
+            assertEquals("", typedName())
+            assertEquals(0, unmergedCount("addPlant_nameFromSpecies"))
+            runOnIdle { graph.close() }
+        }
+    }
 
     private companion object {
         const val TIMEOUT: Long = 10_000L
