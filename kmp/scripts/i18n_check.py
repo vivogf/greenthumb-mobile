@@ -346,6 +346,7 @@ KMP_ONLY_KEYS = {
     "smartcam.addToMine",
     "smartcam.justLook",
     "smartcam.retake",
+    "smartcam.backToPhoto",
     "smartcam.noMatch",
     "smartcam.notInList",
     "smartcam.isMine",

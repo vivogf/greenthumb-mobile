@@ -104,6 +104,7 @@ import site.xmpp.greenthumb.ui.res.diagnosis_photoLoadFailed
 import site.xmpp.greenthumb.ui.res.diagnosis_photoLoading
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.smartcam_addToMine
+import site.xmpp.greenthumb.ui.res.smartcam_backToPhoto
 import site.xmpp.greenthumb.ui.res.smartcam_cameraDenied
 import site.xmpp.greenthumb.ui.res.smartcam_cameraUnavailable
 import site.xmpp.greenthumb.ui.res.smartcam_choosePhoto
@@ -961,11 +962,24 @@ private fun ResultContent(
                     modifier = Modifier.testTag("smartcam_message"),
                 )
                 if (controller.mode == SmartCameraMode.Plant) PlantNetAttribution()
-                PrimaryButton(
-                    text = stringResource(Res.string.smartcam_retake),
-                    onClick = controller::retake,
-                    modifier = Modifier.gtButtonWidth().testTag("smartcam_retake"),
-                )
+                if (controller.canReturnToPhoto) {
+                    PrimaryButton(
+                        text = stringResource(Res.string.smartcam_backToPhoto),
+                        onClick = controller::backToPhoto,
+                        modifier = Modifier.gtButtonWidth().testTag("smartcam_backToPhoto"),
+                    )
+                    SecondaryButton(
+                        text = stringResource(Res.string.smartcam_retake),
+                        onClick = controller::retake,
+                        modifier = Modifier.gtButtonWidth().testTag("smartcam_retake"),
+                    )
+                } else {
+                    PrimaryButton(
+                        text = stringResource(Res.string.smartcam_retake),
+                        onClick = controller::retake,
+                        modifier = Modifier.gtButtonWidth().testTag("smartcam_retake"),
+                    )
+                }
             }
         }
     }

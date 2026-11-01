@@ -109,6 +109,17 @@ public sealed interface SmartCameraFailure {
     public data object IdentifyUnavailable : SmartCameraFailure
 
     public data class Diagnosis(public val error: DiagnosisError) : SmartCameraFailure
+
+    /**
+     * The request did not get through (no connection, timeout, service down), so the same photo is worth sending
+     * again. A used-up limit, no match or a photo the service rejected needs another day or another photo instead.
+     */
+    public val transient: Boolean
+        get() = when (this) {
+            IdentifyUnavailable -> true
+            is Diagnosis -> error == DiagnosisError.Network || error == DiagnosisError.Unavailable
+            NoMatch, IdentifyQuota -> false
+        }
 }
 
 public sealed interface SmartCameraPhase {
@@ -573,6 +584,18 @@ public class SmartCameraController(
                 JournalSaveState.Failed
             }
         }
+    }
+
+    /** «Вернуться к фото» is offered: a transient failure of a photo that is still here. */
+    public val canReturnToPhoto: Boolean
+        get() = !closed && photo != null && (phase as? SmartCameraPhase.Failed)?.failure?.transient == true
+
+    /**
+     * «Вернуться к фото» after a transient failure: the after-shot screen with the same photo, note, mode, chip
+     * and capture file. Nothing is sent; only the next explicit [send] asks again.
+     */
+    public fun backToPhoto() {
+        if (canReturnToPhoto) phase = SmartCameraPhase.Captured
     }
 
     /** Stops a running request; the photo and the note stay on the after-shot screen. */

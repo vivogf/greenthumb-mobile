@@ -577,6 +577,7 @@
     <string name="smartcam_addToMine">Add to my plants</string>
     <string name="smartcam_justLook">Just find out</string>
     <string name="smartcam_retake">Take another</string>
+    <string name="smartcam_backToPhoto">Back to photo</string>
     <string name="smartcam_noMatch">The species was not recognised. Try another photo.</string>
     <string name="smartcam_notInList">This plant is not from your list, so the result is not saved.</string>
     <string name="smartcam_isMine">Is this my plant?</string>

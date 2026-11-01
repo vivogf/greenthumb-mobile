@@ -52,7 +52,8 @@ import site.xmpp.greenthumb.ui.screens.diagnosis.PlantDiagnoser
  * VAL-DIAG-017/018/020/024 and VAL-CARD-016/018 for a check bound to a plant, over the real [ApiClient] stack with
  * a MockEngine on the test dispatcher (60 s and 75 s waits are virtual time): the answer of
  * `POST /api/plants/<id>/diagnose`, the deadline, every error, cancel and close, the capture file, a journal
- * server error, and the plant cover downloaded through the API client. A failed check is retaken, never resent.
+ * server error, and the plant cover downloaded through the API client. A failed check is never resent by itself:
+ * after a network or availability failure the user goes back to the same photo and sends it again explicitly.
  * The route, the chip and the journal basics are in [SmartCameraPlantRouteTest].
  */
 class SmartCameraPlantDiagnosisTest {
@@ -241,6 +242,54 @@ class SmartCameraPlantDiagnosisTest {
         assertEquals(basil, c.diagnosedPlant)
         assertEquals(listOf("POST /api/plants/p-1/diagnose", "POST /api/plants/p-1/diagnose"), routes(sent))
         client.close()
+    }
+
+    @Test
+    fun aTransientFailureReturnsToTheSamePhotoNoteAndChipAndOnlyTheExplicitSendRetries() = runTest {
+        val offline: MockRequestHandler = { throw java.io.IOException("airplane mode") }
+        val unavailable = json(HttpStatusCode.ServiceUnavailable, """{"error":"Diagnosis is unavailable","code":"diagnosis_unavailable"}""")
+        for ((fault, expected) in listOf(offline to DiagnosisError.Network, unavailable to DiagnosisError.Unavailable)) {
+            val dir = File.createTempFile("gt-plant-cam-retry", "").also { it.delete(); it.mkdirs() }
+            val shot = File(dir, "gt-cam-1.jpg").also { it.writeBytes(photo) }
+            val deleted = mutableListOf<String>()
+            val sent = mutableListOf<Sent>()
+            var calls = 0
+            val (api, client) = api(sent) { if (++calls == 1) fault(this, it) else ok(it.url.encodedPath) }
+            val c = controller(
+                ApiPlantDiagnoser(api),
+                capture = { PickResult.Picked(photo, capturePath = shot.absolutePath) },
+                deleteCapture = { path -> deleted += path; File(path).delete() },
+            )
+            shoot(c)
+            c.updateNote("Пятна на листьях")
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(expected)), c.phase)
+            assertTrue(c.canReturnToPhoto, "$expected")
+
+            c.backToPhoto()
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Captured, c.phase)
+            assertContentEquals(photo, c.photo)
+            assertEquals("Пятна на листьях", c.note)
+            assertEquals(SmartCameraMode.Disease, c.mode)
+            assertEquals(basil, c.activePlant, "$expected: the chip stays")
+            assertEquals(1, sent.size, "$expected: going back sends nothing")
+            assertTrue(shot.exists(), "$expected: the capture file stays for the retry")
+
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
+            assertEquals(basil, c.diagnosedPlant)
+            assertEquals(List(2) { "POST /api/plants/p-1/diagnose" }, routes(sent), "$expected: one more request, to the plant route")
+            assertEquals(body(sent[0]), body(sent[1]), "$expected: the same photo, note and language")
+            assertEquals("Пятна на листьях", body(sent[1])["note"]!!.jsonPrimitive.content)
+            c.close()
+            assertFalse(shot.exists(), "close still deletes the capture")
+            assertEquals(listOf(shot.absolutePath), deleted)
+            dir.deleteRecursively()
+            client.close()
+        }
     }
 
     @Test

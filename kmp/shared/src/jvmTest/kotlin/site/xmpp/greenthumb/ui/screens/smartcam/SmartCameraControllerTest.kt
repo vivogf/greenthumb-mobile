@@ -35,6 +35,7 @@ class SmartCameraControllerTest {
         val picks = mutableListOf<PickSource>()
         val shots = mutableListOf<Boolean>()
         val remembered = mutableListOf<SmartCameraMode>()
+        val deleted = mutableListOf<String>()
         var pickResult: PickResult = PickResult.Picked(byteArrayOf(1, 2, 3))
         var shotResult: PickResult = PickResult.Picked(byteArrayOf(4, 5, 6), capturePath = "/cache/gt-pick/gt-diag-1.jpg")
         var identifyAnswer: () -> List<SpeciesCandidateDto> = { listOf(candidate("Monstera deliciosa", 0.8)) }
@@ -67,6 +68,7 @@ class SmartCameraControllerTest {
             preparePlant = { bytes -> bytes + 7 },
             prepareDisease = { bytes -> bytes + 9 },
             catalog = { null },
+            deleteCapture = { deleted += it },
             onModeChange = { remembered += it },
         )
     }
@@ -582,6 +584,172 @@ class SmartCameraControllerTest {
         assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.IdentifyUnavailable), c.phase)
         c.retake()
         assertEquals(SmartCameraPhase.Viewfinder, c.phase)
+    }
+
+    @Test
+    fun aTransientIdentifyFailureReturnsToTheSamePhotoAndOnlyTheExplicitSendRetries() = runTest {
+        for (fault in listOf<Throwable>(ApiError.Network, ApiError.Timeout, ApiError.Server(503, ""))) {
+            val f = Fakes()
+            var failNext = true
+            f.identifyAnswer = {
+                if (failNext) {
+                    failNext = false
+                    throw fault
+                }
+                listOf(candidate("Monstera deliciosa", 0.8))
+            }
+            val c = f.controller()
+            c.ready()
+            c.shutter(this)
+            advanceUntilIdle()
+            val shown = c.photo
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.IdentifyUnavailable), c.phase, "$fault")
+            assertTrue(c.canReturnToPhoto, "$fault: a transient failure offers the same photo again")
+
+            c.backToPhoto()
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Captured, c.phase)
+            assertEquals(SmartCameraMode.Plant, c.mode)
+            assertTrue(shown === c.photo, "$fault: the very same prepared bytes")
+            assertEquals(1, f.identifyCalls.size, "$fault: going back to the photo sends nothing")
+            assertTrue(f.deleted.isEmpty(), "$fault: the capture file stays for the retry")
+            assertEquals(1, f.shots.size, "$fault: no new shot")
+
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertIs<SmartCameraPhase.PlantResult>(c.phase)
+            assertEquals(2, f.identifyCalls.size, "$fault: exactly one more request, on the explicit tap")
+            assertEquals(f.identifyCalls[0], f.identifyCalls[1], "$fault: the same photo and language")
+            assertEquals(0, f.diagnoseCalls.size)
+        }
+    }
+
+    @Test
+    fun aTransientDiagnosisFailureKeepsThePhotoAndNoteForTheExplicitResend() = runTest {
+        for (fault in listOf<Throwable>(ApiError.Network, ApiError.Server(503, """{"code":"diagnosis_unavailable"}"""))) {
+            val f = Fakes()
+            var failNext = true
+            f.diagnoseAnswer = {
+                if (failNext) {
+                    failNext = false
+                    throw fault
+                }
+                DiagnosisResponse(listOf(DiagnosisCauseDto("Too much water", "high", "Soft leaves", "Water less")), "Overwatered")
+            }
+            val c = f.controller(mode = SmartCameraMode.Disease)
+            c.ready()
+            c.shutter(this)
+            advanceUntilIdle()
+            c.updateNote("Жёлтые пятна")
+            val shown = c.photo
+            c.send(this, "ru")
+            advanceUntilIdle()
+            val failed = assertIs<SmartCameraPhase.Failed>(c.phase)
+            val error = assertIs<SmartCameraFailure.Diagnosis>(failed.failure).error
+            assertTrue(error == DiagnosisError.Network || error == DiagnosisError.Unavailable, "$fault -> $error")
+            assertTrue(c.canReturnToPhoto)
+
+            c.backToPhoto()
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Captured, c.phase)
+            assertEquals(SmartCameraMode.Disease, c.mode)
+            assertTrue(shown === c.photo)
+            assertEquals("Жёлтые пятна", c.note, "$fault: the note is still on the after-shot screen")
+            assertEquals(1, f.diagnoseCalls.size, "$fault: going back sends nothing")
+            assertTrue(f.deleted.isEmpty())
+
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertIs<SmartCameraPhase.DiseaseResult>(c.phase)
+            assertEquals(2, f.diagnoseCalls.size)
+            assertEquals(f.diagnoseCalls[0], f.diagnoseCalls[1], "$fault: the same photo, note and language")
+            assertEquals("Жёлтые пятна", f.diagnoseCalls[1].second)
+            assertEquals(0, f.identifyCalls.size)
+        }
+    }
+
+    @Test
+    fun quotaNoMatchAndPermanentFailuresDoNotOfferTheSamePhotoAgain() = runTest {
+        val identifyCases = listOf<Pair<() -> List<SpeciesCandidateDto>, SmartCameraFailure>>(
+            { emptyList<SpeciesCandidateDto>() } to SmartCameraFailure.NoMatch,
+            { throw ApiError.Client(429, """{"error":"quota_exceeded"}""") } to SmartCameraFailure.IdentifyQuota,
+        )
+        for ((answer, expected) in identifyCases) {
+            val f = Fakes()
+            f.identifyAnswer = answer
+            val c = f.controller()
+            c.chooseFromGallery(this)
+            advanceUntilIdle()
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(expected), c.phase)
+            assertFalse(c.canReturnToPhoto, "$expected keeps its own next step")
+            c.backToPhoto()
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(expected), c.phase, "$expected: nothing reopens the photo")
+            assertEquals(1, f.identifyCalls.size, "$expected: never resent")
+        }
+        val diagnosisCases = listOf(
+            ApiError.Client(429, """{"code":"daily_limit","scope":"user"}""") to DiagnosisError.DailyLimit,
+            ApiError.Client(429, """{"code":"daily_limit","scope":"global"}""") to DiagnosisError.ServiceLimit,
+            ApiError.Client(400, """{"error":"Invalid photo"}""") to DiagnosisError.Failed,
+        )
+        for ((fault, expected) in diagnosisCases) {
+            val f = Fakes()
+            f.diagnoseAnswer = { throw fault }
+            val c = f.controller(mode = SmartCameraMode.Disease)
+            c.chooseFromGallery(this)
+            advanceUntilIdle()
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(expected)), c.phase)
+            assertFalse(c.canReturnToPhoto, "$expected keeps its own next step")
+            c.backToPhoto()
+            c.send(this, "ru")
+            advanceUntilIdle()
+            assertEquals(SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(expected)), c.phase)
+            assertEquals(1, f.diagnoseCalls.size, "$expected: never resent")
+        }
+    }
+
+    @Test
+    fun backToPhotoDoesNothingOutsideATransientFailureAndRetakeOrCloseStillCleanUp() = runTest {
+        val f = Fakes()
+        f.identifyAnswer = { throw ApiError.Network }
+        val c = f.controller()
+        c.backToPhoto()
+        assertEquals(SmartCameraPhase.Viewfinder, c.phase, "no photo yet")
+        c.ready()
+        c.shutter(this)
+        advanceUntilIdle()
+        c.backToPhoto()
+        assertEquals(SmartCameraPhase.Captured, c.phase)
+        c.send(this, "ru")
+        advanceUntilIdle()
+        c.backToPhoto()
+        assertEquals(SmartCameraPhase.Captured, c.phase)
+        c.retake()
+        assertEquals(SmartCameraPhase.Viewfinder, c.phase)
+        assertNull(c.photo)
+        assertEquals(listOf("/cache/gt-pick/gt-diag-1.jpg"), f.deleted, "retake deletes the capture as before")
+        assertFalse(c.canReturnToPhoto)
+
+        c.shutter(this)
+        advanceUntilIdle()
+        c.send(this, "ru")
+        advanceUntilIdle()
+        assertTrue(c.canReturnToPhoto)
+        c.close()
+        assertEquals(SmartCameraPhase.Viewfinder, c.phase)
+        assertNull(c.photo)
+        assertFalse(c.canReturnToPhoto)
+        c.backToPhoto()
+        assertEquals(SmartCameraPhase.Viewfinder, c.phase, "a closed camera does not reopen the photo")
+        assertEquals(2, f.deleted.size, "close deletes the capture as before")
+        assertEquals(2, f.identifyCalls.size)
     }
 
     @Test

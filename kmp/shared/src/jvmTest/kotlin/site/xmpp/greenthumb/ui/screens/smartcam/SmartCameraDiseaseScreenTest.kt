@@ -231,6 +231,7 @@ class SmartCameraDiseaseScreenTest {
             println("[$locale ${mode.wire}] $body -> $message")
             assertTrue(!exists(hasTestTag("smartcam_loading")), "loading has ended")
             assertTrue(exists(hasTestTag("smartcam_retake")), "a way to try another photo")
+            assertTrue(!exists(hasTestTag("smartcam_backToPhoto")), "a used-up limit offers no immediate retry")
             assertNoCounter()
             click("smartcam_back")
             assertEquals(1, closed, "a way back")
@@ -269,6 +270,33 @@ class SmartCameraDiseaseScreenTest {
     fun en_plant_identify_quota() = assertLimit(
         "en", SmartCameraMode.Plant, HttpStatusCode.TooManyRequests, identifyQuota, "Daily identification limit reached",
     )
+
+    private fun identifyUnavailableReturnsToThePhoto(locale: String, message: String, back: String) = runDesktopComposeUiTest {
+        val api = api(HttpStatusCode.ServiceUnavailable, """{"error":"Identification is unavailable"}""")
+        show(locale, SmartCameraMode.Plant, api)
+        click("smartcam_fallbackGallery")
+        click("smartcam_send")
+        waitFor(tagged("smartcam_message", message))
+        assertTrue(exists(tagged("smartcam_backToPhoto", back)), "[$locale] ${texts()}")
+        assertTrue(exists(hasTestTag("smartcam_retake")))
+        click("smartcam_backToPhoto")
+        waitFor(hasTestTag("smartcam_aftershot"))
+        waitForIdle()
+        assertTrue(exists(hasTestTag("smartcam_photo")), "[$locale] the same photo is shown")
+        assertEquals(1, calls, "[$locale] going back sends nothing")
+        click("smartcam_send")
+        waitFor(tagged("smartcam_message", message))
+        assertEquals(2, calls, "[$locale] one more request, only on the explicit tap")
+        assertNoCounter()
+    }
+
+    @Test
+    fun ru_plant_identify_unavailable_returns_to_the_photo() =
+        identifyUnavailableReturnsToThePhoto("ru", "Распознавание недоступно", "Вернуться к фото")
+
+    @Test
+    fun en_plant_identify_unavailable_returns_to_the_photo() =
+        identifyUnavailableReturnsToThePhoto("en", "Identification is unavailable", "Back to photo")
 
     private companion object {
         const val TIMEOUT = 10_000L

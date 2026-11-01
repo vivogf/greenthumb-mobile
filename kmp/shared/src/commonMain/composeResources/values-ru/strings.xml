@@ -587,6 +587,7 @@
     <string name="smartcam_addToMine">Добавить к моим растениям</string>
     <string name="smartcam_justLook">Просто узнать</string>
     <string name="smartcam_retake">Снять ещё раз</string>
+    <string name="smartcam_backToPhoto">Вернуться к фото</string>
     <string name="smartcam_noMatch">Вид не распознан. Попробуйте другое фото.</string>
     <string name="smartcam_notInList">Растение не из вашего списка, поэтому результат не сохранён.</string>
     <string name="smartcam_isMine">Это моё растение?</string>

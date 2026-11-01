@@ -144,12 +144,18 @@ class SmartCameraPlantLocaleTest {
                 node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
         }
 
-    private fun assertErrorState(locale: String, diagnoser: PlantDiagnoser, message: String) = runDesktopComposeUiTest {
+    /** [backToPhoto] is the label of the return to the same photo after a transient failure; null where none is offered. */
+    private fun assertErrorState(locale: String, diagnoser: PlantDiagnoser, message: String, backToPhoto: String? = null) = runDesktopComposeUiTest {
         var closed = 0
         show(locale, diagnoser) { closed++ }
         pickAndSend()
         waitFor(tagged("smartcam_message", message))
         assertTrue(!exists("smartcam_loading"), "loading has ended")
+        if (backToPhoto != null) {
+            assertTrue(exists(tagged("smartcam_backToPhoto", backToPhoto)), "[$locale] the same photo can be sent again: ${texts()}")
+        } else {
+            assertTrue(!exists("smartcam_backToPhoto"), "[$locale] a limit offers no immediate retry")
+        }
         val all = texts()
         assertTrue(all.none { it.contains("переустанов", ignoreCase = true) || it.contains("reinstall", ignoreCase = true) }, "$all")
         assertTrue(all.none { Regex("\\d").containsMatchIn(it) }, "[$locale] no counter: $all")
@@ -168,11 +174,11 @@ class SmartCameraPlantLocaleTest {
 
     @Test
     fun ru_503_shows_temporarily_unavailable() =
-        assertErrorState("ru", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Проверка растения временно недоступна")
+        assertErrorState("ru", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Проверка растения временно недоступна", RU_BACK)
 
     @Test
     fun en_503_shows_temporarily_unavailable() =
-        assertErrorState("en", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Plant check is temporarily unavailable")
+        assertErrorState("en", status(HttpStatusCode.ServiceUnavailable, unavailable503), "Plant check is temporarily unavailable", EN_BACK)
 
     @Test
     fun ru_429_shows_the_daily_limit() =
@@ -200,15 +206,49 @@ class SmartCameraPlantLocaleTest {
 
     @Test
     fun ru_timeout_shows_the_network_error() =
-        assertErrorState("ru", PlantDiagnoser { _, _, _, _ -> throw ApiError.Timeout }, "Нет связи с сервером. Проверьте интернет и повторите.")
+        assertErrorState("ru", PlantDiagnoser { _, _, _, _ -> throw ApiError.Timeout }, "Нет связи с сервером. Проверьте интернет и повторите.", RU_BACK)
 
     @Test
     fun en_timeout_shows_the_network_error() =
-        assertErrorState("en", PlantDiagnoser { _, _, _, _ -> throw ApiError.Timeout }, "Could not reach the server. Check your connection and try again.")
+        assertErrorState("en", PlantDiagnoser { _, _, _, _ -> throw ApiError.Timeout }, "Could not reach the server. Check your connection and try again.", EN_BACK)
 
     @Test
     fun ru_offline_shows_the_network_error() =
-        assertErrorState("ru", apiDiagnoser { throw java.io.IOException("airplane mode") }, "Нет связи с сервером. Проверьте интернет и повторите.")
+        assertErrorState("ru", apiDiagnoser { throw java.io.IOException("airplane mode") }, "Нет связи с сервером. Проверьте интернет и повторите.", RU_BACK)
+
+    @Test
+    fun a_transient_failure_returns_to_the_same_photo_note_and_chip_and_only_send_retries() {
+        for ((locale, back) in listOf("ru" to RU_BACK, "en" to EN_BACK)) {
+            runDesktopComposeUiTest {
+                val photos = mutableListOf<String>()
+                val notes = mutableListOf<String?>()
+                val diagnoser = PlantDiagnoser { id, photo, note, _ ->
+                    assertEquals("p-1", id)
+                    photos += photo
+                    notes += note
+                    if (photos.size == 1) throw ApiError.Network
+                    DiagnosisResponse(listOf(DiagnosisCauseDto("Overwatering", "high", "Wet soil.", "Water less.")), "Too much water.")
+                }
+                show(locale, diagnoser)
+                pickAndSend(note = "spots")
+                waitFor(hasTestTag("smartcam_backToPhoto"))
+                assertTrue(exists(tagged("smartcam_backToPhoto", back)), "[$locale] ${texts()}")
+                assertTrue(exists("smartcam_retake"), "[$locale] a new photo stays possible")
+                click("smartcam_backToPhoto")
+                waitFor(hasTestTag("smartcam_aftershot"))
+                waitForIdle()
+                assertEquals(1, photos.size, "[$locale] going back sends nothing")
+                assertTrue(exists("smartcam_photo"), "[$locale] photo is kept")
+                assertTrue(exists(hasText("spots")), "[$locale] note is kept")
+                assertTrue(exists(tagged("smartcam_plantChip", "Базилик")), "[$locale] chip is kept")
+                click("smartcam_send")
+                waitFor(hasTestTag("diagnosis_result"))
+                assertEquals(2, photos.size, "[$locale] one more request on the explicit tap")
+                assertEquals(photos[0], photos[1], "[$locale] the same photo")
+                assertEquals(listOf<String?>("spots", "spots"), notes)
+            }
+        }
+    }
 
     @Test
     fun cancel_returns_to_the_after_shot_screen_and_a_late_answer_is_not_shown() {
@@ -327,5 +367,7 @@ class SmartCameraPlantLocaleTest {
 
     private companion object {
         const val TIMEOUT = 10_000L
+        const val RU_BACK = "Вернуться к фото"
+        const val EN_BACK = "Back to photo"
     }
 }
