@@ -3,6 +3,7 @@
 package site.xmpp.greenthumb.ui.screens.addplant
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.minus
 import kotlinx.datetime.number
 import site.xmpp.greenthumb.App
 import site.xmpp.greenthumb.core.network.AccountSession
@@ -925,14 +927,28 @@ class AddPlantScreenTest {
             assertEquals(1, onAllNodes(isEditable()).fetchSemanticsNodes().size, "only the name field is shown")
             listOf("addPlant_identify", "addPlant_pickSpecies", "addPlant_location", "addPlant_lastWatered", "addPlant_notes")
                 .forEach { tag -> assertEquals(0, unmergedCount(tag), "$tag is hidden while collapsed") }
+            // M12a: the compact form also shows the selected last-watered date (today) with one change control.
+            val todayLabel = formatPickerDate(pickerToday().toString(), locale)
+            val summaryNode = onNodeWithTag("addPlant_lastWateredSummary")
+            summaryNode.assert(hasText(if (locale == "ru") "Последний полив" else "Last watered"))
+            summaryNode.assert(hasText(if (locale == "ru") "Сегодня, $todayLabel" else "Today, $todayLabel"))
+            summaryNode.assert(hasText(if (locale == "ru") "Изменить" else "Change"))
+            assertEquals(
+                1,
+                onAllNodes(hasClickAction() and hasTestTag("addPlant_lastWateredSummary"), useUnmergedTree = true)
+                    .fetchSemanticsNodes().size,
+                "the summary row is one control",
+            )
             val photo = onNode(hasClickAction() and hasContentDescription(if (locale == "ru") "Добавить фото" else "Add photo"))
                 .getBoundsInRoot()
             val name = onAllNodes(isEditable())[0].getBoundsInRoot()
             val stepper = onNodeWithTag("addPlant_water_inc", useUnmergedTree = true).getBoundsInRoot()
+            val summary = summaryNode.getBoundsInRoot()
             val moreRow = onNodeWithTag("addPlant_more", useUnmergedTree = true).getBoundsInRoot()
             val submit = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
             assertTrue(photo.bottom <= name.top && name.bottom <= stepper.top, "photo, name, stepper from top to bottom")
-            assertTrue(stepper.bottom <= moreRow.top && moreRow.bottom <= submit.top, "«$more» above «$add»")
+            assertTrue(stepper.bottom <= summary.top && summary.bottom <= moreRow.top, "the date summary sits between the stepper and «$more»")
+            assertTrue(moreRow.bottom <= submit.top, "«$more» above «$add»")
             val root = onRoot().getBoundsInRoot()
             assertTrue(submit.bottom <= root.bottom, "«$add» is on screen without scrolling: $submit in $root")
             onNodeWithTag("addPlant_submit").assertTextEquals(add)
@@ -949,6 +965,105 @@ class AddPlantScreenTest {
     @Test
     fun shortForm_en_showsOnlyPhotoNameWatering_andAddAtTheBottom() =
         shortFormCase(locale = "en", more = "More options", add = "Add", fontScale = 1.15f)
+
+    // ------------------------------------------------------------------
+    // M12a UX4: the compact last-watered summary leads to the existing date field and picker
+    // ------------------------------------------------------------------
+
+    private fun dayCellLabel(date: kotlinx.datetime.LocalDate): String =
+        java.time.LocalDate.of(date.year, date.month.number, date.day).format(
+            java.time.format.DateTimeFormatter
+                .ofLocalizedDate(java.time.format.FormatStyle.FULL)
+                .withLocale(java.util.Locale.ENGLISH),
+        )
+
+    @Test
+    fun lastWateredSummary_opensThePicker_doneUpdatesSummaryAndBody_cancelKeepsTheDate() {
+        val graph = newHarness()
+        val today = pickerToday()
+        val todayLabel = formatPickerDate(today.toString(), "en")
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, "en", fontScale = 1.3f)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_lastWateredSummary") == 1 }
+            onAllNodes(isEditable())[0].performTextInput("Fern")
+            clickUnmergedTag("addPlant_water_inc")
+
+            // The summary opens the existing picker and expands «More options» to the real date field.
+            clickUnmergedTag("addPlant_lastWateredSummary")
+            waitUntilAtLeastOneExists(hasText("Maximum $todayLabel"), TIMEOUT)
+            assertEquals(1, unmergedCount("addPlant_lastWatered"), "the existing date field is reachable")
+            onNodeWithText("Done").assertIsEnabled()
+
+            // A different past day: the 1st of this month (on the 1st, the previous month's last day).
+            val picked = if (today.day > 1) {
+                kotlinx.datetime.LocalDate(today.year, today.month, 1)
+            } else {
+                today.minus(1, kotlinx.datetime.DateTimeUnit.DAY)
+            }
+            if (today.day == 1) {
+                clickAt(hasClickAction() and hasContentDescription("Change to previous month", substring = true))
+                waitForIdle()
+            }
+            clickAt(hasClickAction() and hasText(dayCellLabel(picked)))
+            waitForIdle()
+            clickAt(hasClickAction() and hasText("Done"))
+            waitUntilDoesNotExist(hasText("Maximum $todayLabel"), TIMEOUT)
+            val pickedLabel = formatPickerDate(picked.toString(), "en")
+            onNodeWithTag("addPlant_lastWateredSummary").assert(hasText(pickedLabel))
+            onNodeWithTag("addPlant_lastWateredSummary").assert(hasText("Today, $todayLabel").not())
+            waitUntilAtLeastOneExists(hasContentDescription("Date field $pickedLabel"), TIMEOUT)
+
+            // Collapsing and opening «More options» again does not reopen the picker.
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_lastWatered") == 0 }
+            clickUnmergedTag("addPlant_more")
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_lastWatered") == 1 }
+            onNodeWithText("Maximum $todayLabel").assertDoesNotExist()
+
+            // Cancel after choosing another day keeps the previous date and the other values.
+            clickUnmergedTag("addPlant_lastWateredSummary")
+            waitUntilAtLeastOneExists(hasText("Maximum $todayLabel"), TIMEOUT)
+            if (picked != today && picked.month == today.month) {
+                // Material3 prefixes today's cell with «Today».
+                clickAt(hasClickAction() and hasText(dayCellLabel(today), substring = true))
+                waitForIdle()
+            }
+            clickAt(hasClickAction() and hasText("Cancel"))
+            waitUntilDoesNotExist(hasText("Maximum $todayLabel"), TIMEOUT)
+            onNodeWithTag("addPlant_lastWateredSummary").assert(hasText(pickedLabel))
+            onAllNodes(isEditable())[0].assertTextEquals("Fern", includeEditableText = true)
+            onNodeWithTag("addPlant_water_value", useUnmergedTree = true).assertTextEquals("8")
+
+            val submit = onNodeWithTag("addPlant_submit", useUnmergedTree = true).getBoundsInRoot()
+            val root = onRoot().getBoundsInRoot()
+            assertTrue(submit.bottom <= root.bottom && submit.top >= root.top, "«Add» stays on screen")
+            clickSubmit()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.lastAddBody != null }
+            val body = graph.server.lastAddBody.orEmpty()
+            assertTrue(body.contains("\"last_watered_date\":\"$picked\""), "the submitted date is the summary's date: $body")
+            assertTrue(body.contains("\"name\":\"Fern\""), body)
+            assertTrue(body.contains("\"water_frequency_days\":8"), body)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun lastWateredSummary_ru_showsTodayAndOpensThePicker() {
+        val graph = newHarness()
+        val todayLabel = formatPickerDate(pickerToday().toString(), "ru")
+        runDesktopComposeUiTest {
+            setScaledAddPlant(graph, "ru", fontScale = 1.15f)
+            waitUntil(timeoutMillis = TIMEOUT) { unmergedCount("addPlant_lastWateredSummary") == 1 }
+            onNodeWithTag("addPlant_lastWateredSummary").assert(hasText("Сегодня, $todayLabel"))
+            clickUnmergedTag("addPlant_lastWateredSummary")
+            waitUntilAtLeastOneExists(hasText("Готово"), TIMEOUT)
+            assertEquals(1, unmergedCount("addPlant_lastWatered"))
+            clickAt(hasClickAction() and hasText("Отмена"))
+            waitUntilDoesNotExist(hasText("Готово"), TIMEOUT)
+            onNodeWithTag("addPlant_lastWateredSummary").assert(hasText("Сегодня, $todayLabel"))
+            runOnIdle { graph.close() }
+        }
+    }
 
     @Test
     fun addButtonStaysPinnedWhileTheFormScrolls() {

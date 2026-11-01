@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +63,8 @@ import site.xmpp.greenthumb.ui.components.PhotoPickerHost
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
+import site.xmpp.greenthumb.ui.components.formatPickerDate
+import site.xmpp.greenthumb.ui.components.normalizePickerDate
 import site.xmpp.greenthumb.ui.components.pickErrorText
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.components.rememberPhotoPicker
@@ -75,6 +79,9 @@ import site.xmpp.greenthumb.ui.res.addPlant_lastPruned
 import site.xmpp.greenthumb.ui.res.addPlant_lastRepotted
 import site.xmpp.greenthumb.ui.res.addPlant_lastWateredHint
 import site.xmpp.greenthumb.ui.res.addPlant_lastWateredLabel
+import site.xmpp.greenthumb.ui.res.addPlant_lastWateredShort
+import site.xmpp.greenthumb.ui.res.addPlant_lastWateredToday
+import site.xmpp.greenthumb.ui.res.addPlant_lastWateredChange
 import site.xmpp.greenthumb.ui.res.addPlant_locationLabel
 import site.xmpp.greenthumb.ui.res.addPlant_locationPlaceholder
 import site.xmpp.greenthumb.ui.res.addPlant_nameLabel
@@ -210,6 +217,9 @@ public fun AddPlantScreen(
     var errors by remember { mutableStateOf<AddPlantErrors?>(null) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
     var speciesPickerOpen by remember { mutableStateOf(false) }
+    // Set by the compact date summary; the date field under «Ещё параметры» opens its picker once.
+    var lastWateredPickerRequested by remember { mutableStateOf(false) }
+    val lastWateredInView = remember { BringIntoViewRequester() }
     val catalog = rememberSpeciesCatalog()
     val currentCatalog by rememberUpdatedState(catalog)
     // Bytes of the cover: «Узнать вид по фото» identifies this photo, never a second pick.
@@ -415,6 +425,17 @@ public fun AddPlantScreen(
                     )
                 }
 
+                LastWateredSummary(
+                    value = fields.lastWateredDate,
+                    locale = locale,
+                    placeholder = pickDate,
+                    onClick = {
+                        focusManager.clearFocus()
+                        moreOpen = true
+                        lastWateredPickerRequested = true
+                    },
+                )
+
                 GtExpandableCard(
                     title = stringResource(Res.string.addPlant_moreOptions),
                     hint = stringResource(Res.string.addPlant_moreOptionsHint),
@@ -445,7 +466,9 @@ public fun AddPlantScreen(
                     )
 
                     Column(
-                        modifier = Modifier.testTag("addPlant_lastWatered"),
+                        modifier = Modifier
+                            .testTag("addPlant_lastWatered")
+                            .bringIntoViewRequester(lastWateredInView),
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
                         FormLabel(text = stringResource(Res.string.addPlant_lastWateredLabel))
@@ -462,6 +485,11 @@ public fun AddPlantScreen(
                             dismissLabel = cancelText,
                             languageTag = locale,
                             errorText = errors?.lastWateredDate,
+                            openRequested = lastWateredPickerRequested,
+                            onOpenRequestHandled = {
+                                lastWateredPickerRequested = false
+                                scope.launch { lastWateredInView.bringIntoView() }
+                            },
                         )
                     }
 
@@ -675,6 +703,41 @@ private fun SpeciesField(fields: AddPlantFields, chosenName: String?, onPick: ()
                 color = scheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/**
+ * The compact form's last-watered line: the date the form will save (today by default) and «Изменить».
+ * The whole row is one control; it opens the full date field's picker under «Ещё параметры».
+ */
+@Composable
+private fun LastWateredSummary(value: String?, locale: String, placeholder: String, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val date = normalizePickerDate(value)
+    val shown = when {
+        date == null -> placeholder
+        date == pickerToday().toString() -> stringResource(Res.string.addPlant_lastWateredToday, formatPickerDate(date, locale))
+        else -> formatPickerDate(date, locale)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("addPlant_lastWateredSummary")
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = Sizes.touch)
+            .padding(vertical = Spacing.xxs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            FormLabel(text = stringResource(Res.string.addPlant_lastWateredShort))
+            Text(text = shown, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface)
+        }
+        Text(
+            text = stringResource(Res.string.addPlant_lastWateredChange),
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.tertiary,
+        )
     }
 }
 

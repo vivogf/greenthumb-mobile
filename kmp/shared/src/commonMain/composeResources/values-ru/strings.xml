@@ -139,6 +139,9 @@
     <string name="addPlant_everyDays">Каждые %1$d дн.</string>
     <string name="addPlant_lastWateredLabel">Дата последнего полива</string>
     <string name="addPlant_lastWateredHint">Выберите, когда вы последний раз поливали это растение</string>
+    <string name="addPlant_lastWateredShort">Последний полив</string>
+    <string name="addPlant_lastWateredToday">Сегодня, %1$s</string>
+    <string name="addPlant_lastWateredChange">Изменить</string>
     <string name="addPlant_pickDate">Выберите дату</string>
     <string name="addPlant_additionalCare">Расширенный уход (необязательно)</string>
     <string name="addPlant_additionalCareHint">Настройте напоминания об удобрении, пересадке и обрезке</string>

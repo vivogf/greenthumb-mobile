@@ -131,6 +131,9 @@
     <string name="addPlant_everyDays">Every %1$d days</string>
     <string name="addPlant_lastWateredLabel">Last Watered Date</string>
     <string name="addPlant_lastWateredHint">Select when you last watered this plant</string>
+    <string name="addPlant_lastWateredShort">Last watered</string>
+    <string name="addPlant_lastWateredToday">Today, %1$s</string>
+    <string name="addPlant_lastWateredChange">Change</string>
     <string name="addPlant_pickDate">Pick a date</string>
     <string name="addPlant_additionalCare">Advanced Care Schedule (Optional)</string>
     <string name="addPlant_additionalCareHint">Set reminders for fertilizing, repotting, and pruning</string>

@@ -382,6 +382,10 @@ KMP_ONLY_KEYS = {
     "addPlant.moreOptions",
     "addPlant.moreOptionsHint",
     "addPlant.extraCare",
+    # M12a UX4: compact last-watered summary above «Ещё параметры».
+    "addPlant.lastWateredShort",
+    "addPlant.lastWateredToday",
+    "addPlant.lastWateredChange",
 }
 
 # KMP-only <plurals> (no RN key). Each must exist in both locales with the full CLDR set of

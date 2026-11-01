@@ -58,6 +58,9 @@ fun GtDatePickerField(
     enabled: Boolean = true,
     /** Ошибка валидации под полем (рамка error, `add-plant.tsx` errorStyle). */
     errorText: String? = null,
+    /** True opens the picker as if the field were tapped; [onOpenRequestHandled] then resets it. */
+    openRequested: Boolean = false,
+    onOpenRequestHandled: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val today = remember { pickerToday() }
@@ -73,6 +76,11 @@ fun GtDatePickerField(
     val shown = normalized?.let { formatPickerDate(it, languageTag) } ?: placeholder
     val fieldDescription = stringResource(Res.string.datePicker_fieldDescription, shown)
     val shape = RoundedCornerShape(Radii.md)
+    LaunchedEffect(openRequested) {
+        if (!openRequested) return@LaunchedEffect
+        if (enabled) open = true
+        onOpenRequestHandled()
+    }
     LaunchedEffect(open, normalized, today) {
         if (!open) return@LaunchedEffect
         val initial = normalized
