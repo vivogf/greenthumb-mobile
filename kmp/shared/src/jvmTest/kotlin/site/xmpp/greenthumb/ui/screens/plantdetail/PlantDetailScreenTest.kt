@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
@@ -203,6 +204,7 @@ class PlantDetailScreenTest {
         var createCount = 0
         var lastPatchBody: String? = null
         var lastPatchPath: String? = null
+        var patchCount = 0
         var deleteCount = 0
         var deleteStatus: HttpStatusCode = HttpStatusCode.OK
         var deleteThrows: Throwable? = null
@@ -320,6 +322,7 @@ class PlantDetailScreenTest {
                 }
                 path.startsWith("/api/plants/") && request.method == HttpMethod.Patch -> {
                     val body = (request.body as? TextContent)?.text
+                    patchCount++
                     lastPatchBody = body
                     lastPatchPath = path
                     // The server journals a changed watering date (inferCareEvents).
@@ -331,9 +334,11 @@ class PlantDetailScreenTest {
                     // как в фикстуре.
                     val name = Regex("\"name\":\"([^\"]*)\"").find(body ?: "")?.groupValues?.get(1)
                         ?: "Ficus"
+                    val notes = Regex("\"notes\":\"([^\"]*)\"").find(body ?: "")?.groupValues?.get(1)
+                        ?: "Loves humidity"
                     respond("""{"id":"det-1","user_id":"73","name":"$name","location":"Living Room",""" +
                         """"photo_url":"","water_frequency_days":7,"last_watered_date":"2026-09-20",""" +
-                        """"notes":"Loves humidity","created_at":"2026-09-01T10:00:00.000Z"}""", HttpStatusCode.OK, JSON_HEADERS)
+                        """"notes":"$notes","created_at":"2026-09-01T10:00:00.000Z"}""", HttpStatusCode.OK, JSON_HEADERS)
                 }
                 path.startsWith("/api/plants/") && request.method == HttpMethod.Delete -> {
                     deleteCount++
@@ -819,6 +824,9 @@ class PlantDetailScreenTest {
                 }
             }
             waitUntilAtLeastOneExists(hasText("Журнал"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("О растении"), TIMEOUT)
+            assertEquals(1, onAllNodes(hasTestTag("journal_entryLabel") and hasText("Запись в журнал"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            assertTrue(onAllNodes(hasText("Заметки"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
             listOf("Полили", "Подкормили", "Пересадили", "Обрезали", "Заметка", "Фото").forEach { label ->
                 waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
             }
@@ -914,6 +922,55 @@ class PlantDetailScreenTest {
                 onAllNodes(hasText("Offline 99") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
             }
             assertEquals(1, graph.server.events.count { it.note == "Offline 99" })
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun plantNotes_andJournalEntry_haveDistinctLabels_andSeparateRequests() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+
+            waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
+            assertEquals(1, onAllNodes(hasTestTag("plantDetail_notesTitle") and hasText("About the plant"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            assertEquals(1, onAllNodes(hasTestTag("journal_entryLabel") and hasText("Journal entry"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            assertTrue(onAllNodes(hasText("Notes"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            val title = onNode(hasTestTag("plantDetail_notesTitle"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            val label = onNode(hasTestTag("journal_entryLabel"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            val input = onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+            assertTrue(label < input, "journal label $label above its field $input")
+            assertTrue(title != label)
+
+            // Editing the plant notes is one PATCH of notes only; no dated journal entry is created.
+            onNode(hasTestTag("plantDetail_notesEdit"), useUnmergedTree = true)
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntilAtLeastOneExists(hasTestTag("plantDetail_notesInput"), TIMEOUT)
+            onNode(hasTestTag("plantDetail_notesInput")).performTextReplacement("Loves humidity by the window")
+            onNode(hasTestTag("plantDetail_notesSave"), useUnmergedTree = true)
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 1 }
+            assertEquals("""{"notes":"Loves humidity by the window"}""", graph.server.lastPatchBody)
+            waitUntilAtLeastOneExists(hasText("Loves humidity by the window") and !hasSetTextAction(), TIMEOUT)
+            Thread.sleep(300)
+            waitForIdle()
+            assertEquals(0, graph.server.notePosts)
+            assertTrue(graph.server.events.none { it.type == "note" })
+
+            // A journal entry is one POST to the events endpoint; the plant notes stay as saved.
+            onNode(hasTestTag("journal_noteInput")).performTextInput("Entry 512")
+            clickAt(hasClickAction() and hasText("Add note"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
+            assertEquals("""{"type":"note","note":"Entry 512"}""", graph.server.lastNoteBody)
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasText("Entry 512") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
+            }
+            assertEquals(1, graph.server.patchCount)
+            assertEquals(1, onAllNodes(hasText("Loves humidity by the window") and !hasSetTextAction()).fetchSemanticsNodes().size)
 
             runOnIdle { graph.close() }
         }

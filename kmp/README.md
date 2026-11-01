@@ -6,15 +6,18 @@ species identification, photo-based diagnosis, progress and an Android home-scre
 Active development happens here; the Expo app in the repository root is legacy
 (see the [root README](../README.md)).
 
-**After M10:** the UI/UX redesign is implemented. Release **0.8.0 (`versionCode 7`)**
-has a signed Android App Bundle (AAB) built locally; it has **not been uploaded to Google Play**.
+**Current state (after M12a):** the M10 redesign, the M11 smart camera fixes and the six M12a UX fixes
+(dashboard grid, first-load Retry, bulk-action note, camera «Вернуться к фото», Add Plant last-watered
+summary, separate «О растении» / «Запись в журнал» labels) are implemented. No new animation was added.
+The last signed Android App Bundle (AAB) is release **0.8.0 (`versionCode 7`)**, built locally after
+M11c and before M12a; it has **not been uploaded to Google Play** and does not contain the M12a fixes.
 Android is the release target; JVM desktop is the development and test harness.
 
 All commands below are run from the `kmp/` directory unless stated otherwise.
 
 ## Contents
 
-- [M10 UI/UX](#m10-uiux)
+- [Current UI/UX](#current-uiux)
 - [Requirements](#requirements)
 - [Modules](#modules)
 - [Build and run](#build-and-run)
@@ -23,13 +26,14 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 - [Release](#release)
 - [Rule: never suggest reinstalling](#rule-never-suggest-reinstalling)
 
-## M10 UI/UX
+## Current UI/UX
 
 | Area | Current behavior |
 |---|---|
 | Theme and icons | Solarpunk **«Лес»** in Light, Dark and Auto («Как в системе»), with Retro-cosmos icons. Theme-aware startup and navigation avoid white flashes; reduce motion disables transitions and the camera glow animation. |
 | Bottom sheets and switches | Shared `GtModal`, `GtSheetTitle` and `GtSheetRow` keep sheets consistent. One scrim dims the background, without a second Android window dim. Switch rows expose one accessible node; tapping the title toggles the switch. |
 | Plant detail | One watering-due line with a progress bar and last-watered date replaces the old days-left pill. Tapping the name opens «Название и место»: name, place chips and a custom place; explicit save, cancel/Back/scrim discard changes. |
+| Plant notes and journal | Two separate places for text. **«О растении» / «About the plant»** holds the plant's persistent notes: «Изменить» edits them and the save sends one `PATCH /api/plants/:id` with `notes`. **«Запись в журнал» / «Journal entry»** above the journal field adds a dated entry: one `POST /api/plants/:id/events` with `type: note`. Editing the notes never creates a journal entry, and a journal entry never changes the notes. Journal entries need a connection; on failure the message appears next to the field and the text stays. |
 | Care settings | Cards use −/+ steppers within server bounds: watering **1–365 days**, fertilizing **1–3650 days**, repotting/pruning **1–120 months**. Optional care types have switches; watering stays enabled. |
 | Diagnosis | «Что с растением?» on a plant (and «Проверить на болезни» on its cover) opens the smart camera in «Болезнь» with a chip of that plant; the check uses its care history, and ✕ on the chip makes it a plant-less check. The result shows up to three causes with likelihood words and dots, advice and a disclaimer, not percentages. «Сохранить в журнал растения» optionally saves the photo and short result to an owned plant's journal; failures keep a retry action. |
 | Smart camera | The dashboard's icon-only button opens the app's own **CameraX** viewfinder at once. The **«Растение · Болезнь»** mode switch sits above the shutter and gallery row (tap or swipe; the last mode is remembered). A taken or picked photo stays on the phone until the one explicit send, «Узнать вид» or «Проверить растение»; «Переснять» discards it. After a connection or service failure, «Вернуться к фото» brings back the same photo, note and plant chip without sending; only the next explicit send asks again. Limits and «not recognised» keep their own messages and offer a new photo instead. Plant detail («Что с растением?») and its photo sheet («Проверить на болезни») open the same camera in «Болезнь» with a plant chip. If the camera is denied or cannot start, the gallery (system photo picker) and the system camera remain. Plant mode uses Pl@ntNet; a result can become an Add Plant draft or be viewed without saving. Disease mode uses OpenAI without requiring a plant; «Это моё растение?» selects an owned plant for an optional journal save **without another diagnosis call**. No usage counter is shown; limits have clear messages. |
@@ -47,7 +51,7 @@ and [Data Safety notes](docs/data-safety.md) cover smart camera and saved diagno
 | **JDK 21** | `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` is required for every Gradle and Maestro call (`scripts/check.sh` and `render-smoke.sh` set it themselves) |
 | **Android SDK** | `compileSdk 37`, `targetSdk 36`, `minSdk 24`. `ANDROID_HOME` points to the SDK (on macOS — `~/Library/Android/sdk` by default); use full paths for `adb` and `emulator` |
 | **Emulator** | AVD `elt_test` (system image API 34, `google_apis`). Needed only for installing the APK and the Maestro smoke; at most one emulator on the machine |
-| **Maestro 2.10.0** (optional) | `/opt/homebrew/bin/maestro`; without it the gate simply skips the flow syntax check step |
+| **Maestro 2.11.0** (optional) | `/opt/homebrew/bin/maestro`; without it the gate simply skips the flow syntax check step |
 | **Python 3** | for `scripts/i18n_check.py` in the gate |
 
 Pinned versions live in `gradle/libs.versions.toml`: Kotlin **2.4.20**, Compose Multiplatform
@@ -88,7 +92,15 @@ export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 ```
 
 Use `install -r` to update without clearing local data. Never uninstall or overwrite
-the release package on a phone. Test flows that clear debug app state require a
+the release package on a phone. On a phone that may hold the Play app, install only an APK whose
+package is `com.greenthumbplantcare.debug`; check it first:
+
+```bash
+AAPT2="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2"
+"$AAPT2" dump packagename androidApp/build/outputs/apk/debug/androidApp-debug.apk
+# must print com.greenthumbplantcare.debug, then:
+"$ANDROID_HOME/platform-tools/adb" -s <serial> install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+``` Test flows that clear debug app state require a
 throwaway account on `elt_test`; save its recovery key outside the app first.
 
 Desktop app:
@@ -158,6 +170,7 @@ Do not run the whole directory blindly: some stages call live Pl@ntNet/OpenAI or
 |---|---|
 | Startup, themes, icons and sheets | `m10_flash_login.yaml`, `m10_flash.yaml`, `m10_icons.yaml`, `m10_sheets.yaml`, `m10_login_back.yaml` |
 | Plant detail and care | `m10_water_line.yaml`, `m10_name_place.yaml`, `m10_care_cards.yaml`, `m11_plant_camera.yaml` |
+| Camera zoom (`emulator_zoom` boot of `elt_test`) | `m11c_camera_zoom.yaml` |
 | Smart camera and Add Plant | `m10_smartcam.yaml`, `m10_new_plant.yaml` |
 | Metadata and sign-out routing | `m10_exif.yaml`, `m10_signout_route.yaml` |
 
@@ -279,7 +292,7 @@ probes never reach the baseline.
 
 ## Release
 
-**M10 state:** one signed **0.8.0 / 7** AAB has been built locally.
+**Current state:** the signed **0.8.0 / 7** AAB was last rebuilt locally after M11c (before M12a).
 Google Play upload and rollout remain owner actions; no upload has been performed.
 
 ### Release build

@@ -135,6 +135,7 @@ import site.xmpp.greenthumb.ui.res.plantDetails_fertilize
 import site.xmpp.greenthumb.ui.res.plantDetails_fertilizing
 import site.xmpp.greenthumb.ui.res.plantDetails_goHome
 import site.xmpp.greenthumb.ui.res.plantDetails_lastWateredLine
+import site.xmpp.greenthumb.ui.res.plantDetails_aboutPlant
 import site.xmpp.greenthumb.ui.res.plantDetails_noNotes
 import site.xmpp.greenthumb.ui.res.plantDetails_namePlaceTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_placeBalcony
@@ -143,7 +144,6 @@ import site.xmpp.greenthumb.ui.res.plantDetails_placeBedroom
 import site.xmpp.greenthumb.ui.res.plantDetails_placeKitchen
 import site.xmpp.greenthumb.ui.res.plantDetails_placeLiving
 import site.xmpp.greenthumb.ui.res.plantDetails_placeOffice
-import site.xmpp.greenthumb.ui.res.plantDetails_notes
 import site.xmpp.greenthumb.ui.res.plantDetails_notesPlaceholder
 import site.xmpp.greenthumb.ui.res.plantDetails_plantNotFound
 import site.xmpp.greenthumb.ui.res.plantDetails_prune
@@ -312,7 +312,7 @@ public fun PlantDetailScreen(
     val waterPlantLabel = stringResource(Res.string.plantDetails_waterPlant)
     val wateredSuccessLabel = stringResource(Res.string.plant_watered)
     val advancedCareLabel = stringResource(Res.string.plantDetails_advancedCare)
-    val notesLabel = stringResource(Res.string.plantDetails_notes)
+    val notesLabel = stringResource(Res.string.plantDetails_aboutPlant)
     val notesPlaceholder = stringResource(Res.string.plantDetails_notesPlaceholder)
     val noNotesText = stringResource(Res.string.plantDetails_noNotes)
     val todayText = stringResource(Res.string.plantDetails_today)
@@ -730,7 +730,7 @@ public fun PlantDetailScreen(
                             )
                         }
 
-                        // ── Заметки ──
+                        // ── О растении: persistent plant notes (PATCH notes), not the dated journal ──
                         GtCard {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -741,16 +741,19 @@ public fun PlantDetailScreen(
                                     text = notesLabel,
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.testTag("plantDetail_notesTitle"),
                                 )
                                 if (!editingNotes) {
                                     Text(
                                         text = editLabel,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.touchTextLink {
-                                            editedNotes = plant.notes
-                                            editingNotes = true
-                                        },
+                                        modifier = Modifier
+                                            .touchTextLink {
+                                                editedNotes = plant.notes
+                                                editingNotes = true
+                                            }
+                                            .testTag("plantDetail_notesEdit"),
                                     )
                                 }
                             }
@@ -761,6 +764,7 @@ public fun PlantDetailScreen(
                                     onValueChange = { editedNotes = it },
                                     placeholder = notesPlaceholder,
                                     singleLine = false,
+                                    modifier = Modifier.testTag("plantDetail_notesInput"),
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -784,6 +788,7 @@ public fun PlantDetailScreen(
                                             }
                                         },
                                         shape = MaterialTheme.shapes.small,
+                                        modifier = Modifier.testTag("plantDetail_notesSave"),
                                     ) {
                                         Text(text = saveText, style = MaterialTheme.typography.labelLarge)
                                     }

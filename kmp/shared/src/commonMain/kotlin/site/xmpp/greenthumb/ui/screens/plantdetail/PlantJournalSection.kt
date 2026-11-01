@@ -62,6 +62,7 @@ import site.xmpp.greenthumb.ui.res.journal_deleteMessage
 import site.xmpp.greenthumb.ui.res.journal_deleteNote
 import site.xmpp.greenthumb.ui.res.journal_deleteTitle
 import site.xmpp.greenthumb.ui.res.journal_empty
+import site.xmpp.greenthumb.ui.res.journal_entryLabel
 import site.xmpp.greenthumb.ui.res.journal_networkRequired
 import site.xmpp.greenthumb.ui.res.journal_notePlaceholder
 import site.xmpp.greenthumb.ui.res.journal_saveFailed
@@ -226,6 +227,12 @@ internal fun PlantJournalSection(
                     },
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
+                Text(
+                    text = stringResource(Res.string.journal_entryLabel),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("journal_entryLabel"),
+                )
                 GtInputField(
                     value = draft,
                     onValueChange = { draft = it.take(CARE_NOTE_MAX_LENGTH) },

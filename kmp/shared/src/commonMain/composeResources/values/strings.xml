@@ -203,6 +203,7 @@
     <string name="plantDetails_addNotes">Add Notes</string>
     <string name="plantDetails_notesPlaceholder">Add notes about this plant...</string>
     <string name="plantDetails_noNotes">No notes yet</string>
+    <string name="plantDetails_aboutPlant">About the plant</string>
     <string name="plantDetails_waterPlant">Water Plant</string>
     <string name="plantDetails_watering">Watering...</string>
     <string name="plantDetails_deleteTitle">Delete this plant?</string>
@@ -476,6 +477,7 @@
     <string name="journal_empty">No entries yet</string>
     <string name="journal_notePlaceholder">Add a note…</string>
     <string name="journal_addNote">Add note</string>
+    <string name="journal_entryLabel">Journal entry</string>
     <string name="journal_networkRequired">Network connection required. The note is not saved; your text is kept. Try again when you are online.</string>
     <string name="journal_saveFailed">Couldn’t save the note</string>
     <string name="journal_deleteNote">Delete note</string>
