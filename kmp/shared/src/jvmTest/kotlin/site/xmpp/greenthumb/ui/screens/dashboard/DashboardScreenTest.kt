@@ -6,6 +6,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
@@ -43,6 +45,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -224,6 +227,19 @@ class DashboardScreenTest {
         /** When > 0, GET /api/plants returns this many plants instead of the three-plant fixture. */
         @Volatile var plantCount = 0
 
+        /** GET /api/plants answers 500 while set (test-only fault of the existing network boundary). */
+        @Volatile var failGets = false
+
+        /** When set, GET /api/plants waits for it after counting the request (an in-flight refresh). */
+        @Volatile var holdGet: CompletableDeferred<Unit>? = null
+
+        /** Long Cyrillic/Latin grid names with 1–3 digit day counts instead of the three-plant fixture. */
+        @Volatile var longNames = false
+
+        var waterAllCount = 0
+        var postponeAllCount = 0
+        val bulkRequests = mutableListOf<String>()
+
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
         // Season off: under the default auto mode the fixture's intervals stretch in the dormant months (Nov-Feb).
@@ -241,6 +257,13 @@ class DashboardScreenTest {
             val today = pickerToday()
             fun daysAgo(days: Long): String =
                 LocalDate.fromEpochDays(today.toEpochDays() - days).toString()
+            if (longNames) {
+                return LONG_NAME_PLANTS.joinToString(separator = ",", prefix = "[", postfix = "]") { (id, name, wateredAgo) ->
+                    """{"id":"$id","user_id":"73","name":"$name","location":"Shelf",""" +
+                        """"photo_url":"","water_frequency_days":7,"last_watered_date":"${daysAgo(wateredAgo)}",""" +
+                        """"notes":"","created_at":"2026-09-01T10:00:00.000Z"}"""
+                }
+            }
             if (plantCount > 0) {
                 // «Plant NN» watered NN days ago, every 30 days: sorted by urgency, «Plant 00» is the last card.
                 return (0 until plantCount).joinToString(separator = ",", prefix = "[", postfix = "]") { n ->
@@ -277,7 +300,18 @@ class DashboardScreenTest {
                     respond(userJson(), HttpStatusCode.Unauthorized, JSON_HEADERS)
                 path == "/api/plants" && request.method == HttpMethod.Get -> {
                     getCount++
-                    respond(plantsJson(), HttpStatusCode.OK, JSON_HEADERS)
+                    holdGet?.await()
+                    if (failGets) {
+                        respond("""{"error":"fixture failure"}""", HttpStatusCode.InternalServerError, JSON_HEADERS)
+                    } else {
+                        respond(plantsJson(), HttpStatusCode.OK, JSON_HEADERS)
+                    }
+                }
+                path == "/api/plants/water-all" || path == "/api/plants/postpone-all" -> {
+                    if (path.endsWith("water-all")) waterAllCount++ else postponeAllCount++
+                    val body = (request.body as? TextContent)?.text.orEmpty()
+                    bulkRequests += "${request.method.value} $path body=[$body]"
+                    respond("""{"success":true,"count":2}""", HttpStatusCode.OK, JSON_HEADERS)
                 }
                 path.startsWith("/api/plants/") && request.method == HttpMethod.Patch -> {
                     patchCount++
@@ -753,7 +787,218 @@ class DashboardScreenTest {
     @Test
     fun plant_list_runs_under_the_floating_buttons_at_font_1_3() = underFloatingButtonsCase(1.3f)
 
+    // ------------------------------------------------------------------
+    // M12a UX1: grid names and day counts in separate regions
+    // ------------------------------------------------------------------
+
+    /**
+     * VAL-UX12-002 at 384 dp: long Cyrillic and Latin names and 1–3 digit day counts do not overlap, both stay inside
+     * the square cell, the name keeps a readable share of the width, and due cells keep their water button.
+     */
+    private fun gridNamesAndDaysCase(fontScale: Float) {
+        val graph = newHarness()
+        graph.server.longNames = true
+        presetEnglishSignedOut()
+        runBlocking { graph.settings.setLayoutMode(LayoutMode.Grid) }
+        runDesktopComposeUiTest(width = 384, height = 800) {
+            setContent {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push)
+                }
+            }
+            openDashboard(firstVisible = LONG_NAME_PLANTS[2].second)
+            waitForIdle()
+            for ((id, name, _) in LONG_NAME_PLANTS) {
+                val cell = onNode(hasContentDescription("Open plant card $name")).getBoundsInRoot()
+                val label = onNodeWithTag("dashboard_grid_name_$id", useUnmergedTree = true).getBoundsInRoot()
+                val days = onNodeWithTag("dashboard_grid_days_$id", useUnmergedTree = true).getBoundsInRoot()
+                val overlap = label.left < days.right && days.left < label.right &&
+                    label.top < days.bottom && days.top < label.bottom
+                assertTrue(!overlap, "$name at $fontScale: name $label and day count $days overlap")
+                for ((part, rect) in listOf("name" to label, "day count" to days)) {
+                    assertTrue(
+                        rect.left >= cell.left - 1.dp && rect.right <= cell.right + 1.dp &&
+                            rect.top >= cell.top - 1.dp && rect.bottom <= cell.bottom + 1.dp,
+                        "$name at $fontScale: the $part $rect stays inside the cell $cell",
+                    )
+                }
+                assertTrue(
+                    label.right - label.left >= (cell.right - cell.left) * 0.4f,
+                    "$name at $fontScale: the name keeps a readable width: $label in $cell",
+                )
+                assertTrue(
+                    kotlin.math.abs((cell.right - cell.left).value - (cell.bottom - cell.top).value) <= 1f,
+                    "$name at $fontScale: the cell photo stays square: $cell",
+                )
+            }
+            // Due cells keep the separate water action, and it covers neither the name nor the day count.
+            for (index in listOf(0, 1, 2)) {
+                val (id, name, _) = LONG_NAME_PLANTS[index]
+                val water = onNode(hasClickAction() and hasContentDescription("Water plant $name")).getBoundsInRoot()
+                for (tag in listOf("dashboard_grid_name_$id", "dashboard_grid_days_$id")) {
+                    val rect = onNodeWithTag(tag, useUnmergedTree = true).getBoundsInRoot()
+                    val overlap = rect.left < water.right && water.left < rect.right &&
+                        rect.top < water.bottom && water.top < rect.bottom
+                    assertTrue(!overlap, "$name at $fontScale: $tag $rect overlaps the water button $water")
+                }
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun grid_long_names_and_day_counts_do_not_overlap_at_font_1_0() = gridNamesAndDaysCase(1.0f)
+
+    @Test
+    fun grid_long_names_and_day_counts_do_not_overlap_at_font_1_3() = gridNamesAndDaysCase(1.3f)
+
+    // ------------------------------------------------------------------
+    // M12a UX6: first-load failure has an explicit Retry
+    // ------------------------------------------------------------------
+
+    @Test
+    fun initial_load_failure_shows_retry_single_inflight_and_recovers_with_plants() {
+        val graph = newHarness()
+        graph.server.failGets = true
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard(firstVisible = LOAD_FAILED_EN)
+            // Truthful error: no confirmed-empty garden and no claim that saved plants are shown.
+            onNodeWithText("No plants yet").assertDoesNotExist()
+            onNode(hasText("showing saved data", substring = true)).assertDoesNotExist()
+            onNodeWithTag("dashboard_retry").assertIsEnabled()
+            onNode(hasTestTag("dashboard_retry") and hasText("Try again")).assertExists()
+
+            // Five fast taps while the refresh is in flight: one GET, pending feedback, button disabled.
+            val gate = CompletableDeferred<Unit>()
+            graph.server.holdGet = gate
+            val before = graph.server.getCount
+            repeat(5) { onNodeWithTag("dashboard_retry").performClick() }
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.getCount >= before + 1 }
+            waitUntilAtLeastOneExists(hasTestTag("dashboard_retry_pending"), TIMEOUT)
+            onNodeWithTag("dashboard_retry").assertIsNotEnabled()
+
+            // The retried refresh fails again: the error stays and Retry is available again.
+            gate.complete(Unit)
+            waitUntilDoesNotExist(hasTestTag("dashboard_retry_pending"), TIMEOUT)
+            waitForIdle()
+            assertEquals(before + 1, graph.server.getCount, "five taps = one GET /api/plants")
+            onNodeWithText(LOAD_FAILED_EN).assertExists()
+            onNodeWithText("No plants yet").assertDoesNotExist()
+            onNodeWithTag("dashboard_retry").assertIsEnabled()
+
+            // Server recovers: Retry shows the real plants.
+            graph.server.holdGet = null
+            graph.server.failGets = false
+            onNodeWithTag("dashboard_retry").performClick()
+            waitUntilAtLeastOneExists(hasText("Fern"), TIMEOUT)
+            onNodeWithText(LOAD_FAILED_EN).assertDoesNotExist()
+            onNodeWithTag("dashboard_retry").assertDoesNotExist()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun initial_load_retry_with_empty_success_shows_the_empty_garden() {
+        val graph = newHarness()
+        graph.server.failGets = true
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard(firstVisible = LOAD_FAILED_EN)
+
+            graph.server.failGets = false
+            graph.server.plantsEmpty = true
+            onNodeWithTag("dashboard_retry").performClick()
+            waitUntilAtLeastOneExists(hasText("No plants yet"), TIMEOUT)
+            onNodeWithText(LOAD_FAILED_EN).assertDoesNotExist()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun later_refresh_failure_keeps_the_loaded_plants() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            waitForIdle()
+            val before = graph.server.getCount
+
+            graph.server.failGets = true
+            pullDownOnce()
+            assertOneRefresh(before)
+            waitUntilAtLeastOneExists(hasText("showing saved data", substring = true), TIMEOUT)
+            onNodeWithText("Fern").assertExists()
+            onNodeWithText("Monstera").assertExists()
+            onNodeWithText(LOAD_FAILED_EN).assertDoesNotExist()
+            onNodeWithTag("dashboard_retry").assertDoesNotExist()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // M12a UX3: bulk actions explain their server-defined scope
+    // ------------------------------------------------------------------
+
+    @Test
+    fun bulk_actions_explain_scope_with_search_hidden_due_plants_and_keep_requests() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            clickAt(hasClickAction() and hasText("Water (2)"))
+            waitUntilAtLeastOneExists(hasText("Postpone All"), TIMEOUT)
+
+            // Fern is due but hidden by the search; the explanation still covers it.
+            onNode(hasSetTextAction()).performTextInput("bas")
+            waitUntilDoesNotExist(hasText("Fern"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Basil"), TIMEOUT)
+            val scope = onNodeWithTag("dashboard_bulkScope").fetchSemanticsNode().config[SemanticsProperties.Text]
+                .joinToString(" ") { it.text }
+            assertTrue(scope.contains("every plant that needs water"), scope)
+            assertTrue(scope.contains("hidden by search"), scope)
+            assertTrue(scope.contains("last watering to yesterday"), scope)
+            assertTrue(!scope.contains("day later") && !scope.contains("by one day"), "no one-day shift promise: $scope")
+            assertTrue(scope.none { it.isDigit() }, "no local count claim: $scope")
+
+            // Requests are unchanged: one bare POST each, the server chooses the plants.
+            clickAt(hasClickAction() and hasText("Postpone All"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.postponeAllCount == 1 }
+            waitForIdle()
+            waitUntilAtLeastOneExists(hasText("Water All") and hasClickAction(), TIMEOUT)
+            clickAt(hasClickAction() and hasText("Water All"))
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.waterAllCount == 1 }
+            waitForIdle()
+            assertEquals(
+                listOf("POST /api/plants/postpone-all body=[]", "POST /api/plants/water-all body=[]"),
+                graph.server.bulkRequests.toList(),
+            )
+
+            runOnIdle { graph.close() }
+        }
+    }
     private companion object {
         const val TIMEOUT: Long = 10_000L
+
+        const val LOAD_FAILED_EN: String = "Could not load your plants. Check your connection and try again."
+
+        /** id, name, days since watering (every 7 days): -393, -9, -1, 6 and 0 days. */
+        val LONG_NAME_PLANTS: List<Triple<String, String, Long>> = listOf(
+            Triple("g1", "Сансевиерия трёхполосая Лауренти", 400L),
+            Triple("g2", "Монстера деликатесная вариегатная Альбо Борсигиана", 16L),
+            Triple("g3", "Chlorophytum comosum Variegatum Ocean", 8L),
+            Triple("g4", "Philodendron hederaceum Brasil Lemon Lime", 1L),
+            Triple("g5", "Замиокулькас замиелистный", 7L),
+        )
     }
 }

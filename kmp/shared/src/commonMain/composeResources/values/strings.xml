@@ -84,6 +84,8 @@
     <string name="dashboard_refreshFailed">Couldn’t refresh — showing saved data</string>
     <string name="dashboard_unsaved">not saved yet</string>
     <string name="dashboard_databaseError">Local database error</string>
+    <string name="dashboard_loadFailed">Could not load your plants. Check your connection and try again.</string>
+    <string name="dashboard_bulkScope">Both buttons act on every plant that needs water, including plants hidden by search. “Postpone All” sets their last watering to yesterday.</string>
     <string name="plant_water">Water</string>
     <string name="plant_watered">Watered!</string>
     <string name="plant_needsWater">Needs water</string>

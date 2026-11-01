@@ -113,3 +113,30 @@ public fun needsWaterCount(
         wateringStatus(plant.lastWateredDate, plant.waterFrequencyDays, today, season) !=
             WateringStatus.Healthy
     }
+
+/** What the dashboard body shows below the header. */
+public enum class DashboardBody {
+    /** First load still running: skeleton. */
+    Loading,
+
+    /** The first load ended without confirmed garden data (failed refresh, or offline without a plant cache). */
+    LoadFailed,
+
+    /** A successful sync confirmed that the garden is empty. */
+    Empty,
+
+    /** Cached or synced plants exist. */
+    Plants,
+}
+
+/**
+ * Cached plants always win. Without plants, the garden counts as empty only after a sync has succeeded once
+ * ([everSynced]); a failed or impossible first load must not look like an empty garden.
+ */
+public fun dashboardBody(hasPlants: Boolean, firstLoadSettled: Boolean, everSynced: Boolean): DashboardBody =
+    when {
+        hasPlants -> DashboardBody.Plants
+        !firstLoadSettled -> DashboardBody.Loading
+        !everSynced -> DashboardBody.LoadFailed
+        else -> DashboardBody.Empty
+    }

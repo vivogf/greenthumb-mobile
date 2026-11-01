@@ -201,6 +201,9 @@ KMP_ONLY_KEYS = {
     # не переносится — VAL-DASH-009/VAL-DATA-001). В RN полосы нет.
     "dashboard.refreshFailed",
     "dashboard.databaseError",
+    # M12a: first-load error with Retry (not a confirmed-empty garden) and the bulk-action scope note.
+    "dashboard.loadFailed",
+    "dashboard.bulkScope",
     # dashboard.unsaved — метка карточки с открытым офлайн-журналом (M4);
     # в RN офлайн-журнала нет (VAL-APP-009: раньше был ru-литерал в коде).
     "dashboard.unsaved",

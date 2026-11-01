@@ -121,4 +121,28 @@ class DashboardLogicTest {
         // но не матчится локацией bathroom).
         assertEquals(0, filterAndSortPlants(all, "bathroom", DashboardFilter.Healthy, today).size)
     }
+    // M12a UX6: a garden is shown as empty only after a confirmed sync; otherwise the first load failed.
+    @Test
+    fun body_isLoading_untilFirstLoadSettles() {
+        assertEquals(DashboardBody.Loading, dashboardBody(hasPlants = false, firstLoadSettled = false, everSynced = false))
+        assertEquals(DashboardBody.Loading, dashboardBody(hasPlants = false, firstLoadSettled = false, everSynced = true))
+    }
+
+    @Test
+    fun body_isLoadFailed_whenSettledWithoutConfirmedData() {
+        // Online first refresh failed, or an offline session with no plant cache: not a confirmed empty garden.
+        assertEquals(DashboardBody.LoadFailed, dashboardBody(hasPlants = false, firstLoadSettled = true, everSynced = false))
+    }
+
+    @Test
+    fun body_isEmpty_onlyAfterConfirmedSync() {
+        assertEquals(DashboardBody.Empty, dashboardBody(hasPlants = false, firstLoadSettled = true, everSynced = true))
+    }
+
+    @Test
+    fun body_showsPlants_wheneverCachedPlantsExist() {
+        assertEquals(DashboardBody.Plants, dashboardBody(hasPlants = true, firstLoadSettled = false, everSynced = false))
+        assertEquals(DashboardBody.Plants, dashboardBody(hasPlants = true, firstLoadSettled = true, everSynced = false))
+        assertEquals(DashboardBody.Plants, dashboardBody(hasPlants = true, firstLoadSettled = true, everSynced = true))
+    }
 }

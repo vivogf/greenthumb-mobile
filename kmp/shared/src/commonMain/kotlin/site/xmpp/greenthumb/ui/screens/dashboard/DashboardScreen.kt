@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import kotlin.time.Clock
@@ -107,6 +108,7 @@ import site.xmpp.greenthumb.ui.components.GtThanosSnap
 import site.xmpp.greenthumb.ui.components.GtTextField
 import site.xmpp.greenthumb.ui.components.GtWaterButton
 import site.xmpp.greenthumb.ui.components.GtWaterDropMark
+import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.borderHairline
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
@@ -122,8 +124,10 @@ import site.xmpp.greenthumb.ui.res.a11y_waterAll
 import site.xmpp.greenthumb.ui.res.a11y_waterPlant
 import site.xmpp.greenthumb.ui.res.common_error
 import site.xmpp.greenthumb.ui.res.dashboard_addPlant
+import site.xmpp.greenthumb.ui.res.dashboard_bulkScope
 import site.xmpp.greenthumb.ui.res.dashboard_databaseError
 import site.xmpp.greenthumb.ui.res.dashboard_lastSynced
+import site.xmpp.greenthumb.ui.res.dashboard_loadFailed
 import site.xmpp.greenthumb.ui.res.dashboard_myPlants
 import site.xmpp.greenthumb.ui.res.dashboard_noPlants
 import site.xmpp.greenthumb.ui.res.dashboard_noPlantsFound
@@ -138,6 +142,7 @@ import site.xmpp.greenthumb.ui.res.dashboard_tryDifferentSearch
 import site.xmpp.greenthumb.ui.res.dashboard_waterAll
 import site.xmpp.greenthumb.ui.res.dashboard_wateringAllPending
 import site.xmpp.greenthumb.ui.res.plant_overdue
+import site.xmpp.greenthumb.ui.res.progress_retry
 import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_water
 import site.xmpp.greenthumb.ui.res.plant_watered
@@ -294,6 +299,7 @@ public fun DashboardScreen(
     LaunchedEffect(repo, onlineSession) {
         if (!onlineSession) {
             banner = repo.syncBanner()
+            everSynced = repo.lastSyncedAtMillis() != null
             firstLoadSettled = true
             return@LaunchedEffect
         }
@@ -585,10 +591,10 @@ public fun DashboardScreen(
                 Spacer(modifier = Modifier.height(Spacing.xs))
             }
 
-            when {
+            when (dashboardBody(hasPlants, firstLoadSettled, everSynced)) {
                 // ── Первая загрузка: скелетон (RN isLoading → SkeletonLoader);
                 // хедер уже виден, кости по текущему режиму.
-                plants.isEmpty() && !firstLoadSettled -> {
+                DashboardBody.Loading -> {
                     GtSkeleton(
                         mode = when (viewMode) {
                             LayoutMode.List -> GtSkeletonMode.List
@@ -599,21 +605,45 @@ public fun DashboardScreen(
                     )
                 }
 
-                // ── Ошибка первой загрузки при пустых данных: RN error-ветка
-                // (сообщение об ошибке вместо списка).
-                plants.isEmpty() && refreshFailed && !everSynced -> {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = stringResource(Res.string.dashboard_refreshFailed),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = scheme.error,
+                // ── Первая загрузка не подтвердила данные (ошибка refresh или
+                // офлайн без кэша): честная ошибка + «Повторить», не пустой сад.
+                DashboardBody.LoadFailed -> {
+                    RefreshableEmptyState(
+                        isRefreshing = isManualRefreshing,
+                        onRefresh = { refreshManual() },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md),
                             modifier = Modifier.padding(Spacing.xl),
-                        )
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.dashboard_loadFailed),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = scheme.error,
+                                textAlign = TextAlign.Center,
+                            )
+                            if (isManualRefreshing) {
+                                CircularProgressIndicator(
+                                    color = scheme.secondary,
+                                    modifier = Modifier
+                                        .size(Spacing.lg + Spacing.xxs)
+                                        .testTag("dashboard_retry_pending"),
+                                )
+                            }
+                            PrimaryButton(
+                                text = stringResource(Res.string.progress_retry),
+                                onClick = { refreshManual() },
+                                enabled = !isManualRefreshing,
+                                modifier = Modifier.testTag("dashboard_retry"),
+                            )
+                        }
                     }
                 }
 
-                // ── Нет растений вообще: пустой сад с кнопкой (RN empty state).
-                plants.isEmpty() -> {
+                // ── Синхронизация подтвердила пустой сад (RN empty state).
+                DashboardBody.Empty -> {
                     RefreshableEmptyState(
                         isRefreshing = isManualRefreshing,
                         onRefresh = { refreshManual() },
@@ -629,7 +659,7 @@ public fun DashboardScreen(
                 }
 
                 // ── Есть растения: поиск/фильтры/действия/список ──
-                else -> {
+                DashboardBody.Plants -> {
                     // Поиск (имя + локация) с кнопкой очистки.
                     GtTextField(
                         value = searchQuery,
@@ -681,6 +711,17 @@ public fun DashboardScreen(
                     // Кнопки массовых действий: только needsWaterCount>0 И
                     // фильтр needsWater (RN).
                     if (dueCount > 0 && filter == DashboardFilter.NeedsWater) {
+                        // The server picks the plants for both actions; search only narrows the visible list.
+                        Text(
+                            text = stringResource(Res.string.dashboard_bulkScope),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.xl)
+                                .testTag("dashboard_bulkScope"),
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1454,8 +1495,9 @@ private fun PlantCard(
 
 /**
  * Ячейка сетки (RN renderGridItem): квадрат, фото, градиент на всю высоту
- * (locations 0/0.45/1), имя внизу слева, счётчик дней внизу справа, кнопка
- * полива в правом верхнем углу (не-healthy).
+ * (locations 0/0.45/1), внизу слева счётчик дней и под ним имя на всю ширину
+ * (M12a UX1: раньше счётчик справа лежал поверх имени), кнопка полива в
+ * правом верхнем углу (не-healthy).
  */
 @Composable
 private fun PlantGridCell(
@@ -1524,12 +1566,36 @@ private fun PlantGridCell(
                     ),
                 contentAlignment = Alignment.BottomStart,
             ) {
-                Text(
-                    text = plant.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                    maxLines = 2,
-                )
+                // The day count sits on its own line above the name, at the start edge: in a ~110 dp cell at
+                // large font a side-by-side badge leaves the name too narrow, an overlaid badge covered its last
+                // line, and the end edge belongs to the water button.
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs / 2),
+                ) {
+                    Text(
+                        text = days.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = numberColor,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .testTag("dashboard_grid_days_${plant.id}")
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(Spacing.xxs))
+                            .padding(horizontal = Spacing.xxs, vertical = Spacing.xxs / 2),
+                    )
+                    Text(
+                        text = plant.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("dashboard_grid_name_${plant.id}"),
+                    )
+                }
             }
             if (unsaved) {
                 Text(
@@ -1541,17 +1607,7 @@ private fun PlantGridCell(
                         .padding(Spacing.xxs),
                 )
             }
-            // Счётчик дней — правый нижний угол (RN bottom-right badge).
-            Text(
-                text = days.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = numberColor,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = Spacing.xxs / 2 + Spacing.xxs, bottom = Spacing.xxs)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(Spacing.xxs))
-                    .padding(horizontal = Spacing.xxs, vertical = Spacing.xxs / 2),
-            )
+
             // Кнопка полива — правый верхний угол (только не-healthy; RN
             // WaterButtonWithParticles compact: спиннер/частицы внутри).
             if (needsWater) {

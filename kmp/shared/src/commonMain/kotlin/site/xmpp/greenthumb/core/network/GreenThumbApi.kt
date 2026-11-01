@@ -127,7 +127,7 @@ class GreenThumbApi(private val client: ApiClient) {
     suspend fun waterAll(): MassActionResult =
         request<MassActionResult>(HttpMethod.Post, "/api/plants/water-all")
 
-    /** POST /api/plants/postpone-all — сдвиг на 1 день, БЕЗ оптимистичности (parity). */
+    /** POST /api/plants/postpone-all — сервер ставит растениям, которым нужен полив, last_watered_date = вчера; БЕЗ оптимистичности (parity). */
     suspend fun postponeAll(): MassActionResult =
         request<MassActionResult>(HttpMethod.Post, "/api/plants/postpone-all")
 

@@ -88,6 +88,8 @@
     <string name="dashboard_refreshFailed">Не удалось обновить — показаны сохранённые данные</string>
     <string name="dashboard_unsaved">не сохранено</string>
     <string name="dashboard_databaseError">Ошибка чтения локальной базы</string>
+    <string name="dashboard_loadFailed">Не удалось загрузить растения. Проверьте подключение и попробуйте снова.</string>
+    <string name="dashboard_bulkScope">Обе кнопки действуют на все растения, которым нужен полив, включая скрытые поиском. «Отложить все» записывает последний полив вчерашним днём.</string>
     <string name="plant_water">Полить</string>
     <string name="plant_watered">Полито!</string>
     <string name="plant_needsWater">Нужен полив</string>
