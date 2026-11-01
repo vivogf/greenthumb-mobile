@@ -314,9 +314,12 @@ public fun DashboardScreen(
             // Успешный фоновый refresh (первый показ/восстановление сети) гасит
             // полоску: при свежих sync_meta обещание «показаны сохранённые
             // данные» стало бы ложью. RN держал ошибку до успешного refetch.
+            // Успех здесь же подтверждает сад (в т.ч. пустой): исход
+            // восстановления сети attachConnectivity экрану не возвращает.
             refresh = {
                 repo.refresh()
                 refreshFailed = false
+                everSynced = true
             },
         )
         when (coordinator.onFirstShow()) {
@@ -353,6 +356,9 @@ public fun DashboardScreen(
         if (!sawOffline) return@LaunchedEffect
         val replay = runCatching { repo.replayPending() }
         if (replay.isFailure) refreshFailed = true
+        // Дошедший до конца replay сам пишет sync_meta, и координатор затем
+        // пропускает refresh как свежий — подтверждение берём из sync_meta.
+        if (repo.lastSyncedAtMillis() != null) everSynced = true
         banner = repo.syncBanner()
     }
     // Возраст sync_meta растёт сам по себе; RN пересчитывал возраст на каждом

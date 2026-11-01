@@ -923,6 +923,32 @@ class DashboardScreenTest {
     }
 
     @Test
+    fun initial_load_failure_then_reconnect_with_empty_success_shows_the_empty_garden() {
+        val graph = newHarness()
+        graph.server.failGets = true
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard(firstVisible = LOAD_FAILED_EN)
+
+            graph.connectivity.setOnline(false)
+            waitForIdle()
+            graph.server.failGets = false
+            graph.server.plantsEmpty = true
+            val before = graph.server.getCount
+
+            // Connectivity restore (not Retry) performs the refresh that succeeds with an empty list.
+            graph.connectivity.setOnline(true)
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.getCount >= before + 1 }
+            waitUntilAtLeastOneExists(hasText("No plants yet"), TIMEOUT)
+            onNodeWithText(LOAD_FAILED_EN).assertDoesNotExist()
+            onNodeWithTag("dashboard_retry").assertDoesNotExist()
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
     fun later_refresh_failure_keeps_the_loaded_plants() {
         val graph = newHarness()
         presetEnglishSignedOut()

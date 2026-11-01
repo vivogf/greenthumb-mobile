@@ -51,7 +51,7 @@ and [Data Safety notes](docs/data-safety.md) cover smart camera and saved diagno
 | **JDK 21** | `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` is required for every Gradle and Maestro call (`scripts/check.sh` and `render-smoke.sh` set it themselves) |
 | **Android SDK** | `compileSdk 37`, `targetSdk 36`, `minSdk 24`. `ANDROID_HOME` points to the SDK (on macOS — `~/Library/Android/sdk` by default); use full paths for `adb` and `emulator` |
 | **Emulator** | AVD `elt_test` (system image API 34, `google_apis`). Needed only for installing the APK and the Maestro smoke; at most one emulator on the machine |
-| **Maestro 2.11.0** (optional) | `/opt/homebrew/bin/maestro`; without it the gate simply skips the flow syntax check step |
+| **Maestro 2.12.0** (optional) | `/opt/homebrew/bin/maestro`; without it the gate simply skips the flow syntax check step |
 | **Python 3** | for `scripts/i18n_check.py` in the gate |
 
 Pinned versions live in `gradle/libs.versions.toml`: Kotlin **2.4.20**, Compose Multiplatform
@@ -100,7 +100,9 @@ AAPT2="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | ta
 "$AAPT2" dump packagename androidApp/build/outputs/apk/debug/androidApp-debug.apk
 # must print com.greenthumbplantcare.debug, then:
 "$ANDROID_HOME/platform-tools/adb" -s <serial> install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
-``` Test flows that clear debug app state require a
+```
+
+Test flows that clear debug app state require a
 throwaway account on `elt_test`; save its recovery key outside the app first.
 
 Desktop app:

@@ -18,4 +18,9 @@ public actual class Connectivity actual constructor(appContext: Any) {
     public actual val isOnline: StateFlow<Boolean> = state
 
     public actual fun close(): Unit = Unit
+
+    /** Test-harness switch for offline→online transitions; production code never calls it. */
+    internal fun setOnline(online: Boolean) {
+        state.value = online
+    }
 }
