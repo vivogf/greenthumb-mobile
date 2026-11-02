@@ -18,6 +18,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 ## Contents
 
 - [Current UI/UX](#current-uiux)
+- [Dark palette preview](#dark-palette-preview)
 - [Requirements](#requirements)
 - [Modules](#modules)
 - [Build and run](#build-and-run)
@@ -43,6 +44,17 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 
 The updated [privacy policy](../docs/privacy.html), [account-deletion page](../docs/account-deletion.html)
 and [Data Safety notes](docs/data-safety.md) cover smart camera and saved diagnosis results.
+
+## Dark palette preview
+
+[`design/dark-theme-palettes.html`](design/dark-theme-palettes.html) compares four dark-theme
+palettes on the current dashboard and plant detail: «Прежняя» (the pre-«Лес» colors from
+`dd84fff`), «Текущий Лес» (the colors at `2a8da8f`) and two new proposals, «Графит» and
+«Серо-шалфейная». Open the file directly in a browser; it works offline. Only colors differ
+between the variants. It is a preview only: the app theme, settings and code are unchanged, and
+choosing a palette for the app is a later owner decision. Details and sources are in
+[`design/README.md`](design/README.md); the test, run from the repository root, is
+`node --test kmp/design/dark-theme-palettes.test.mjs`.
 
 ## Requirements
 

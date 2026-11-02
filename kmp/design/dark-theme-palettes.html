@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GreenThumb — оттенки тёмной темы (макет)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #2a2b2d;
+    color: #e6e6e6;
+    font-family: Roboto, "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  .page-head { padding: 20px 20px 8px; max-width: 1560px; margin: 0 auto; }
+  .page-head h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
+  .page-head p { margin: 0; color: #b9b9b9; max-width: 900px; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 5;
+    background: #2a2b2d; border-bottom: 1px solid #44464a;
+    padding: 10px 20px;
+  }
+  .controls-inner { max-width: 1560px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+  .group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .group-label { color: #b9b9b9; font-size: 14px; margin-right: 4px; }
+  .seg {
+    font: inherit; font-size: 14px; color: #e6e6e6; background: #36383b;
+    border: 1px solid #55585d; border-radius: 999px; padding: 7px 14px; min-height: 36px; cursor: pointer;
+  }
+  .seg[aria-pressed="true"] { background: #e6e6e6; color: #1b1c1e; border-color: #e6e6e6; font-weight: 600; }
+  .seg:focus-visible, .inspect-btn:focus-visible { outline: 3px solid #f0c94a; outline-offset: 2px; }
+  .seg .dots { display: inline-flex; gap: 2px; margin-right: 6px; vertical-align: -1px; }
+  .seg .dots i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #00000066; display: inline-block; }
+
+  main { max-width: 1560px; margin: 0 auto; padding: 16px 20px 40px; }
+  .compare { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 28px 20px; justify-items: center; }
+  .variant { margin: 0; width: 360px; max-width: 100%; }
+  .variant-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-height: 64px; }
+  .variant-head h2 { margin: 0; font-size: 18px; }
+  .variant-head .src { color: #b9b9b9; font-size: 13px; }
+  .strip { display: flex; gap: 3px; margin-top: 6px; }
+  .strip i { width: 18px; height: 12px; border-radius: 3px; border: 1px solid #00000066; display: inline-block; }
+  .inspect-btn {
+    font: inherit; font-size: 14px; color: #1b1c1e; background: #e6e6e6; border: 0; border-radius: 999px;
+    padding: 7px 14px; min-height: 36px; cursor: pointer; white-space: nowrap;
+  }
+
+  .inspect { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; justify-content: center; }
+  .inspect-info { flex: 1 1 380px; max-width: 620px; }
+  .inspect-info h2 { margin: 0 0 4px; font-size: 22px; }
+  .inspect-info .src { color: #b9b9b9; margin: 0 0 12px; }
+  .tokens { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tokens th, .tokens td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #44464a; vertical-align: middle; }
+  .tokens th { color: #b9b9b9; font-weight: 500; }
+  .tokens code { font-size: 13px; }
+  .sw { width: 28px; height: 20px; border-radius: 4px; border: 1px solid #00000080; display: inline-block; vertical-align: middle; }
+  .tag { font-size: 12px; color: #f0c94a; }
+  .note { color: #b9b9b9; font-size: 14px; }
+  [hidden] { display: none !important; }
+  /* On a phone-width window a sticky bar would cover a third of the screen. */
+  @media (max-width: 700px) {
+    .controls { position: static; padding: 10px 16px; }
+    .page-head, main { padding-left: 16px; padding-right: 16px; }
+  }
+
+  /* ---------- Phone mock (shared by all palettes; colors come only from --c-* variables) ---------- */
+  .phone {
+    width: 360px; max-width: 100%; border-radius: 28px; overflow: hidden;
+    border: 1px solid #5a5d62; background: var(--c-page);
+    color: var(--c-text); font-size: 15px; line-height: 22px;
+  }
+  .ic { width: 20px; height: 20px; display: block; flex: none; }
+  .statusbar { height: 28px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--c-text); background: var(--c-page); }
+  .statusbar .sb-icons { display: flex; gap: 6px; }
+  .statusbar .ic { width: 15px; height: 15px; }
+
+  .dash { position: relative; height: 760px; background: var(--c-background); display: flex; flex-direction: column; }
+  .dash-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 16px 8px; gap: 8px; }
+  .title { margin: 0; font-size: 24px; line-height: 30px; font-weight: 700; color: var(--c-text); }
+  .subtitle { font-size: 14px; color: var(--c-muted); font-weight: 600; }
+  .modes { display: flex; gap: 6px; }
+  .mode { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-muted); display: flex; align-items: center; justify-content: center; }
+  .mode.on { background: var(--c-chipSelected); border-color: var(--c-accent); color: var(--c-accent); }
+  .search { margin: 12px 16px 0; height: 48px; border-radius: 16px; background: var(--c-surfaceVariant); border: 1px solid var(--c-border); display: flex; align-items: center; gap: 12px; padding: 0 14px; color: var(--c-muted); }
+  .chips { display: flex; gap: 8px; padding: 12px 16px; }
+  .chip { height: 34px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 500; background: var(--c-surfaceVariant); border: 1px solid var(--c-border); color: var(--c-text); }
+  .chip.on { background: var(--c-chipSelected); border-color: var(--c-accent); color: var(--c-accentText); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px 16px; }
+  .cell { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; overflow: hidden; background: #000; }
+  .cell .photo, .hero .photo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .cell-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; z-index: 2; }
+  .cell-stripe.over { background: var(--c-error); }
+  .cell-stripe.today { background: var(--c-amber); }
+  .cell-stripe.ok { background: var(--c-accent); }
+  .cell-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,0.85) 100%); }
+  .cell-text { position: absolute; left: 6px; right: 6px; bottom: 4px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .cell-days { font-size: 13px; line-height: 18px; font-weight: 600; padding: 0 4px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #ffffff; }
+  .cell-days.over { color: var(--c-error); }
+  .cell-days.today { color: var(--c-amber); }
+  .cell-name { font-size: 13px; line-height: 16px; font-weight: 500; color: #ffffff; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .cell-water { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; background: var(--c-primary); color: var(--c-onPrimary); display: flex; align-items: center; justify-content: center; }
+  .cell-water .ic { width: 16px; height: 16px; }
+  .fabs { position: absolute; right: 20px; bottom: 84px; display: flex; gap: 16px; }
+  .fab { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .fab.cam { background: var(--c-surface); border: 2px solid var(--c-accent); color: var(--c-accent); }
+  .fab.add { background: var(--c-primary); color: var(--c-onPrimary); }
+  .fab .ic { width: 26px; height: 26px; }
+  .tabs { margin-top: auto; height: 64px; display: flex; border-top: 1px solid var(--c-border); background: var(--c-page); }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; font-weight: 500; color: var(--c-muted); }
+  .tab.on { color: var(--c-accentText); }
+
+  .detail { background: var(--c-background); }
+  .hero { position: relative; height: 260px; overflow: hidden; background: #000; }
+  .hero .statusbar { position: relative; z-index: 2; background: transparent; color: #ffffff; }
+  .hero-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.7) 100%); }
+  .hbtn { position: absolute; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.35); color: #ffffff; display: flex; align-items: center; justify-content: center; z-index: 2; }
+  .hbtn.back { left: 16px; }
+  .hbtn.cam { right: 16px; }
+  .hero-text { position: absolute; left: 20px; right: 20px; bottom: 16px; z-index: 2; color: #ffffff; }
+  .hero-name { display: flex; align-items: center; gap: 8px; font-size: 24px; line-height: 30px; font-weight: 700; }
+  .hero-name span { flex: 1; }
+  .hero-loc { display: flex; align-items: center; gap: 4px; font-size: 13px; color: rgba(255,255,255,0.8); }
+  .hero-loc .ic { width: 12px; height: 12px; }
+  .body { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .card { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 24px; padding: 16px; }
+  .due { display: flex; align-items: center; gap: 10px; color: var(--c-error); font-size: 20px; line-height: 26px; font-weight: 600; }
+  .bar { margin-top: 10px; height: 8px; border-radius: 999px; background: var(--c-surfaceVariant); overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 100%; border-radius: 999px; background: var(--c-error); }
+  .last { margin-top: 8px; font-size: 13px; line-height: 18px; color: var(--c-muted); }
+  .btn { margin-top: 16px; height: 48px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 600; }
+  .btn.primary { background: var(--c-primary); color: var(--c-onPrimary); }
+  .btn.outline { border: 1px solid var(--c-border); background: var(--c-surfaceVariant); color: var(--c-accentText); margin-top: 12px; }
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .title-s { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--c-text); }
+  .care-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .care { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .care .ic { color: var(--c-accent); width: 22px; height: 22px; }
+  .care .val { font-size: 13px; line-height: 18px; color: var(--c-muted); }
+  .care .val.soon { color: var(--c-amber); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; min-height: 56px; }
+  .row .ic.lead { color: var(--c-accent); }
+  .row .ic.chev { color: var(--c-muted); width: 16px; height: 16px; }
+  .row .grow { flex: 1; }
+  .small { font-size: 13px; line-height: 18px; color: var(--c-muted); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; }
+  .link { font-size: 15px; font-weight: 500; color: var(--c-accentText); }
+  .notes-text { margin: 10px 0 0; text-align: justify; color: var(--c-text); }
+  .field-label { margin-top: 12px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--c-text); }
+  .field { margin-top: 6px; min-height: 48px; border-radius: 16px; background: var(--c-surfaceVariant); border: 1px solid var(--c-border); padding: 12px 14px; color: var(--c-muted); }
+  .entries { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .entries li { display: flex; gap: 12px; align-items: flex-start; }
+  .ev-ic { width: 36px; height: 36px; border-radius: 50%; background: var(--c-chipSelected); color: var(--c-accent); display: flex; align-items: center; justify-content: center; flex: none; }
+  .ev-ic .ic { width: 18px; height: 18px; }
+  .ev-type { font-weight: 600; font-size: 14px; line-height: 20px; }
+  .ev-text { font-size: 14px; line-height: 20px; color: var(--c-text); }
+</style>
+</head>
+<body>
+
+<!-- Shared artwork and icons. Photos are synthetic illustrations, identical for every palette. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="wall-warm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfc6b3"/><stop offset="1" stop-color="#8d846f"/></linearGradient>
+    <linearGradient id="wall-cool" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9c2bf"/><stop offset="1" stop-color="#5f6965"/></linearGradient>
+    <linearGradient id="leaf-deep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f9a45"/><stop offset="1" stop-color="#1f5a26"/></linearGradient>
+    <linearGradient id="leaf-light" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9d77a"/><stop offset="1" stop-color="#4f8f3a"/></linearGradient>
+  </defs>
+  <symbol id="photo-monstera" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="#1d3a22"/>
+    <path d="M-10 70 C10 30 40 10 70 18 C60 40 40 70 -10 90Z" fill="url(#leaf-deep)"/>
+    <path d="M30 105 C35 60 60 25 105 20 C105 60 80 95 30 105Z" fill="url(#leaf-deep)"/>
+    <path d="M50 60 C55 40 75 30 100 32" stroke="#a9d48a" stroke-width="1.2" fill="none"/>
+    <path d="M5 70 C20 45 40 30 62 22" stroke="#a9d48a" stroke-width="1.2" fill="none"/>
+    <ellipse cx="72" cy="45" rx="5" ry="2.6" fill="#1d3a22" transform="rotate(-30 72 45)"/>
+    <ellipse cx="62" cy="62" rx="6" ry="2.8" fill="#1d3a22" transform="rotate(-40 62 62)"/>
+    <ellipse cx="85" cy="58" rx="5" ry="2.4" fill="#1d3a22" transform="rotate(-25 85 58)"/>
+    <ellipse cx="28" cy="50" rx="5" ry="2.4" fill="#1d3a22" transform="rotate(-35 28 50)"/>
+    <ellipse cx="40" cy="38" rx="4.5" ry="2.2" fill="#1d3a22" transform="rotate(-30 40 38)"/>
+    <path d="M0 20 C15 5 35 0 50 2 C40 15 20 22 0 30Z" fill="#3f7f3a"/>
+  </symbol>
+  <symbol id="photo-pothos" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="url(#wall-cool)"/>
+    <path d="M30 20 C20 5 0 15 10 35 C18 50 30 55 30 55 C30 55 45 45 48 32 C52 15 38 8 30 20Z" fill="url(#leaf-light)"/>
+    <path d="M70 45 C60 30 40 40 50 60 C58 75 72 80 72 80 C72 80 88 68 90 55 C93 38 78 33 70 45Z" fill="url(#leaf-deep)"/>
+    <path d="M25 70 C17 58 0 66 8 82 C14 94 25 98 25 98 C25 98 38 90 40 80 C42 66 31 62 25 70Z" fill="url(#leaf-light)"/>
+    <path d="M72 50 C70 62 72 72 72 80" stroke="#e8efc4" stroke-width="2" fill="none"/>
+    <path d="M30 24 C29 34 30 45 30 55" stroke="#f1f4d6" stroke-width="2" fill="none"/>
+    <path d="M40 30 C36 36 34 42 33 48" stroke="#f3f0c8" stroke-width="4" fill="none" opacity=".6"/>
+  </symbol>
+  <symbol id="photo-dieffenbachia" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="url(#wall-warm)"/>
+    <rect x="62" y="8" width="30" height="44" fill="#eae6da" opacity=".7"/>
+    <path d="M38 80 L62 80 L58 100 L42 100Z" fill="#3a3530"/>
+    <path d="M50 80 C40 55 20 45 10 40 C25 38 42 50 50 80Z" fill="url(#leaf-light)"/>
+    <path d="M50 80 C60 55 80 45 92 42 C78 38 58 50 50 80Z" fill="url(#leaf-light)"/>
+    <path d="M50 80 C46 50 40 25 44 8 C55 25 56 55 50 80Z" fill="url(#leaf-deep)"/>
+    <path d="M50 80 C30 65 18 70 8 72 C22 62 40 62 50 80Z" fill="#6aa04b"/>
+    <path d="M30 52 L40 60 M22 46 L32 52 M70 52 L60 60 M78 46 L68 52" stroke="#eef3cf" stroke-width="1.6"/>
+  </symbol>
+  <symbol id="photo-ficus" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="#2b3530"/>
+    <path d="M48 100 C50 70 46 50 52 30" stroke="#6b5440" stroke-width="3" fill="none"/>
+    <path d="M51 55 C60 48 70 45 80 40 M50 70 C40 62 30 60 20 56 M52 40 C44 32 38 26 30 22" stroke="#6b5440" stroke-width="1.6" fill="none"/>
+    <g fill="url(#leaf-deep)">
+      <ellipse cx="80" cy="38" rx="8" ry="4" transform="rotate(-20 80 38)"/>
+      <ellipse cx="70" cy="50" rx="7" ry="3.5" transform="rotate(30 70 50)"/>
+      <ellipse cx="20" cy="54" rx="8" ry="4" transform="rotate(20 20 54)"/>
+      <ellipse cx="32" cy="66" rx="7" ry="3.5" transform="rotate(-30 32 66)"/>
+      <ellipse cx="30" cy="20" rx="8" ry="4" transform="rotate(30 30 20)"/>
+      <ellipse cx="52" cy="26" rx="7" ry="3.5" transform="rotate(-60 52 26)"/>
+      <ellipse cx="62" cy="14" rx="7" ry="3.5" transform="rotate(-10 62 14)"/>
+      <ellipse cx="42" cy="42" rx="7" ry="3.5" transform="rotate(50 42 42)"/>
+    </g>
+    <g fill="#8cc06a"><ellipse cx="88" cy="30" rx="6" ry="3" transform="rotate(-30 88 30)"/><ellipse cx="12" cy="44" rx="6" ry="3" transform="rotate(25 12 44)"/></g>
+  </symbol>
+  <symbol id="photo-sansevieria" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="url(#wall-warm)"/>
+    <path d="M30 78 L70 78 L66 100 L34 100Z" fill="#c9c2b4"/>
+    <g fill="#2f6b34">
+      <path d="M40 80 C36 50 34 25 40 2 C46 25 46 55 46 80Z"/>
+      <path d="M50 80 C52 55 58 30 66 10 C66 35 60 60 56 80Z"/>
+      <path d="M34 80 C26 62 20 45 18 28 C28 42 34 60 40 80Z"/>
+      <path d="M58 80 C66 64 74 52 84 44 C78 58 70 70 64 80Z"/>
+    </g>
+    <g stroke="#9cc37a" stroke-width="1.2" fill="none">
+      <path d="M41 70 L45 66 M40 55 L44 51 M40 40 L44 36 M41 25 L44 21"/>
+      <path d="M55 70 L59 66 M57 55 L61 51 M60 40 L63 36"/>
+    </g>
+    <path d="M40 80 C36 50 34 25 40 2" stroke="#d6c36a" stroke-width="1.4" fill="none"/>
+  </symbol>
+  <symbol id="photo-fern" viewBox="0 0 100 100">
+    <rect width="100" height="100" fill="#26302a"/>
+    <g stroke="#5da046" stroke-width="2" fill="none">
+      <path d="M50 100 C45 70 30 50 5 40"/>
+      <path d="M50 100 C55 70 70 50 95 42"/>
+      <path d="M50 100 C50 60 48 35 40 10"/>
+      <path d="M50 100 C60 75 75 70 98 72"/>
+      <path d="M50 100 C40 78 25 74 2 76"/>
+    </g>
+    <g stroke="#8cc96a" stroke-width="1.2">
+      <path d="M40 72 L34 64 M34 64 L30 70 M30 60 L22 56 M22 52 L16 46 M16 48 L10 44"/>
+      <path d="M60 72 L66 64 M68 60 L76 56 M78 52 L84 46 M86 48 L90 44"/>
+      <path d="M48 70 L42 64 M49 55 L56 50 M47 42 L41 36 M44 28 L50 22 M42 18 L37 14"/>
+      <path d="M62 82 L68 76 M74 76 L80 72 M86 74 L90 70 M38 82 L32 77 M26 77 L20 74 M14 76 L10 72"/>
+    </g>
+  </symbol>
+
+  <symbol id="ic-drop" viewBox="0 0 24 24"><path d="M12 3c-3.5 4.6-6 8-6 11a6 6 0 0 0 12 0c0-3-2.5-6.4-6-11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-drop-fill" viewBox="0 0 24 24"><path d="M12 3c-3.5 4.6-6 8-6 11a6 6 0 0 0 12 0c0-3-2.5-6.4-6-11Z" fill="currentColor"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></g></symbol>
+  <symbol id="ic-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="ic-cards" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="8" width="12" height="12" rx="3"/><path d="M8 8V6.5A2.5 2.5 0 0 1 10.5 4h7A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H16"/></g></symbol>
+  <symbol id="ic-grid" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></g></symbol>
+  <symbol id="ic-camera-leaf" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z"/><path d="M9 16c0-3 2-5 6-5 0 3.5-2 5-6 5Zm0 0 3-2.5"/></g></symbol>
+  <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="ic-leaf" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19C5 10 10 5 20 4c-.5 9-5 15-15 15Z"/><path d="M5 19l8-8"/></g></symbol>
+  <symbol id="ic-person" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></g></symbol>
+  <symbol id="ic-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-chevron" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-camera" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z"/><circle cx="12" cy="12.5" r="3.5"/></g></symbol>
+  <symbol id="ic-pencil" viewBox="0 0 24 24"><path d="M5 19l1-4L16 5l3 3L9 18Zm9-12 3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-house" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></symbol>
+  <symbol id="ic-diagnose" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 8 6.5 4.5 13 4c-.3 6-3.5 10-10 10Z"/><path d="M3 14l5-5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="M19 18l2.5 2.5"/></g></symbol>
+  <symbol id="ic-fertilize" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-8"/><path d="M12 13c0-4 2.5-6.5 7-7 0 4.5-2.5 7-7 7Z"/><path d="M12 15c0-3-2-5-6-5.5 0 3.5 2 5.5 6 5.5Z"/></g></symbol>
+  <symbol id="ic-pot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 11h14l-1.8 9H6.8Z"/><path d="M4 8h16v3H4Z"/><path d="M12 8V4"/></g></symbol>
+  <symbol id="ic-note" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3h9l4 4v14H6Z"/><path d="M9 11h7M9 15h7"/></g></symbol>
+  <symbol id="ic-wifi" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9a13 13 0 0 1 18 0M6 12.5a8.5 8.5 0 0 1 12 0M9 16a4 4 0 0 1 6 0"/></g><circle cx="12" cy="19" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="ic-battery" viewBox="0 0 24 24"><rect x="3" y="7" width="16" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5" y="9" width="10" height="6" rx="1" fill="currentColor"/><path d="M21 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="page-head">
+  <h1>GreenThumb — оттенки тёмной темы</h1>
+  <p>Макет для сравнения четырёх палитр тёмной темы на текущем дизайне приложения. Данные и фото синтетические; это не снимок приложения, кнопки в телефонах не работают. У всех вариантов одна разметка, шрифты, размеры и иконки — меняются только цвета.</p>
+</header>
+
+<div class="controls" role="toolbar" aria-label="Управление сравнением">
+  <div class="controls-inner">
+    <div class="group" role="group" aria-labelledby="lbl-mode">
+      <span class="group-label" id="lbl-mode">Вид:</span>
+      <button type="button" class="seg" data-mode="compare" aria-pressed="true">Сравнение всех четырёх</button>
+      <button type="button" class="seg" data-mode="inspect" aria-pressed="false">Осмотр одной палитры</button>
+    </div>
+    <div class="group" role="group" aria-labelledby="lbl-screen">
+      <span class="group-label" id="lbl-screen">Экран:</span>
+      <button type="button" class="seg" data-screen="dashboard" aria-pressed="true">Главная</button>
+      <button type="button" class="seg" data-screen="detail" aria-pressed="false">Карточка растения</button>
+    </div>
+    <div class="group" role="group" aria-labelledby="lbl-palette" id="palette-group">
+      <span class="group-label" id="lbl-palette">Палитра:</span>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="compare" class="compare" aria-label="Сравнение палитр"></section>
+  <section id="inspect" class="inspect" aria-label="Осмотр палитры" hidden>
+    <div id="inspect-phone"></div>
+    <div class="inspect-info">
+      <h2 id="inspect-title" tabindex="-1"></h2>
+      <p class="src" id="inspect-src"></p>
+      <table class="tokens">
+        <thead><tr><th>Цвет</th><th>Роль</th><th>Значение</th></tr></thead>
+        <tbody id="inspect-tokens"></tbody>
+      </table>
+      <p class="note" id="inspect-note"></p>
+    </div>
+  </section>
+</main>
+
+<template id="tpl-dashboard">
+  <div class="screen dash">
+    <div class="statusbar"><span>9:41</span><span class="sb-icons"><svg class="ic"><use href="#ic-wifi"/></svg><svg class="ic"><use href="#ic-battery"/></svg></span></div>
+    <div class="dash-head">
+      <div><h3 class="title">Мои растения</h3><div class="subtitle">Домашний сад</div></div>
+      <div class="modes">
+        <span class="mode"><svg class="ic"><use href="#ic-list"/></svg></span>
+        <span class="mode"><svg class="ic"><use href="#ic-cards"/></svg></span>
+        <span class="mode on"><svg class="ic"><use href="#ic-grid"/></svg></span>
+      </div>
+    </div>
+    <div class="search"><svg class="ic"><use href="#ic-search"/></svg><span>Поиск растений...</span></div>
+    <div class="chips"><span class="chip on">Все</span><span class="chip">Полить (2)</span><span class="chip">В порядке</span></div>
+    <div class="grid">
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-monstera" width="100" height="100"/></svg><span class="cell-stripe over"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days over">-3</span><span class="cell-name">Монстера деликатесная</span></div>
+        <span class="cell-water"><svg class="ic"><use href="#ic-drop-fill"/></svg></span></div>
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-pothos" width="100" height="100"/></svg><span class="cell-stripe today"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days today">0</span><span class="cell-name">Потос золотистый</span></div>
+        <span class="cell-water"><svg class="ic"><use href="#ic-drop-fill"/></svg></span></div>
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-dieffenbachia" width="100" height="100"/></svg><span class="cell-stripe ok"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days">7</span><span class="cell-name">Диффенбахия</span></div></div>
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-ficus" width="100" height="100"/></svg><span class="cell-stripe ok"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days">4</span><span class="cell-name">Фикус Бенджамина</span></div></div>
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-sansevieria" width="100" height="100"/></svg><span class="cell-stripe ok"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days">21</span><span class="cell-name">Сансевиерия</span></div></div>
+      <div class="cell"><svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-fern" width="100" height="100"/></svg><span class="cell-stripe ok"></span><span class="cell-shade"></span>
+        <div class="cell-text"><span class="cell-days">2</span><span class="cell-name">Нефролепис</span></div></div>
+    </div>
+    <div class="fabs"><span class="fab cam"><svg class="ic"><use href="#ic-camera-leaf"/></svg></span><span class="fab add"><svg class="ic"><use href="#ic-plus"/></svg></span></div>
+    <div class="tabs"><span class="tab on"><svg class="ic"><use href="#ic-leaf"/></svg>Растения</span><span class="tab"><svg class="ic"><use href="#ic-person"/></svg>Профиль</span></div>
+  </div>
+</template>
+
+<template id="tpl-detail">
+  <div class="screen detail">
+    <div class="hero">
+      <svg class="photo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><use href="#photo-monstera" width="100" height="100"/></svg>
+      <span class="hero-shade"></span>
+      <div class="statusbar"><span>9:41</span><span class="sb-icons"><svg class="ic"><use href="#ic-wifi"/></svg><svg class="ic"><use href="#ic-battery"/></svg></span></div>
+      <span class="hbtn back"><svg class="ic"><use href="#ic-back"/></svg></span>
+      <span class="hbtn cam"><svg class="ic"><use href="#ic-camera"/></svg></span>
+      <div class="hero-text">
+        <div class="hero-name"><span>Монстера деликатесная</span><svg class="ic"><use href="#ic-pencil"/></svg></div>
+        <div class="hero-loc"><svg class="ic"><use href="#ic-house"/></svg>Гостиная</div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="due"><svg class="ic"><use href="#ic-drop"/></svg><span>Пора полить: 3 дня назад</span></div>
+        <div class="bar"><span></span></div>
+        <div class="last">Последний полив: 10 дн. назад · 22.10.2026</div>
+        <span class="btn primary"><svg class="ic"><use href="#ic-drop-fill"/></svg>Полить</span>
+      </div>
+      <div class="section">
+        <div class="title-s">Продвинутый уход</div>
+        <div class="care-grid">
+          <div class="card care"><svg class="ic"><use href="#ic-fertilize"/></svg><div class="title-s">Удобрение</div><div class="val soon">Сегодня</div></div>
+          <div class="card care"><svg class="ic"><use href="#ic-pot"/></svg><div class="title-s">Пересадка</div><div class="val">Через 4 мес.</div></div>
+        </div>
+      </div>
+      <div class="card row"><svg class="ic lead"><use href="#ic-sun"/></svg><span class="grow">Настройки ухода</span><svg class="ic chev"><use href="#ic-chevron"/></svg></div>
+      <div class="card row"><svg class="ic lead"><use href="#ic-diagnose"/></svg><div class="grow"><div>Что с растением?</div><div class="small">Фото → возможные причины и что делать</div></div><svg class="ic chev"><use href="#ic-chevron"/></svg></div>
+      <div class="card">
+        <div class="card-head"><span class="title-s">О растении</span><span class="link">Изменить</span></div>
+        <p class="notes-text">Стоит у восточного окна. Летом любит тёплый душ раз в месяц, сквозняков не выносит.</p>
+      </div>
+      <div class="card">
+        <div class="title-s">Журнал</div>
+        <div class="field-label">Запись в журнал</div>
+        <div class="field">Добавить заметку…</div>
+        <span class="btn outline">Сохранить заметку</span>
+        <ul class="entries">
+          <li><span class="ev-ic"><svg class="ic"><use href="#ic-drop"/></svg></span><div><div class="ev-type">Полили</div><div class="small">22.10.2026</div></div></li>
+          <li><span class="ev-ic"><svg class="ic"><use href="#ic-note"/></svg></span><div><div class="ev-type">Заметка</div><div class="ev-text">Появился новый лист с прорезями.</div><div class="small">18.10.2026</div></div></li>
+          <li><span class="ev-ic"><svg class="ic"><use href="#ic-fertilize"/></svg></span><div><div class="ev-type">Подкормили</div><div class="small">05.10.2026</div></div></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script type="application/json" id="palettes">
+[
+  {
+    "id": "former",
+    "label": "Прежняя",
+    "kind": "Тёплый уголь — цвета приложения до темы «Лес»",
+    "source": "dd84fff36a3b78debefe128414699264b78e71eb",
+    "adapted": ["chipSelected"],
+    "note": "Цвета тёмной темы до «Лес» (родитель 6047ecf). В прежней теме secondary и tertiary совпадали с primary, поэтому иконки и ссылки здесь тоже #4A9A5A. Роли chipSelected в прежней теме не было: макет берёт primary с прозрачностью 20 %. Компоновка — текущая, не прежняя.",
+    "colors": {
+      "background": "#15130E", "surface": "#1C1A14", "surfaceVariant": "#2A2822",
+      "text": "#F3F2EF", "muted": "#A89F92", "primary": "#4A9A5A", "error": "#A33535",
+      "page": "#0A100B", "border": "#272420", "onPrimary": "#F0F9F2", "onError": "#FEF2F2",
+      "accent": "#4A9A5A", "accentText": "#4A9A5A", "chipSelected": "rgba(74, 154, 90, 0.2)", "amber": "#D97706"
+    }
+  },
+  {
+    "id": "forest",
+    "label": "Текущий Лес",
+    "kind": "Тёмно-зелёная «Лес» — цвета в коде сейчас",
+    "source": "2a8da8fb0d4d092b3f5d58034c39d37c552f0319",
+    "adapted": [],
+    "note": "Все роли — настоящие значения GreenThumbColors.kt и GreenThumbExtendedColors.kt тёмной «Лес».",
+    "colors": {
+      "background": "#0E1610", "surface": "#152018", "surfaceVariant": "#1C2A1F",
+      "text": "#EEF4EC", "muted": "#A8B9A6", "primary": "#277A40", "error": "#EE8E72",
+      "page": "#0A100B", "border": "#2A3D2E", "onPrimary": "#F0F9F2", "onError": "#0A100B",
+      "accent": "#3DA35B", "accentText": "#86D69C", "chipSelected": "rgba(74, 154, 90, 0.2)", "amber": "#E0A25A"
+    }
+  },
+  {
+    "id": "graphite",
+    "label": "Графит",
+    "kind": "Новое предложение: нейтральный графит, зелёный только в действиях",
+    "source": "новое предложение",
+    "adapted": [],
+    "note": "Новые значения. Фон и карточки почти без оттенка; зелёный остаётся на кнопках, выбранных элементах и иконках.",
+    "colors": {
+      "background": "#121314", "surface": "#1A1B1D", "surfaceVariant": "#24262A",
+      "text": "#ECEDEE", "muted": "#A3A6AB", "primary": "#2F7A47", "error": "#E58A74",
+      "page": "#0D0E0F", "border": "#2C2E32", "onPrimary": "#F2F7F3", "onError": "#0D0E0F",
+      "accent": "#5FA877", "accentText": "#8CCB9F", "chipSelected": "rgba(95, 168, 119, 0.16)", "amber": "#D9A15F"
+    }
+  },
+  {
+    "id": "sage",
+    "label": "Серо-шалфейная",
+    "kind": "Новое предложение: приглушённый серо-зелёный уголь",
+    "source": "новое предложение",
+    "adapted": [],
+    "note": "Новые значения. Фон и карточки с лёгким серо-зелёным оттенком; акценты — спокойный шалфей вместо яркого зелёного.",
+    "colors": {
+      "background": "#131715", "surface": "#1A201C", "surfaceVariant": "#242B26",
+      "text": "#E9EEE9", "muted": "#A5B0A6", "primary": "#4A7558", "error": "#E08F78",
+      "page": "#0E1210", "border": "#2E3830", "onPrimary": "#F3F7F3", "onError": "#0E1210",
+      "accent": "#7FA88A", "accentText": "#A9C9B1", "chipSelected": "rgba(127, 168, 138, 0.16)", "amber": "#D6A463"
+    }
+  }
+]
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var PALETTES = JSON.parse(document.getElementById('palettes').textContent);
+  var ROLE_LABELS = [
+    ['background', 'Фон экрана'], ['surface', 'Карточки'], ['surfaceVariant', 'Поля, дорожка прогресса'],
+    ['text', 'Основной текст'], ['muted', 'Подписи и подсказки'], ['primary', 'Кнопки'], ['error', 'Просрочено'],
+    ['page', 'Строка состояния и нижнее меню'], ['border', 'Обводки карточек'], ['onPrimary', 'Текст на кнопке'],
+    ['onError', 'Текст на красном'], ['accent', 'Иконки и выбранная обводка'], ['accentText', 'Ссылки и выбранная вкладка'],
+    ['chipSelected', 'Заливка выбранного'], ['amber', 'Полить сегодня']
+  ];
+  var CORE = ['background', 'surface', 'surfaceVariant', 'text', 'muted', 'primary', 'error'];
+  var state = { mode: 'compare', screen: 'dashboard', palette: PALETTES[0].id };
+
+  function byId(id) { return PALETTES.filter(function (p) { return p.id === id; })[0]; }
+
+  function applyPalette(el, palette) {
+    Object.keys(palette.colors).forEach(function (role) {
+      el.style.setProperty('--c-' + role, palette.colors[role]);
+    });
+    el.setAttribute('data-palette-id', palette.id);
+  }
+
+  function buildPhone(palette) {
+    var phone = document.createElement('div');
+    phone.className = 'phone';
+    phone.setAttribute('role', 'img');
+    applyPalette(phone, palette);
+    fillPhone(phone, palette);
+    return phone;
+  }
+
+  function fillPhone(phone, palette) {
+    var tpl = document.getElementById(state.screen === 'dashboard' ? 'tpl-dashboard' : 'tpl-detail');
+    phone.replaceChildren(tpl.content.cloneNode(true));
+    phone.setAttribute('data-screen', state.screen);
+    phone.setAttribute('aria-label', palette.label + ' — ' + (state.screen === 'dashboard' ? 'Главная' : 'Карточка растения'));
+  }
+
+  function strip(palette) {
+    var s = document.createElement('div');
+    s.className = 'strip';
+    CORE.forEach(function (role) {
+      var i = document.createElement('i');
+      i.style.background = palette.colors[role];
+      i.title = role + ' ' + palette.colors[role];
+      s.appendChild(i);
+    });
+    return s;
+  }
+
+  var compare = document.getElementById('compare');
+  PALETTES.forEach(function (p) {
+    var fig = document.createElement('figure');
+    fig.className = 'variant';
+    fig.setAttribute('data-variant', p.id);
+    var head = document.createElement('figcaption');
+    head.className = 'variant-head';
+    var text = document.createElement('div');
+    var h = document.createElement('h2');
+    h.textContent = p.label;
+    var src = document.createElement('div');
+    src.className = 'src';
+    src.textContent = p.kind;
+    text.appendChild(h);
+    text.appendChild(src);
+    text.appendChild(strip(p));
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'inspect-btn';
+    btn.textContent = 'Осмотреть';
+    btn.setAttribute('aria-label', 'Осмотреть палитру «' + p.label + '»');
+    btn.addEventListener('click', function () {
+      state.palette = p.id;
+      state.mode = 'inspect';
+      render();
+      document.getElementById('inspect-title').focus();
+    });
+    head.appendChild(text);
+    head.appendChild(btn);
+    fig.appendChild(head);
+    fig.appendChild(buildPhone(p));
+    compare.appendChild(fig);
+  });
+
+  var paletteGroup = document.getElementById('palette-group');
+  PALETTES.forEach(function (p) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg';
+    b.setAttribute('data-palette', p.id);
+    var dots = document.createElement('span');
+    dots.className = 'dots';
+    ['background', 'surface', 'primary'].forEach(function (r) {
+      var i = document.createElement('i');
+      i.style.background = p.colors[r];
+      dots.appendChild(i);
+    });
+    b.appendChild(dots);
+    b.appendChild(document.createTextNode(p.label));
+    b.addEventListener('click', function () {
+      state.palette = p.id;
+      state.mode = 'inspect';
+      render();
+    });
+    paletteGroup.appendChild(b);
+  });
+
+  var inspectPhone = buildPhone(byId(state.palette));
+  document.getElementById('inspect-phone').appendChild(inspectPhone);
+
+  document.querySelectorAll('[data-mode]').forEach(function (b) {
+    b.addEventListener('click', function () { state.mode = b.getAttribute('data-mode'); render(); });
+  });
+  document.querySelectorAll('[data-screen]').forEach(function (b) {
+    b.addEventListener('click', function () { state.screen = b.getAttribute('data-screen'); render(); });
+  });
+
+  function renderTokens(p) {
+    var body = document.getElementById('inspect-tokens');
+    body.replaceChildren();
+    ROLE_LABELS.forEach(function (pair) {
+      var tr = document.createElement('tr');
+      var c1 = document.createElement('td');
+      var sw = document.createElement('span');
+      sw.className = 'sw';
+      sw.style.background = p.colors[pair[0]];
+      c1.appendChild(sw);
+      var c2 = document.createElement('td');
+      c2.textContent = pair[1] + ' ';
+      var code = document.createElement('code');
+      code.textContent = '(' + pair[0] + ')';
+      c2.appendChild(code);
+      if (p.adapted.indexOf(pair[0]) >= 0) {
+        var tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = ' · роль макета';
+        c2.appendChild(tag);
+      }
+      var c3 = document.createElement('td');
+      var v = document.createElement('code');
+      v.textContent = p.colors[pair[0]];
+      c3.appendChild(v);
+      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3);
+      body.appendChild(tr);
+    });
+  }
+
+  function render() {
+    document.body.setAttribute('data-mode', state.mode);
+    document.body.setAttribute('data-screen', state.screen);
+    document.body.setAttribute('data-selected', state.palette);
+    document.querySelectorAll('[data-mode]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === state.mode));
+    });
+    document.querySelectorAll('[data-screen]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-screen') === state.screen));
+    });
+    document.querySelectorAll('button[data-palette]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(state.mode === 'inspect' && b.getAttribute('data-palette') === state.palette));
+    });
+    document.getElementById('compare').hidden = state.mode !== 'compare';
+    document.getElementById('inspect').hidden = state.mode !== 'inspect';
+
+    document.querySelectorAll('#compare .phone').forEach(function (phone) {
+      if (phone.getAttribute('data-screen') !== state.screen) fillPhone(phone, byId(phone.getAttribute('data-palette-id')));
+    });
+
+    var p = byId(state.palette);
+    applyPalette(inspectPhone, p);
+    fillPhone(inspectPhone, p);
+    document.getElementById('inspect-title').textContent = p.label;
+    document.getElementById('inspect-src').textContent = p.kind + (p.source.length === 40 ? ' · коммит ' + p.source : ' · ' + p.source);
+    document.getElementById('inspect-note').textContent = p.note;
+    renderTokens(p);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
