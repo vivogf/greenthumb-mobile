@@ -4,7 +4,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * «Лес» roles that have no Material3 slot (D§3.1).
+ * Palette roles that have no Material3 slot (D§3.1): dark «Графит», light «Лес».
  *
  * Read through [LocalGreenThumbExtendedColors] inside [GreenThumbTheme]. The local defaults to the
  * light set, so a read outside the theme does not crash.
@@ -18,7 +18,7 @@ data class GreenThumbExtendedColors(
     val amberBorder: Color,
     /** Same value as `colorScheme.outlineVariant`, kept for named access. */
     val cardBorder: Color,
-    /** «Лес» page: the window, the navigation root and the system bars behind every screen. */
+    /** Page: the window, the navigation root and the system bars behind every screen. */
     val page: Color,
     /** Links and accent text (`--acct`); equals `colorScheme.tertiary`. */
     val accentText: Color,
@@ -48,20 +48,21 @@ data class GreenThumbExtendedColors(
             amber = darkAmber,
             amberBg = darkAmber.copy(alpha = 0.12f),
             amberBorder = darkAmber.copy(alpha = 0.25f),
-            cardBorder = rgb(0x2A3D2E),
-            page = rgb(0x0A100B),
-            accentText = rgb(0x86D69C),
-            glow = rgb(0x7FE3A0),
-            causeHigh = rgb(0xEE8E72),
-            causeLow = rgb(0xA39B8C),
-            chipSelected = rgb(0x4A9A5A).copy(alpha = 0.2f),
+            cardBorder = rgb(0x2C2E32),
+            page = rgb(0x0D0E0F),
+            accentText = rgb(0x8CCB9F),
+            // Graphite has no separate glow: the camera border uses the accent green.
+            glow = rgb(0x5FA877),
+            causeHigh = rgb(0xE58A74),
+            causeLow = rgb(0xA3A6AB),
+            chipSelected = rgb(0x5FA877).copy(alpha = 0.16f),
         )
     }
 }
 
-private val darkAmber = rgb(0xE0A25A)
+private val darkAmber = rgb(0xD9A15F)
 
-/** Darker than the dark amber: #E0A25A on white is below 4.5:1. */
+/** Darker than the dark amber: #D9A15F on white is below 4.5:1. */
 private val lightAmber = rgb(0xA86412)
 
 val LocalGreenThumbExtendedColors = staticCompositionLocalOf { GreenThumbExtendedColors.light }

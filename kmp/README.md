@@ -6,9 +6,10 @@ species identification, photo-based diagnosis, progress and an Android home-scre
 Active development happens here; the Expo app in the repository root is legacy
 (see the [root README](../README.md)).
 
-**Current state (after M12a):** the M10 redesign, the M11 smart camera fixes and the six M12a UX fixes
+**Current state (after M14):** the M10 redesign, the M11 smart camera fixes and the six M12a UX fixes
 (dashboard grid, first-load Retry, bulk-action note, camera «Вернуться к фото», Add Plant last-watered
-summary, separate «О растении» / «Запись в журнал» labels) are implemented. No new animation was added.
+summary, separate «О растении» / «Запись в журнал» labels) are implemented. M14 replaced the dark
+«Лес» colors with the neutral «Графит» palette; the light theme is still «Лес». No new animation was added.
 The last signed Android App Bundle (AAB) is release **0.8.0 (`versionCode 7`)**, built locally after
 M11c and before M12a; it has **not been uploaded to Google Play** and does not contain the M12a fixes.
 Android is the release target; JVM desktop is the development and test harness.
@@ -31,7 +32,7 @@ All commands below are run from the `kmp/` directory unless stated otherwise.
 
 | Area | Current behavior |
 |---|---|
-| Theme and icons | Solarpunk **«Лес»** in Light, Dark and Auto («Как в системе»), with Retro-cosmos icons. Theme-aware startup and navigation avoid white flashes; reduce motion disables transitions and the camera glow animation. |
+| Theme and icons | Light, Dark and Auto («Как в системе»): light uses the Solarpunk **«Лес»** greens, dark uses the neutral **«Графит»** palette (green only on actions, selection and accent text). Retro-cosmos icons. Theme-aware startup and navigation avoid white flashes; reduce motion disables transitions and the camera glow animation. |
 | Bottom sheets and switches | Shared `GtModal`, `GtSheetTitle` and `GtSheetRow` keep sheets consistent. One scrim dims the background, without a second Android window dim. Switch rows expose one accessible node; tapping the title toggles the switch. |
 | Plant detail | One watering-due line with a progress bar and last-watered date replaces the old days-left pill. Tapping the name opens «Название и место»: name, place chips and a custom place; explicit save, cancel/Back/scrim discard changes. |
 | Plant notes and journal | Two separate places for text. **«О растении» / «About the plant»** holds the plant's persistent notes: «Изменить» edits them and the save sends one `PATCH /api/plants/:id` with `notes`. **«Запись в журнал» / «Journal entry»** above the journal field adds a dated entry: one `POST /api/plants/:id/events` with `type: note`. Editing the notes never creates a journal entry, and a journal entry never changes the notes. Journal entries need a connection; on failure the message appears next to the field and the text stays. |
@@ -49,12 +50,16 @@ and [Data Safety notes](docs/data-safety.md) cover smart camera and saved diagno
 
 [`design/dark-theme-palettes.html`](design/dark-theme-palettes.html) compares four dark-theme
 palettes on the current dashboard and plant detail: «Прежняя» (the pre-«Лес» colors from
-`dd84fff`), «Текущий Лес» (the colors at `2a8da8f`) and two new proposals, «Графит» and
+`dd84fff`), «Текущий Лес» (the dark colors at `2a8da8f`) and two proposals, «Графит» and
 «Серо-шалфейная». Open the file directly in a browser; it works offline. Only colors differ
-between the variants. It is a preview only: the app theme, settings and code are unchanged, and
-choosing a palette for the app is a later owner decision. Details and sources are in
-[`design/README.md`](design/README.md); the test, run from the repository root, is
-`node --test kmp/design/dark-theme-palettes.test.mjs`.
+between the variants.
+
+The owner chose **«Графит»**, and M14 moved it into the app as the dark theme
+(`ui/theme/GreenThumbColors.kt`, `GreenThumbExtendedColors.kt` and `gt_page` in
+`androidApp/src/main/res/values/colors.xml`). The HTML file was not changed: it stays a historical
+comparison, so its «Текущий Лес» column shows the dark colors from before M14, not the current app.
+Details and sources are in [`design/README.md`](design/README.md); the test, run from the
+repository root, is `node --test kmp/design/dark-theme-palettes.test.mjs`.
 
 ## Requirements
 
@@ -131,7 +136,7 @@ Desktop app:
 | Full gate for the kmp code | `bash scripts/check.sh` (from the repository root: `bash kmp/scripts/check.sh`) |
 | Grep rules only (fast iteration) | `bash scripts/check.sh --grep-only` |
 | Shared JVM tests, including Compose UI tests | `./gradlew :shared:jvmTest --rerun` (without `--rerun`, Gradle may report UP-TO-DATE and run nothing) |
-| Android widget unit tests | `./gradlew :androidApp:testDebugUnitTest` |
+| Android unit tests (widget, window theme resources) | `./gradlew :androidApp:testDebugUnitTest` |
 | Maestro M10 flows | `maestro/m10_*.yaml`, one stage at a time; setup and examples below |
 | Legacy Maestro smoke | `bash maestro/render-smoke.sh run` — see the M10 compatibility note below |
 | Account deletion flow | `bash maestro/render-delete-account.sh run <key-file>` — **deletes the account of that key**; use only a separate test account |
@@ -147,7 +152,7 @@ steps:
 
 1. compilation of `:shared:compileAndroidMain`, `:shared:compileKotlinJvm`,
    `:desktopApp:compileKotlin`, plus `:shared:jvmTest` and
-   `:androidApp:testDebugUnitTest` (widget tests);
+   `:androidApp:testDebugUnitTest` (widget and window-theme resource tests);
 2. grep rules K1–K5: network only through `core.network`, no unsplash URLs,
    `YYYY-MM-DD` dates in request bodies, the database only through
    `PlantRepository`, UI literals (`.dp`, `Color(`, `.sp`) only outside

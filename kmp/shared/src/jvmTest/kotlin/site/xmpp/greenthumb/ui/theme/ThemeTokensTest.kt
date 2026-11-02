@@ -19,46 +19,68 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 /**
- * VAL-LOOK-005 / VAL-LOOK-006: dark «Лес» = the D§3.1 token table of the approved mockup
- * (`body[data-style=solar]`), light «Лес» = the derived variant of architecture §9.3.
+ * VAL-GR14-001 / VAL-GR14-002: dark = the «Графит» colours of `kmp/design/dark-theme-palettes.html`
+ * (commit 3a75c02, architecture §13), light «Лес» = the derived variant of architecture §9.3.
  * Expected values are literals here, not read from the implementation.
  */
 class ThemeTokensTest {
 
     @Test
-    fun dark_scheme_matches_forest_tokens() {
+    fun dark_scheme_matches_graphite_tokens() {
         val scheme = GreenThumbColors.dark
-        assertHex(scheme.background, "#0e1610")
-        assertHex(scheme.surfaceContainerLowest, "#0e1610")
-        assertHex(scheme.surface, "#152018")
-        assertHex(scheme.surfaceContainer, "#152018")
-        assertHex(scheme.surfaceVariant, "#1c2a1f")
-        assertHex(scheme.surfaceContainerHigh, "#1c2a1f")
-        assertHex(scheme.outline, "#2a3d2e")
-        assertHex(scheme.outlineVariant, "#2a3d2e")
-        assertHex(scheme.onBackground, "#eef4ec")
-        assertHex(scheme.onSurface, "#eef4ec")
-        assertHex(scheme.onSurfaceVariant, "#a8b9a6")
-        assertHex(scheme.primary, "#277a40")
-        assertHex(scheme.onPrimary, "#f0f9f2")
-        assertHex(scheme.secondary, "#3da35b")
-        assertHex(scheme.tertiary, "#86d69c")
-        assertHex(scheme.error, "#ee8e72")
+        assertHex(scheme.background, "#121314")
+        assertHex(scheme.surfaceContainerLowest, "#121314")
+        assertHex(scheme.surface, "#1a1b1d")
+        assertHex(scheme.surfaceContainer, "#1a1b1d")
+        assertHex(scheme.surfaceVariant, "#24262a")
+        assertHex(scheme.surfaceContainerHigh, "#24262a")
+        assertHex(scheme.outline, "#2c2e32")
+        assertHex(scheme.outlineVariant, "#2c2e32")
+        assertHex(scheme.onBackground, "#ecedee")
+        assertHex(scheme.onSurface, "#ecedee")
+        assertHex(scheme.onSurfaceVariant, "#a3a6ab")
+        assertHex(scheme.primary, "#2f7a47")
+        assertHex(scheme.onPrimary, "#f2f7f3")
+        assertHex(scheme.secondary, "#5fa877")
+        assertHex(scheme.onSecondary, "#0d0e0f")
+        assertHex(scheme.tertiary, "#8ccb9f")
+        assertHex(scheme.onTertiary, "#0d0e0f")
+        assertHex(scheme.error, "#e58a74")
+        assertHex(scheme.onError, "#0d0e0f")
     }
 
     @Test
-    fun dark_extended_matches_forest_tokens() {
+    fun dark_extended_matches_graphite_tokens() {
         val dark = GreenThumbExtendedColors.dark
-        assertHex(dark.page, "#0a100b")
-        assertHex(dark.accentText, "#86d69c")
-        assertHex(dark.amber, "#e0a25a")
-        assertHex(dark.glow, "#7fe3a0")
-        assertHex(dark.causeHigh, "#ee8e72")
-        assertHex(dark.causeLow, "#a39b8c")
-        assertHex(dark.cardBorder, "#2a3d2e")
-        assertRgba(dark.amberBg, 0xE0, 0xA2, 0x5A, 0.12f, "dark.amberBg")
-        assertRgba(dark.amberBorder, 0xE0, 0xA2, 0x5A, 0.25f, "dark.amberBorder")
-        assertRgba(dark.chipSelected, 0x4A, 0x9A, 0x5A, 0.2f, "dark.chipSelected")
+        assertHex(dark.page, "#0d0e0f")
+        assertHex(dark.accentText, "#8ccb9f")
+        assertHex(dark.amber, "#d9a15f")
+        assertHex(dark.glow, "#5fa877")
+        assertHex(dark.causeHigh, "#e58a74")
+        assertHex(dark.causeLow, "#a3a6ab")
+        assertHex(dark.cardBorder, "#2c2e32")
+        assertRgba(dark.amberBg, 0xD9, 0xA1, 0x5F, 0.12f, "dark.amberBg")
+        assertRgba(dark.amberBorder, 0xD9, 0xA1, 0x5F, 0.25f, "dark.amberBorder")
+        assertRgba(dark.chipSelected, 0x5F, 0xA8, 0x77, 0.16f, "dark.chipSelected")
+    }
+
+    @Test
+    fun dark_theme_drops_the_forest_dark_surfaces() {
+        val forest = listOf("#0a100b", "#0e1610", "#152018", "#1c2a1f", "#2a3d2e", "#7fe3a0")
+        val dark = GreenThumbExtendedColors.dark
+        val colors = slots(GreenThumbColors.dark).map { it.second } +
+            listOf(dark.page, dark.glow, dark.cardBorder, dark.accentText, dark.causeLow, GreenThumbColors.darkScrim.copy(alpha = 1f))
+        for (hex in forest) {
+            assertTrue(colors.none { it.toArgb() == argb(hex) }, "dark theme still uses Forest $hex")
+        }
+    }
+
+    @Test
+    fun light_inverse_slots_follow_the_graphite_dark_palette() {
+        val light = GreenThumbColors.light
+        assertHex(light.inverseSurface, "#1a1b1d")
+        assertHex(light.inverseOnSurface, "#ecedee")
+        assertHex(light.inversePrimary, "#2f7a47")
     }
 
     @Test
@@ -146,12 +168,12 @@ class ThemeTokensTest {
         val allowed = paletteArgb() + GreenThumbColors.modalScrim.toArgb() + GreenThumbColors.darkScrim.toArgb()
         for (scheme in listOf(GreenThumbColors.light, GreenThumbColors.dark)) {
             for ((name, color) in slots(scheme)) {
-                assertTrue(color.toArgb() in allowed, "$name ${color.toArgb().toUInt().toString(16)} is not a «Лес» token or the modal scrim")
+                assertTrue(color.toArgb() in allowed, "$name ${color.toArgb().toUInt().toString(16)} is not a palette token or the modal scrim")
             }
         }
         assertRgba(GreenThumbColors.modalScrim, 0, 0, 0, 0.5f, "modalScrim")
         assertEquals(GreenThumbColors.modalScrim, GreenThumbColors.light.scrim)
-        assertRgba(GreenThumbColors.darkScrim, 0x0A, 0x10, 0x0B, 0.6f, "darkScrim")
+        assertRgba(GreenThumbColors.darkScrim, 0x0D, 0x0E, 0x0F, 0.6f, "darkScrim")
         assertEquals(GreenThumbColors.darkScrim, GreenThumbColors.dark.scrim)
     }
 
@@ -243,9 +265,9 @@ class ThemeTokensTest {
                 seen.lightAmberBg = LocalGreenThumbExtendedColors.current.amberBg
             }
         }
-        assertHex(seen.darkPrimary ?: error("dark primary not composed"), "#277a40")
-        assertHex(seen.darkAmber ?: error("dark amber not composed"), "#e0a25a")
-        assertHex(seen.darkCardBorder ?: error("dark cardBorder not composed"), "#2a3d2e")
+        assertHex(seen.darkPrimary ?: error("dark primary not composed"), "#2f7a47")
+        assertHex(seen.darkAmber ?: error("dark amber not composed"), "#d9a15f")
+        assertHex(seen.darkCardBorder ?: error("dark cardBorder not composed"), "#2c2e32")
         assertEquals(RoundedCornerShape(Radii.md), seen.darkShape)
         assertHex(seen.lightBackground ?: error("light background not composed"), "#f3f6f1")
         assertRgba(seen.lightAmberBg ?: error("light amberBg not composed"), 0xA8, 0x64, 0x12, 0.08f, "composed amberBg")
@@ -309,11 +331,12 @@ private fun assertRgba(color: Color, red: Int, green: Int, blue: Int, alpha: Flo
 private fun argb(hex: String): Int = (0xFF000000L or hex.removePrefix("#").toLong(16)).toInt()
 
 private fun paletteArgb(): Set<Int> = listOf(
-    // dark «Лес»
-    "#0e1610", "#152018", "#1c2a1f", "#2a3d2e", "#eef4ec", "#a8b9a6", "#277a40", "#f0f9f2",
-    "#3da35b", "#86d69c", "#ee8e72", "#0a100b",
+    // dark «Графит»
+    "#121314", "#1a1b1d", "#24262a", "#2c2e32", "#ecedee", "#a3a6ab", "#2f7a47", "#f2f7f3",
+    "#5fa877", "#8ccb9f", "#e58a74", "#0d0e0f",
     // light «Лес»
-    "#f3f6f1", "#ffffff", "#e7ede4", "#cbd6c7", "#142016", "#4e5e4d", "#2e8a4a", "#1f6b36", "#b4472a",
+    "#f3f6f1", "#ffffff", "#e7ede4", "#cbd6c7", "#142016", "#4e5e4d", "#277a40", "#f0f9f2",
+    "#2e8a4a", "#0a100b", "#1f6b36", "#b4472a",
 ).map(::argb).toSet()
 
 private fun role(scheme: ColorScheme, name: String): Color = when (name) {

@@ -33,7 +33,7 @@ class ThemeResourceTest {
         for (attr in listOf("android:windowBackground", "android:colorBackground", "android:statusBarColor", "android:navigationBarColor", "android:windowSplashScreenBackground")) {
             assertEquals("@color/gt_page", items[attr], attr)
         }
-        assertEquals("#FF0A100B", page.uppercase())
+        assertEquals("#FF0D0E0F", page.uppercase())
         assertEquals(GreenThumbExtendedColors.dark.page.toArgb(), page.removePrefix("#").toLong(16).toInt())
     }
 

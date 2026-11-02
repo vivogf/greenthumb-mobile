@@ -5,13 +5,13 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Solarpunk «Лес» palette (M10, D§3.1).
+ * App palette: dark «Графит» (M14, architecture §13) and light «Лес» (M10, D§3.1).
  *
- * Dark = the CSS tokens of the approved mockup (`research/m10-mockups.html`, `body[data-style=solar]`).
- * Light has no mockup: it is derived from the same greens (architecture §9.3) and every text role
- * keeps a contrast of at least 4.5:1 (ThemeTokensTest checks it).
+ * Dark = the Graphite colours of `kmp/design/dark-theme-palettes.html` (commit 3a75c02); it replaced
+ * the M10 dark «Лес» mockup tokens. Light is derived from the «Лес» greens (architecture §9.3) and every
+ * text role keeps a contrast of at least 4.5:1 (ThemeTokensTest checks it).
  *
- * Mockup token → Material3 role:
+ * Token → Material3 role:
  * - `--bg` → background, surfaceContainerLowest
  * - `--card` → surface, surfaceContainer, surfaceContainerLow
  * - `--card2` → surfaceVariant, surfaceContainerHigh/Highest (fields, progress track, stepper buttons)
@@ -46,10 +46,10 @@ object GreenThumbColors {
      * Dark scrim: the page colour at 60 %, so a sheet never lifts the screen towards grey. The
      * light theme keeps [modalScrim]: a light scrim over a light screen would hide nothing.
      */
-    val darkScrim: Color = Color(red = 0x0A / 255f, green = 0x10 / 255f, blue = 0x0B / 255f, alpha = 0.6f)
+    val darkScrim: Color = Color(red = 0x0D / 255f, green = 0x0E / 255f, blue = 0x0F / 255f, alpha = 0.6f)
 
-    val light: ColorScheme = scheme(LightForest, DarkForest, isLight = true, scrim = modalScrim)
-    val dark: ColorScheme = scheme(DarkForest, LightForest, isLight = false, scrim = darkScrim)
+    val light: ColorScheme = scheme(LightForest, DarkGraphite, isLight = true, scrim = modalScrim)
+    val dark: ColorScheme = scheme(DarkGraphite, LightForest, isLight = false, scrim = darkScrim)
 }
 
 private data class Palette(
@@ -69,21 +69,25 @@ private data class Palette(
     val onError: Color,
 )
 
-private val DarkForest = Palette(
-    background = rgb(0x0E1610),
-    card = rgb(0x152018),
-    card2 = rgb(0x1C2A1F),
-    cardBorder = rgb(0x2A3D2E),
-    foreground = rgb(0xEEF4EC),
-    mutedForeground = rgb(0xA8B9A6),
-    primary = rgb(0x277A40),
-    onPrimary = rgb(0xF0F9F2),
-    accent = rgb(0x3DA35B),
-    onAccent = rgb(0x0A100B),
-    accentText = rgb(0x86D69C),
-    onAccentText = rgb(0x0A100B),
-    error = rgb(0xEE8E72),
-    onError = rgb(0x0A100B),
+/**
+ * Dark «Графит» (M14, architecture §13): `graphite.colors` of `kmp/design/dark-theme-palettes.html`
+ * at commit 3a75c02. Neutral large surfaces; green stays on actions, selection and accent text.
+ */
+private val DarkGraphite = Palette(
+    background = rgb(0x121314),
+    card = rgb(0x1A1B1D),
+    card2 = rgb(0x24262A),
+    cardBorder = rgb(0x2C2E32),
+    foreground = rgb(0xECEDEE),
+    mutedForeground = rgb(0xA3A6AB),
+    primary = rgb(0x2F7A47),
+    onPrimary = rgb(0xF2F7F3),
+    accent = rgb(0x5FA877),
+    onAccent = rgb(0x0D0E0F),
+    accentText = rgb(0x8CCB9F),
+    onAccentText = rgb(0x0D0E0F),
+    error = rgb(0xE58A74),
+    onError = rgb(0x0D0E0F),
 )
 
 /**

@@ -42,7 +42,7 @@ class NavHostBackgroundTest {
         }
         val pixels = onNodeWithTag("root").captureToImage().toPixelMap()
         assertEquals(GreenThumbExtendedColors.dark.page.toArgb(), pixels[32, 32].toArgb())
-        assertEquals(0xFF0A100B.toInt(), pixels[32, 32].toArgb())
+        assertEquals(0xFF0D0E0F.toInt(), pixels[32, 32].toArgb())
     }
 
     @Test

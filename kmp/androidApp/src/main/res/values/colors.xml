@@ -7,8 +7,8 @@
     <!-- Adaptive launcher icon background: the same dark green as the Expo
          app icon (app.json android.adaptiveIcon.backgroundColor). -->
     <color name="iconBackground">#1a5c2e</color>
-    <!-- Dark «Лес» page colour: GreenThumbExtendedColors.dark.page (ThemeResourceTest keeps them equal). -->
-    <color name="gt_page">#FF0A100B</color>
+    <!-- Dark «Графит» page colour: GreenThumbExtendedColors.dark.page (ThemeResourceTest keeps them equal). -->
+    <color name="gt_page">#FF0D0E0F</color>
     <!-- Light «Лес» page colour: GreenThumbExtendedColors.light.page (Android 12+ light window). -->
     <color name="gt_page_light">#FFF3F6F1</color>
 </resources>
