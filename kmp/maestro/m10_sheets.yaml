@@ -126,9 +126,9 @@ name: M10 sheets (${STEP})
     commands:
       - scrollUntilVisible:
           element:
-            text: "Добавить фото"
+            text: "Добавить снимок"
           direction: DOWN
-      - tapOn: "Добавить фото"
+      - tapOn: "Добавить снимок"
       - extendedWaitUntil:
           visible: "Галерея"
           timeout: 5000

@@ -3,7 +3,7 @@
 # from the directory that should get the screenshots. Sign in and pick the language with m10_smartcam.yaml
 # (`login`, `ru` / `en`). The caller seeds a plant named "Basil" with an https cover photo. Maestro cannot type
 # Cyrillic, so the plant name and the note are ASCII. Nothing is sent before «Проверить растение».
-#   open    Basil → «Что с растением?» → camera in «Болезнь» with the chip «Basil» and its ✕, no system camera;
+#   open    Basil → «Проверить на болезни» → camera in «Болезнь» with the chip «Basil» and its ✕, no system camera;
 #           ✕ «Закрыть камеру» → the same plant detail
 #   clear   open the plant camera → ✕ on the chip → no chip, «Болезнь» stays, nothing sent; close
 #   check   open the plant camera → shutter → after-shot with the chip and «Учтём уход за «Basil»» → note
@@ -14,7 +14,7 @@
 #           request; close → detail
 #   broken  the caller has airplane mode on: photo sheet → «Проверить на болезни» → the cover download fails →
 #           the camera with the chip and «Не удалось загрузить фото. Снимите новое.»; close → detail
-#   en      English UI: Basil → «What's wrong with my plant?» → chip with “Remove “Basil” from the check”; close
+#   en      English UI: Basil → «Check for diseases» → chip with “Remove “Basil” from the check”; close
 appId: com.greenthumbplantcare.debug
 name: GreenThumb plant camera (${STEP})
 ---
@@ -34,9 +34,9 @@ name: GreenThumb plant camera (${STEP})
     commands:
       - scrollUntilVisible:
           element:
-            text: "Что с растением\\?|What's wrong with my plant\\?"
+            text: "Проверить на болезни|Check for diseases"
           direction: DOWN
-      - tapOn: "Что с растением\\?|What's wrong with my plant\\?"
+      - tapOn: "Проверить на болезни|Check for diseases"
       - runFlow:
           when:
             visible: "While using the app|При использовании приложения"
@@ -138,12 +138,14 @@ name: GreenThumb plant camera (${STEP})
       true: ${STEP == 'cover' || STEP == 'broken'}
     commands:
       - tapOn: "Изменить фото растения"
+      # The plant card's diagnosis row reads «Проверить на болезни» too (M15), so the sheet row is found
+      # and tapped by its own supporting line.
       - extendedWaitUntil:
-          visible: "Проверить на болезни"
+          visible: "по этому фото"
           timeout: 5000
-      - assertVisible: "по этому фото"
+      - assertVisible: "Проверить на болезни"
       - takeScreenshot: ${STEP}-photo-sheet
-      - tapOn: "Проверить на болезни"
+      - tapOn: "по этому фото"
 
 - runFlow:
     when:

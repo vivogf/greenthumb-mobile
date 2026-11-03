@@ -495,8 +495,8 @@
     <string name="journal_deleteMessage">Заметка будет удалена из журнала.</string>
     <string name="journal_deleteFailed">Не удалось удалить заметку. Проверьте подключение и повторите.</string>
     <!-- Photo timeline on plant detail (architecture §5.5). -->
-    <string name="timeline_title">Фото</string>
-    <string name="timeline_addPhoto">Добавить фото</string>
+    <string name="timeline_title">Фотодневник</string>
+    <string name="timeline_addPhoto">Добавить снимок</string>
     <string name="timeline_empty">Фото пока нет</string>
     <string name="timeline_openPhoto">Открыть фото от %1$s</string>
     <string name="timeline_captionTitle">Новое фото</string>
@@ -511,8 +511,8 @@
     <string name="timeline_deleteMessage">Фото будет удалено из ленты и журнала.</string>
     <string name="timeline_deleteFailed">Не удалось удалить фото. Проверьте подключение и попробуйте ещё раз.</string>
     <!-- diagnosis.* — plant diagnosis by photo (architecture §5.7, §8.7). -->
-    <string name="diagnosis_entry">Что с растением?</string>
-    <string name="diagnosis_entryDescription">Фото → возможные причины и что делать</string>
+    <string name="diagnosis_entry">Проверить на болезни</string>
+    <string name="diagnosis_entryDescription">Сфотографируйте лист — ИИ подскажет причину и что делать</string>
     <string name="diagnosis_photoPreview">Выбранное фото</string>
     <string name="diagnosis_notePlaceholder">Что вас беспокоит? (необязательно)</string>
     <string name="diagnosis_loading">Анализируем фото… Это может занять до минуты.</string>

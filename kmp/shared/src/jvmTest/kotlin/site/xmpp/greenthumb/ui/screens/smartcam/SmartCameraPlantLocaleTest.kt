@@ -334,8 +334,8 @@ class SmartCameraPlantLocaleTest {
         }
         runBlocking { repo.refresh() }
         for ((locale, label, line) in listOf(
-            Triple("ru", "Что с растением?", "Фото → возможные причины и что делать"),
-            Triple("en", "What's wrong with my plant?", "Photo → likely causes and what to do"),
+            Triple("ru", "Проверить на болезни", "Сфотографируйте лист — ИИ подскажет причину и что делать"),
+            Triple("en", "Check for diseases", "Photograph a leaf — AI suggests the cause and what to do"),
         )) {
             runDesktopComposeUiTest {
                 var opened by mutableStateOf(0)

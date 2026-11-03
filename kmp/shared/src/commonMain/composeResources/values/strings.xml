@@ -485,8 +485,8 @@
     <string name="journal_deleteMessage">The note will be removed from the journal.</string>
     <string name="journal_deleteFailed">Couldn’t delete the note. Check your connection and try again.</string>
     <!-- Photo timeline on plant detail (architecture §5.5). -->
-    <string name="timeline_title">Photos</string>
-    <string name="timeline_addPhoto">Add photo</string>
+    <string name="timeline_title">Photo diary</string>
+    <string name="timeline_addPhoto">Add snapshot</string>
     <string name="timeline_empty">No photos yet</string>
     <string name="timeline_openPhoto">Open photo from %1$s</string>
     <string name="timeline_captionTitle">New photo</string>
@@ -501,8 +501,8 @@
     <string name="timeline_deleteMessage">The photo will be removed from the timeline and the journal.</string>
     <string name="timeline_deleteFailed">Couldn’t delete the photo. Check your connection and try again.</string>
     <!-- diagnosis.* — plant diagnosis by photo (architecture §5.7, §8.7). -->
-    <string name="diagnosis_entry">What's wrong with my plant?</string>
-    <string name="diagnosis_entryDescription">Photo → likely causes and what to do</string>
+    <string name="diagnosis_entry">Check for diseases</string>
+    <string name="diagnosis_entryDescription">Photograph a leaf — AI suggests the cause and what to do</string>
     <string name="diagnosis_photoPreview">Selected photo</string>
     <string name="diagnosis_notePlaceholder">What worries you? (optional)</string>
     <string name="diagnosis_loading">Analyzing the photo… This can take up to a minute.</string>

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -789,7 +790,7 @@ class PlantDetailScreenTest {
             listOf("Watered", "Fertilized", "Repotted", "Pruned", "Note", "Photo added").forEach { label ->
                 waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
             }
-            val dates = listOf("09/22/2026", "09/21/2026", "09/20/2026", "08/01/2026", "03/15/2026", "01/10/2026")
+            val dates = listOf("Sep 22", "Sep 21", "Sep 20", "Aug 1", "Mar 15", "Jan 10")
             dates.forEach { date ->
                 assertEquals(1, onAllNodes(hasText(date), useUnmergedTree = true).fetchSemanticsNodes().size, date)
             }
@@ -830,9 +831,9 @@ class PlantDetailScreenTest {
             listOf("Полили", "Подкормили", "Пересадили", "Обрезали", "Заметка", "Фото").forEach { label ->
                 waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
             }
-            waitUntilAtLeastOneExists(hasText("22.09.2026"), TIMEOUT)
-            waitUntilAtLeastOneExists(hasText("10.01.2026"), TIMEOUT)
-            assertTrue(onAllNodes(hasText("09/22/2026"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            waitUntilAtLeastOneExists(hasText("22 сент."), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("10 янв."), TIMEOUT)
+            assertTrue(onAllNodes(hasText("Sep 22"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
             runOnIdle { graph.close() }
         }
     }
@@ -1055,7 +1056,7 @@ class PlantDetailScreenTest {
             openDashboard()
             openPlantDetail()
 
-            waitUntilAtLeastOneExists(hasText("Photos"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Photo diary"), TIMEOUT)
             waitUnmerged(openPhotoMatcher("10/02/2026"))
             waitUnmerged(openPhotoMatcher("09/30/2026"))
             val newTop = onAllNodes(hasTestTag("timeline_photo_ph-new"), useUnmergedTree = true).fetchSemanticsNodes().single().positionInRoot
@@ -1067,8 +1068,19 @@ class PlantDetailScreenTest {
             assertEquals(1, onAllNodes(hasTestTag("timeline_viewer_caption") and hasText("New leaf"), useUnmergedTree = true).fetchSemanticsNodes().size)
             clickLast(hasClickAction() and hasText("Close"))
             waitGoneUnmerged(hasTestTag("timeline_viewer"))
-            waitUntilAtLeastOneExists(hasText("Photos"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Photo diary"), TIMEOUT)
             assertEquals(0, graph.server.photoDeletes)
+            assertEquals(0, graph.server.photoPosts)
+
+            // M15: the button and the source sheet title read "Add snapshot"; Cancel closes the sheet, nothing is sent.
+            assertEquals(1, onAllNodes(hasTestTag("timeline_addPhoto") and hasAnyDescendant(hasText("Add snapshot")), useUnmergedTree = true).fetchSemanticsNodes().size)
+            assertTrue(onAllNodes(hasText("Add photo"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            clickUnmerged(hasClickAction() and hasTestTag("timeline_addPhoto"))
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText("Add snapshot"), useUnmergedTree = true).fetchSemanticsNodes().size == 2 }
+            waitUntilAtLeastOneExists(hasText("Gallery"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Camera"), TIMEOUT)
+            clickLast(hasClickAction() and hasText("Cancel"))
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText("Gallery"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
             assertEquals(0, graph.server.photoPosts)
 
             runOnIdle { graph.close() }
@@ -1096,7 +1108,8 @@ class PlantDetailScreenTest {
                     }
                 }
             }
-            waitUntilAtLeastOneExists(hasText("Добавить фото"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Фотодневник"), TIMEOUT)
+            waitUntilAtLeastOneExists(hasText("Добавить снимок"), TIMEOUT)
             waitUnmerged(hasContentDescription("Открыть фото от 02.10.2026"))
             waitUnmerged(hasContentDescription("Открыть фото от 30.09.2026"))
             assertTrue(onAllNodes(hasText("timeline", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())

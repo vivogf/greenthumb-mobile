@@ -2,10 +2,12 @@ package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -23,6 +25,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.boundsInWindow
@@ -33,6 +39,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.CARE_NOTE_MAX_LENGTH
@@ -46,14 +53,21 @@ import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
 import site.xmpp.greenthumb.ui.components.GtCard
+import site.xmpp.greenthumb.ui.components.GtFertilizeMark
+import site.xmpp.greenthumb.ui.components.GtGalleryMark
 import site.xmpp.greenthumb.ui.components.GtIconButton
 import site.xmpp.greenthumb.ui.components.GtInputField
 import site.xmpp.greenthumb.ui.components.GtJournalMark
+import site.xmpp.greenthumb.ui.components.GtLeafMark
+import site.xmpp.greenthumb.ui.components.GtPencilMark
 import site.xmpp.greenthumb.ui.components.GtPlantPhoto
+import site.xmpp.greenthumb.ui.components.GtPotMark
+import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTrashMark
+import site.xmpp.greenthumb.ui.components.GtWaterDropMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
-import site.xmpp.greenthumb.ui.components.formatPickerDate
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
+import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
 import site.xmpp.greenthumb.ui.res.journal_addNote
@@ -197,6 +211,19 @@ internal fun PlantJournalSection(
     }
 
     val scheme = MaterialTheme.colorScheme
+    val rows = entries.orEmpty()
+    val today = remember { pickerToday() }
+    val dateStyle = MaterialTheme.typography.labelMedium
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val years = rows.mapNotNull { journalDate(it.occurredOn, locale, today).year }.distinct()
+    // One width for every row's date column: the widest possible short date (and any year shown) at this font scale.
+    val dateWidth = remember(locale, density, dateStyle, years, measurer) {
+        val widest = (journalDateWidthSamples(locale) + years).maxOf { sample ->
+            measurer.measure(sample, dateStyle, softWrap = false, maxLines = 1).size.width
+        }
+        with(density) { widest.toDp() }
+    }
     GtCard(modifier = modifier.fillMaxWidth().testTag("journal_section")) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Row(
@@ -263,7 +290,6 @@ internal fun PlantJournalSection(
                     modifier = Modifier.gtButtonWidth().testTag("journal_addNote"),
                 )
             }
-            val rows = entries.orEmpty()
             if (entries != null && rows.isEmpty()) {
                 Text(
                     text = stringResource(Res.string.journal_empty),
@@ -277,6 +303,8 @@ internal fun PlantJournalSection(
                     entry = entry,
                     photo = JournalPhotoJoin.photoFor(entry, photos),
                     locale = locale,
+                    today = today,
+                    dateWidth = dateWidth,
                     onDelete = {
                         focusManager.clearFocus()
                         pendingDelete = entry
@@ -306,40 +334,89 @@ internal fun PlantJournalSection(
     }
 }
 
+/** Icon of a non-photo entry type in the journal's leading slot. */
 @Composable
-private fun JournalRow(entry: CareEventDto, photo: TimelinePhotoDto?, locale: String, onDelete: () -> Unit) {
+private fun JournalTypeIcon(type: String, tint: Color, modifier: Modifier) = when (type) {
+    CareEventType.WATER -> GtWaterDropMark(tint = tint, modifier = modifier)
+    CareEventType.FERTILIZE -> GtFertilizeMark(tint = tint, modifier = modifier)
+    CareEventType.REPOT -> GtPotMark(tint = tint, modifier = modifier)
+    CareEventType.PRUNE -> GtScissorsMark(tint = tint, modifier = modifier)
+    CareEventType.NOTE -> GtPencilMark(tint = tint, modifier = modifier)
+    // A photo entry whose timeline photo is not cached (yet).
+    CareEventType.PHOTO -> GtGalleryMark(tint = tint, modifier = modifier)
+    else -> GtLeafMark(tint = tint, modifier = modifier)
+}
+
+/**
+ * One journal row as a table row: date column of [dateWidth] (shared by all rows) · 48 dp leading slot
+ * (photo thumbnail or type icon) · type label and text · 48 dp trailing slot (delete on a note, empty otherwise),
+ * so every column starts at the same x in every row.
+ */
+@Composable
+private fun JournalRow(
+    entry: CareEventDto,
+    photo: TimelinePhotoDto?,
+    locale: String,
+    today: LocalDate,
+    dateWidth: Dp,
+    onDelete: () -> Unit,
+) {
     val scheme = MaterialTheme.colorScheme
+    val date = journalDate(entry.occurredOn, locale, today)
     Row(
         modifier = Modifier.fillMaxWidth().testTag("journal_entry_${entry.id}"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        if (photo != null) {
-            GtPlantPhoto(
-                photoUrl = photo.url,
-                leafSize = Spacing.lg,
-                modifier = Modifier
-                    .size(Sizes.journalThumb)
-                    .clip(RoundedCornerShape(Radii.md))
-                    .testTag("journal_thumb_${entry.id}"),
+        Column(modifier = Modifier.width(dateWidth).testTag("journal_date_${entry.id}")) {
+            Text(
+                text = date.dayMonth,
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
             )
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            date.year?.let { year ->
                 Text(
-                    text = stringResource(journalTypeLabel(entry.type)),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = formatPickerDate(entry.occurredOn, locale),
-                    style = MaterialTheme.typography.labelLarge,
+                    text = year,
+                    style = MaterialTheme.typography.labelMedium,
                     color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
+        }
+        Box(
+            modifier = Modifier.size(Sizes.journalThumb).testTag("journal_lead_${entry.id}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (photo != null) {
+                GtPlantPhoto(
+                    photoUrl = photo.url,
+                    leafSize = Spacing.lg,
+                    modifier = Modifier
+                        .size(Sizes.journalThumb)
+                        .clip(RoundedCornerShape(Radii.md))
+                        .testTag("journal_thumb_${entry.id}"),
+                )
+            } else {
+                // Decorative: the type label next to it says the same.
+                JournalTypeIcon(
+                    type = entry.type,
+                    tint = scheme.secondary,
+                    modifier = Modifier.size(Sizes.iconSlot).testTag("journal_icon_${entry.id}"),
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f).testTag("journal_text_${entry.id}"),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            Text(
+                text = stringResource(journalTypeLabel(entry.type)),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurface,
+            )
             val note = JournalPhotoJoin.captionFor(entry, photo)
             if (note != null) {
                 Text(
@@ -352,12 +429,17 @@ private fun JournalRow(entry: CareEventDto, photo: TimelinePhotoDto?, locale: St
                 )
             }
         }
-        if (entry.type == CareEventType.NOTE) {
-            GtIconButton(
-                onClick = onDelete,
-                contentDescription = stringResource(Res.string.journal_deleteNote),
-            ) {
-                GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.lg))
+        Box(
+            modifier = Modifier.width(Sizes.touch).testTag("journal_trailing_${entry.id}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (entry.type == CareEventType.NOTE) {
+                GtIconButton(
+                    onClick = onDelete,
+                    contentDescription = stringResource(Res.string.journal_deleteNote),
+                ) {
+                    GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.lg))
+                }
             }
         }
     }

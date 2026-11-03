@@ -17,7 +17,7 @@
 #   ru             Russian UI (switch with journal.yaml lang-ru first): labels,
 #                  dates and the full-screen viewer
 #   offline        airplane mode (switched by the caller): cached photos and the
-#                  viewer still work; "Add photo" shows "network required" next
+#                  viewer still work; "Add snapshot" shows "network required" next
 #                  to the button and opens no picker, so nothing is sent
 #   caption-focus  VAL-TIMELINE-016: type in the journal note field, then add
 #                  the gallery photo with caption "Focus caption" and save; the
@@ -25,7 +25,7 @@
 #                  and runs note-tap
 #   note-tap       no relaunch (continues caption-focus): tap the note field
 #                  and type; the caller checks mInputShown=true
-# The prelude scrolls only until "Add photo" is visible: on a short journal a
+# The prelude scrolls only until "Add snapshot" is visible: on a short journal a
 # scroll further down hides the button under the fixed header.
 appId: com.greenthumbplantcare.debug
 name: GreenThumb photo timeline (${STEP})
@@ -43,7 +43,7 @@ name: GreenThumb photo timeline (${STEP})
       - tapOn: "TimelineFern"
       - scrollUntilVisible:
           element:
-            text: "Add photo|Добавить фото"
+            text: "Add snapshot|Добавить снимок"
           direction: DOWN
 
 - runFlow:
@@ -53,7 +53,7 @@ name: GreenThumb photo timeline (${STEP})
       - extendedWaitUntil:
           visible: "Seed photo from server"
           timeout: 15000
-      - tapOn: "Add photo"
+      - tapOn: "Add snapshot"
       - tapOn: "Gallery"
       - extendedWaitUntil:
           visible: "Photo taken on.*"
@@ -98,7 +98,7 @@ name: GreenThumb photo timeline (${STEP})
     when:
       true: ${STEP == 'camera-add'}
     commands:
-      - tapOn: "Add photo"
+      - tapOn: "Add snapshot"
       - tapOn: "Camera"
       - runFlow:
           when:
@@ -179,7 +179,7 @@ name: GreenThumb photo timeline (${STEP})
           timeout: 15000
       - assertVisible: "Gallery splash"
       - takeScreenshot: offline-cache
-      - tapOn: "Add photo"
+      - tapOn: "Add snapshot"
       - extendedWaitUntil:
           visible: "Network connection required to add a photo.*"
           timeout: 5000
@@ -226,7 +226,7 @@ name: GreenThumb photo timeline (${STEP})
       - takeScreenshot: navigate-journal
       - scrollUntilVisible:
           element:
-            text: "Photos"
+            text: "Photo diary"
           direction: UP
       - tapOn:
           text: "Open photo from .*"
@@ -238,7 +238,7 @@ name: GreenThumb photo timeline (${STEP})
       - takeScreenshot: navigate-viewer
       - back
       - assertNotVisible: "Delete photo"
-      - assertVisible: "Add photo"
+      - assertVisible: "Add snapshot"
       - takeScreenshot: navigate-timeline
       - back
       - extendedWaitUntil:
@@ -257,7 +257,7 @@ name: GreenThumb photo timeline (${STEP})
       - assertVisible: "\\d\\d\\.\\d\\d\\.\\d{4}"
       - scrollUntilVisible:
           element:
-            text: "Добавить фото"
+            text: "Добавить снимок"
           direction: UP
       - takeScreenshot: ru-timeline
       - tapOn:
@@ -283,16 +283,16 @@ name: GreenThumb photo timeline (${STEP})
       - inputText: "draft"
       - eraseText: 5
       # Small steps up: with the keyboard open on a short page one long scroll
-      # overshoots and leaves "Add photo" under the fixed header.
+      # overshoots and leaves "Add snapshot" under the fixed header.
       - repeat:
           while:
-            notVisible: "Add photo"
+            notVisible: "Add snapshot"
           times: 20
           commands:
             - swipe:
                 start: 50%, 48%
                 end: 50%, 56%
-      - tapOn: "Add photo"
+      - tapOn: "Add snapshot"
       - tapOn: "Gallery"
       - extendedWaitUntil:
           visible: "Photo taken on.*"

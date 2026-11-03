@@ -231,8 +231,8 @@ class PlantCardDiagnosisTest {
     fun diagnosis_row_text_wraps_before_the_chevron_at_font_scale_1_3() {
         val repo = openRepo()
         for ((locale, line) in listOf(
-            "ru" to "Фото → возможные причины и что делать",
-            "en" to "Photo → likely causes and what to do",
+            "ru" to "Сфотографируйте лист — ИИ подскажет причину и что делать",
+            "en" to "Photograph a leaf — AI suggests the cause and what to do",
         )) {
             runDesktopComposeUiTest {
                 show(repo, "p-photo", locale, fontScale = 1.3f)

@@ -128,9 +128,9 @@ name: GreenThumb release smoke (${STEP})
       - takeScreenshot: detail-photo
       - scrollUntilVisible:
           element:
-            text: "What's wrong with my plant\\?"
+            text: "Check for diseases"
           direction: DOWN
-      - tapOn: "What's wrong with my plant\\?"
+      - tapOn: "Check for diseases"
       - runFlow:
           when:
             visible: "While using the app|Only this time"
@@ -144,7 +144,7 @@ name: GreenThumb release smoke (${STEP})
       - takeScreenshot: diagnosis-camera
       - tapOn: "Close the camera"
       - extendedWaitUntil:
-          visible: "What's wrong with my plant\\?"
+          visible: "Check for diseases"
           timeout: 10000
       - scrollUntilVisible:
           element: "Add a note…"
