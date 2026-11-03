@@ -896,7 +896,7 @@ public fun DashboardScreen(
                 val addLabel = stringResource(Res.string.a11y_addPlant)
                 Box(
                     modifier = Modifier
-                        .size(Spacing.xxl * 2 + Spacing.xs)
+                        .size(Sizes.smartCameraButton)
                         .background(scheme.primary, CircleShape)
                         .clickable(role = Role.Button, onClick = onAddPlant)
                         .semantics { contentDescription = addLabel },
@@ -1591,12 +1591,8 @@ private fun PlantGridCell(
                             .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(Spacing.xxs))
                             .padding(horizontal = Spacing.xxs, vertical = Spacing.xxs / 2),
                     )
-                    Text(
-                        text = plant.name,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                    GridPlantName(
+                        name = plant.name,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("dashboard_grid_name_${plant.id}"),

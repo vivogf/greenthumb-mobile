@@ -235,6 +235,7 @@ class DashboardScreenTest {
 
         /** Long Cyrillic/Latin grid names with 1–3 digit day counts instead of the three-plant fixture. */
         @Volatile var longNames = false
+        var gridNamePlants = LONG_NAME_PLANTS
 
         var waterAllCount = 0
         var postponeAllCount = 0
@@ -258,7 +259,7 @@ class DashboardScreenTest {
             fun daysAgo(days: Long): String =
                 LocalDate.fromEpochDays(today.toEpochDays() - days).toString()
             if (longNames) {
-                return LONG_NAME_PLANTS.joinToString(separator = ",", prefix = "[", postfix = "]") { (id, name, wateredAgo) ->
+                return gridNamePlants.joinToString(separator = ",", prefix = "[", postfix = "]") { (id, name, wateredAgo) ->
                     """{"id":"$id","user_id":"73","name":"$name","location":"Shelf",""" +
                         """"photo_url":"","water_frequency_days":7,"last_watered_date":"${daysAgo(wateredAgo)}",""" +
                         """"notes":"","created_at":"2026-09-01T10:00:00.000Z"}"""
@@ -721,7 +722,7 @@ class DashboardScreenTest {
      * (the buttons sit [Spacing.xl] above it, no reserved band), cards are visible beside/under the buttons before
      * the end, and at the end the whole last card and its status pill are above both buttons.
      */
-    private fun underFloatingButtonsCase(fontScale: Float) {
+    private fun underFloatingButtonsCase(fontScale: Float, language: AppLanguage = AppLanguage.En) {
         val graph = newHarness()
         graph.server.plantCount = 20
         presetEnglishSignedOut()
@@ -735,21 +736,31 @@ class DashboardScreenTest {
                 }
             }
             openDashboard(firstVisible = "Plant 19")
-            val cameraMatcher = hasContentDescription("Smart camera") and hasClickAction()
-            val lastCard = hasContentDescription("Open plant card Plant 00")
-            for (toggle in listOf("List view", "Card view", "Grid view")) {
+            runBlocking { graph.settings.setLanguage(language) }
+            waitForIdle()
+            val ru = language == AppLanguage.Ru
+            val cameraMatcher = hasContentDescription(if (ru) "Умная камера" else "Smart camera") and hasClickAction()
+            val openPrefix = if (ru) "Открыть карточку растения" else "Open plant card"
+            val lastCard = hasContentDescription("$openPrefix Plant 00")
+            val toggles = if (ru) {
+                listOf("Отображение списком", "Отображение карточками", "Отображение сеткой")
+            } else {
+                listOf("List view", "Card view", "Grid view")
+            }
+            for ((modeIndex, toggle) in toggles.withIndex()) {
                 clickAt(hasClickAction() and hasContentDescription(toggle))
                 waitForIdle()
                 waitUntilAtLeastOneExists(hasTestTag("dashboard_plants"), TIMEOUT)
                 val camera = onNode(cameraMatcher).getBoundsInRoot()
-                val add = onNode(hasContentDescription("Add a new plant")).getBoundsInRoot()
+                val add = onNode(hasContentDescription(if (ru) "Добавить новое растение" else "Add a new plant"))
+                    .getBoundsInRoot()
                 val buttonsTop = minOf(camera.top, add.top)
                 val list = onNodeWithTag("dashboard_plants").getBoundsInRoot()
                 assertTrue(
                     list.bottom >= camera.bottom + Spacing.xl - 1.dp,
                     "$toggle at $fontScale: the list reaches the dashboard bottom under the buttons: list=$list camera=$camera",
                 )
-                val cards = onAllNodes(hasContentDescription("Open plant card", substring = true))
+                val cards = onAllNodes(hasContentDescription(openPrefix, substring = true))
                     .fetchSemanticsNodes()
                 assertTrue(
                     cards.any { node ->
@@ -759,15 +770,29 @@ class DashboardScreenTest {
                     "$toggle at $fontScale: before the end a card is drawn beside/under the buttons",
                 )
                 onNodeWithTag("dashboard_plants").performScrollToIndex(19)
+                // Scroll to the actual end, including content padding, not just to the last item.
+                onNodeWithTag("dashboard_plants").performSemanticsAction(
+                    androidx.compose.ui.semantics.SemanticsActions.ScrollBy,
+                ) { it(0f, 10000f) }
                 waitForIdle()
                 val card = onNode(lastCard).getBoundsInRoot()
+                assertEquals(camera, onNode(cameraMatcher).getBoundsInRoot(), "camera stays fixed")
+                assertEquals(
+                    add,
+                    onNode(hasContentDescription(if (ru) "Добавить новое растение" else "Add a new plant")).getBoundsInRoot(),
+                    "add stays fixed",
+                )
+                println("M17 $language font=$fontScale $toggle: lastCard=$card buttonsTop=$buttonsTop")
                 assertTrue(
                     card.bottom <= buttonsTop,
                     "$toggle at $fontScale: the last card scrolls fully above the buttons: card=$card buttonsTop=$buttonsTop",
                 )
                 assertTrue(card.bottom <= list.bottom && card.top >= list.top, "$toggle: the last card is inside the list")
-                if (toggle != "Grid view") {
-                    val pill = onNode(hasText("30 days left"), useUnmergedTree = true).getBoundsInRoot()
+                if (modeIndex != 2) {
+                    val pill = onNode(
+                        hasText(if (ru) "Осталось 30 дней" else "30 days left"),
+                        useUnmergedTree = true,
+                    ).getBoundsInRoot()
                     assertTrue(
                         pill.bottom <= buttonsTop && pill.bottom <= card.bottom,
                         "$toggle at $fontScale: the status pill is above the buttons: pill=$pill buttonsTop=$buttonsTop",
@@ -786,6 +811,81 @@ class DashboardScreenTest {
 
     @Test
     fun plant_list_runs_under_the_floating_buttons_at_font_1_3() = underFloatingButtonsCase(1.3f)
+
+    @Test
+    fun m17_scroll_clearance_en_font_1_0() = underFloatingButtonsCase(1f)
+
+    @Test
+    fun m17_scroll_clearance_ru_font_1_0() = underFloatingButtonsCase(1f, AppLanguage.Ru)
+
+    @Test
+    fun m17_scroll_clearance_ru_font_1_3() = underFloatingButtonsCase(1.3f, AppLanguage.Ru)
+
+    private fun gridWordBoundariesCase(fontScale: Float, language: AppLanguage) {
+        val graph = newHarness()
+        val names = listOf(
+            "Диффенбахия", "Dieffenbachia", "Монстера большая", "Monstera deliciosa",
+            "Оченьдлинноеназваниебезпробелов", "ExtraordinarilyLongUnbrokenPlantName",
+        )
+        graph.server.longNames = true
+        graph.server.gridNamePlants = names.mapIndexed { index, name -> Triple("word$index", name, 1L) }
+        presetEnglishSignedOut()
+        runBlocking { graph.settings.setLayoutMode(LayoutMode.Grid) }
+        runDesktopComposeUiTest(width = 384, height = 800) {
+            val baseFontSize = site.xmpp.greenthumb.ui.theme.GtTypeScale.labelSmall.fontSize.value
+            setContent {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push)
+                }
+            }
+            openDashboard(firstVisible = names.first())
+            runBlocking { graph.settings.setLanguage(language) }
+            waitForIdle()
+            for ((index, name) in names.withIndex()) {
+                val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                onNodeWithTag("dashboard_grid_name_word$index", useUnmergedTree = true)
+                    .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) {
+                        assertTrue(it(results))
+                    }
+                val result = results.single()
+                // labelSmall is the unchanged base style, 13 sp in GtTypography.
+                val actualFontSize = result.layoutInput.style.fontSize.value
+                assertTrue(actualFontSize >= baseFontSize * 0.8f - 0.01f && actualFontSize <= baseFontSize)
+                if (' ' !in name) {
+                    assertEquals(1, result.lineCount, "$language $name at $fontScale must not split mid-word")
+                } else {
+                    assertEquals(2, result.lineCount, "$name still wraps at a space")
+                    val end = result.getLineEnd(0, visibleEnd = true)
+                    assertTrue(name[end - 1].isWhitespace() || name[end].isWhitespace(), "$name breaks only at spaces")
+                }
+                if (index >= 4) {
+                    assertEquals(baseFontSize * 0.8f, actualFontSize, 0.01f, "ellipsis only after shrinking to the floor")
+                    assertEquals(androidx.compose.ui.text.style.TextOverflow.Ellipsis, result.layoutInput.overflow)
+                    assertTrue(result.getLineEnd(0, visibleEnd = true) < name.length, "$name is truncated at the floor")
+                }
+                println(
+                    "M17 $language font=$fontScale $name: lines=${result.lineCount} size=$actualFontSize " +
+                        "visibleEnd=${result.getLineEnd(0, visibleEnd = true)} overflow=${result.layoutInput.overflow}",
+                )
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    @Test
+    fun m17_grid_word_boundaries_en_font_1_0() = gridWordBoundariesCase(1f, AppLanguage.En)
+
+    @Test
+    fun m17_grid_word_boundaries_en_font_1_3() = gridWordBoundariesCase(1.3f, AppLanguage.En)
+
+    @Test
+    fun m17_grid_word_boundaries_ru_font_1_0() = gridWordBoundariesCase(1f, AppLanguage.Ru)
+
+    @Test
+    fun m17_grid_word_boundaries_ru_font_1_3() = gridWordBoundariesCase(1.3f, AppLanguage.Ru)
 
     // ------------------------------------------------------------------
     // M12a UX1: grid names and day counts in separate regions

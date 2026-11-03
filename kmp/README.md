@@ -6,12 +6,15 @@ species identification, photo-based diagnosis, progress and an Android home-scre
 Active development happens here; the Expo app in the repository root is legacy
 (see the [root README](../README.md)).
 
-**Current state (after M15):** the M10 redesign, the M11 smart camera fixes and the six M12a UX fixes
+**Current state (after M17 layout fixes):** the M10 redesign, the M11 smart camera fixes and the six M12a UX fixes
 (dashboard grid, first-load Retry, bulk-action note, camera «Вернуться к фото», Add Plant last-watered
 summary, separate «О растении» / «Запись в журнал» labels) are implemented. M14 replaced the dark
 «Лес» colors with the neutral «Графит» palette; the light theme is still «Лес». M15 made the plant card
 clearer: the diagnosis row «Проверить на болезни», the photo block «Фотодневник» and a journal laid out as
-a table. No new animation was added.
+a table. M17 keeps grid names intact: shrink in 5% steps to 80%, then use single-line ellipsis
+if a word still cannot fit; multi-word names can wrap at spaces onto two lines. The dashboard's
+existing bottom content padding (56 dp FAB + 20 dp bottom margin + 20 dp clearance) lets the last
+list/card/grid item scroll above the fixed buttons. No new animation was added.
 The last signed Android App Bundle (AAB) is release **0.8.0 (`versionCode 7`)**, built locally after
 M11c and before M12a; it has **not been uploaded to Google Play** and does not contain the M12a fixes.
 Android is the release target; JVM desktop is the development and test harness.
