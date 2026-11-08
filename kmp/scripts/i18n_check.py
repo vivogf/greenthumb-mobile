@@ -47,6 +47,8 @@ RES_DIR = (
 # Ключи KMP, которых нет в RN-локалях (не пропуск — осознанное расширение).
 # Каждое имя обязано присутствовать в ОБОИХ strings.xml.
 KMP_ONLY_KEYS = {
+    # 0.8.1: a fertilize/repot/prune card with a frequency but no last date asks for the date.
+    "plantDetails.careSetDate",
     # M11 owner fixes: short dashboard filter label, reminders time row in the same card.
     "dashboard.waterFilter",
     "profile.notificationEveryDay",

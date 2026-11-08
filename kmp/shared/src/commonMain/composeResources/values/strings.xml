@@ -274,6 +274,7 @@
     <string name="plantDetails_yesterday">Yesterday</string>
     <string name="plantDetails_daysAgo">%1$d days ago</string>
     <string name="plantDetails_careNotSet">Not configured</string>
+    <string name="plantDetails_careSetDate">Set the date</string>
     <string name="plantDetails_lastTime">Last time</string>
     <string name="plantDetails_notSpecified">Not specified</string>
     <string name="profile_title">My Profile</string>

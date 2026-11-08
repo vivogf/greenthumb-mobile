@@ -111,10 +111,41 @@ class PlantDetailLogicTest {
 
     @Test
     fun careDaysText_mapsCategories() {
-        assertEquals(CareDaysText.NotSet, careDaysText(null))
+        assertEquals(CareDaysText.NeedsDate, careDaysText(null))
         assertIs<CareDaysText.Overdue>(careDaysText(-4)).let { assertEquals(4, it.days) }
         assertEquals(CareDaysText.Today, careDaysText(0))
         assertIs<CareDaysText.DaysLeft>(careDaysText(9)).let { assertEquals(9, it.days) }
+    }
+
+    @Test
+    fun advancedCareCards_frequencyWithoutDate_keepsTheCard_withNullDays() {
+        val plant = site.xmpp.greenthumb.core.network.PlantDto(
+            id = "p", userId = "1", name = "Fern", location = "", photoUrl = "",
+            waterFrequencyDays = 7, lastWateredDate = "2026-09-20", notes = "", createdAt = "2026-09-01T10:00:00.000Z",
+            fertilizeFrequencyDays = 30, lastFertilizedDate = null,
+            repotFrequencyMonths = 12, lastRepottedDate = "",
+            pruneFrequencyMonths = null, lastPrunedDate = "2026-03-15",
+        )
+        val today = LocalDate.parse("2026-09-25")
+        val cards = advancedCareCards(plant, plantCareCountdowns(plant, today, site.xmpp.greenthumb.season.SeasonContext.Off))
+        assertEquals(
+            listOf(AdvancedCareCard(AdvancedCare.Fertilize, null), AdvancedCareCard(AdvancedCare.Repot, null)),
+            cards,
+        )
+        assertEquals(CareDaysText.NeedsDate, careDaysText(cards.first().days))
+    }
+
+    @Test
+    fun advancedCareCards_withDates_countDown_andSkipCareWithoutFrequency() {
+        val plant = site.xmpp.greenthumb.core.network.PlantDto(
+            id = "p", userId = "1", name = "Fern", location = "", photoUrl = "",
+            waterFrequencyDays = 7, lastWateredDate = "2026-09-20", notes = "", createdAt = "2026-09-01T10:00:00.000Z",
+            fertilizeFrequencyDays = null, lastFertilizedDate = "2026-09-01",
+            pruneFrequencyMonths = 1, lastPrunedDate = "2026-09-01",
+        )
+        val today = LocalDate.parse("2026-09-25")
+        val cards = advancedCareCards(plant, plantCareCountdowns(plant, today, site.xmpp.greenthumb.season.SeasonContext.Off))
+        assertEquals(listOf(AdvancedCareCard(AdvancedCare.Prune, 6)), cards)
     }
 
     @Test

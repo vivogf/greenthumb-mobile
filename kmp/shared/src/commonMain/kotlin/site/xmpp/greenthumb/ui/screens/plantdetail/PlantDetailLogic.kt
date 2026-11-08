@@ -103,9 +103,21 @@ public fun plantCareCountdowns(plant: PlantDto, today: LocalDate, season: Season
         prune = plant.pruneFrequencyMonths?.let { daysUntilMonthCare(plant.lastPrunedDate, it, today) },
     )
 
+public enum class AdvancedCare { Fertilize, Repot, Prune }
+
+/** One fertilize/repot/prune card; [days] is null when the frequency is set but the last date is missing. */
+public data class AdvancedCareCard(public val care: AdvancedCare, public val days: Int?)
+
+/** A card for every kind of care that has a frequency, in the fixed order fertilize, repot, prune. */
+public fun advancedCareCards(plant: PlantDto, countdowns: PlantCareCountdowns): List<AdvancedCareCard> = buildList {
+    if (plant.fertilizeFrequencyDays != null) add(AdvancedCareCard(AdvancedCare.Fertilize, countdowns.fertilize))
+    if (plant.repotFrequencyMonths != null) add(AdvancedCareCard(AdvancedCare.Repot, countdowns.repot))
+    if (plant.pruneFrequencyMonths != null) add(AdvancedCareCard(AdvancedCare.Prune, countdowns.prune))
+}
+
 /** Срочность ухода для цвета подписи карточки (порт careStatusColor). */
 public enum class CareUrgency {
-    /** Уход не настроен — mutedForeground. */
+    /** Частота есть, даты последнего раза нет — mutedForeground. */
     NotSet,
 
     /** Просрочено — destructive. */
@@ -127,11 +139,12 @@ public fun careUrgency(days: Int?): CareUrgency = when {
 }
 
 /**
- * Подпись «через N дней / просрочено / сегодня / не настроено» — порт
+ * Подпись «через N дней / просрочено / сегодня / укажите дату» — порт
  * careDaysText. Ресурсы решает экран (plurals), логика — факт.
  */
 public sealed interface CareDaysText {
-    public data object NotSet : CareDaysText
+    /** The frequency is set but the last date is missing: the card asks for the date. */
+    public data object NeedsDate : CareDaysText
 
     /** Просрочено; [days] — |сколько прошло|. */
     public data class Overdue(public val days: Int) : CareDaysText
@@ -142,7 +155,7 @@ public sealed interface CareDaysText {
 }
 
 public fun careDaysText(days: Int?): CareDaysText = when {
-    days == null -> CareDaysText.NotSet
+    days == null -> CareDaysText.NeedsDate
     days < 0 -> CareDaysText.Overdue(-days)
     days == 0 -> CareDaysText.Today
     else -> CareDaysText.DaysLeft(days)

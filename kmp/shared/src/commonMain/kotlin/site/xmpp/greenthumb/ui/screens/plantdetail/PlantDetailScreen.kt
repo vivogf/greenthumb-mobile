@@ -116,7 +116,7 @@ import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_delete
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.plantDetails_advancedCare
-import site.xmpp.greenthumb.ui.res.plantDetails_careNotSet
+import site.xmpp.greenthumb.ui.res.plantDetails_careSetDate
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedBody
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_careSettings
@@ -642,46 +642,34 @@ public fun PlantDetailScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                val cards = buildList {
-                                    countdowns.fertilize?.let { days ->
-                                        add(
-                                            CareCardData(
-                                                title = fertilizingLabel,
-                                                a11yLabel = fertilizeAction,
-                                                days = days,
-                                                mark = { tint -> GtFertilizeMark(tint = tint) },
-                                                onAction = {
-                                                    update(
-                                                        PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())),
-                                                    )
-                                                },
-                                            ),
+                                val cards = advancedCareCards(plant, countdowns).map { card ->
+                                    when (card.care) {
+                                        AdvancedCare.Fertilize -> CareCardData(
+                                            title = fertilizingLabel,
+                                            a11yLabel = fertilizeAction,
+                                            days = card.days,
+                                            mark = { tint -> GtFertilizeMark(tint = tint) },
+                                            onAction = {
+                                                update(PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())))
+                                            },
                                         )
-                                    }
-                                    countdowns.repot?.let { days ->
-                                        add(
-                                            CareCardData(
-                                                title = repottingLabel,
-                                                a11yLabel = repotAction,
-                                                days = days,
-                                                mark = { tint -> GtPotMark(tint = tint) },
-                                                onAction = {
-                                                    update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
-                                                },
-                                            ),
+                                        AdvancedCare.Repot -> CareCardData(
+                                            title = repottingLabel,
+                                            a11yLabel = repotAction,
+                                            days = card.days,
+                                            mark = { tint -> GtPotMark(tint = tint) },
+                                            onAction = {
+                                                update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
+                                            },
                                         )
-                                    }
-                                    countdowns.prune?.let { days ->
-                                        add(
-                                            CareCardData(
-                                                title = pruningLabel,
-                                                a11yLabel = pruneAction,
-                                                days = days,
-                                                mark = { tint -> GtScissorsMark(tint = tint) },
-                                                onAction = {
-                                                    update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
-                                                },
-                                            ),
+                                        AdvancedCare.Prune -> CareCardData(
+                                            title = pruningLabel,
+                                            a11yLabel = pruneAction,
+                                            days = card.days,
+                                            mark = { tint -> GtScissorsMark(tint = tint) },
+                                            onAction = {
+                                                update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
+                                            },
                                         )
                                     }
                                 }
@@ -1129,7 +1117,7 @@ private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
         CareUrgency.Later -> scheme.tertiary
     }
     val daysText = when (val value = careDaysText(card.days)) {
-        CareDaysText.NotSet -> stringResource(Res.string.plantDetails_careNotSet)
+        CareDaysText.NeedsDate -> stringResource(Res.string.plantDetails_careSetDate)
         is CareDaysText.Overdue -> pluralStringResource(Res.plurals.plant_overdue, value.days, value.days)
         CareDaysText.Today -> stringResource(Res.string.plantDetails_today)
         is CareDaysText.DaysLeft -> pluralStringResource(Res.plurals.plant_daysLeft, value.days, value.days)

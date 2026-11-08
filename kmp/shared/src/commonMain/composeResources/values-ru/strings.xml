@@ -290,6 +290,7 @@
     <string name="plantDetails_yesterday">Вчера</string>
     <string name="plantDetails_daysAgo">%1$d дн. назад</string>
     <string name="plantDetails_careNotSet">Не настроено</string>
+    <string name="plantDetails_careSetDate">Укажите дату</string>
     <string name="plantDetails_lastTime">Последний раз</string>
     <string name="plantDetails_notSpecified">Не указано</string>
     <string name="profile_title">Мой профиль</string>

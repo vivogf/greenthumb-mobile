@@ -212,6 +212,8 @@ class PlantDetailScreenTest {
         var lastDeletePath: String? = null
         var lastWateredDate = "2026-09-20"
         var waterFrequencyDays = 7
+        var lastFertilizedDate: String? = "2026-08-01"
+        var lastRepottedDate: String? = "2026-01-10"
 
         private val JSON_HEADERS = headersOf("Content-Type", "application/json")
 
@@ -315,8 +317,8 @@ class PlantDetailScreenTest {
                     respond("""[${detailFixturePlant().let { p ->
                         """{"id":"${p.id}","user_id":"73","name":"${p.name}","location":"${p.location}",""" +
                             """"photo_url":"","water_frequency_days":$waterFrequencyDays,"last_watered_date":"$lastWateredDate",""" +
-                            """"fertilize_frequency_days":30,"last_fertilized_date":"2026-08-01",""" +
-                            """"repot_frequency_months":12,"last_repotted_date":"2026-01-10",""" +
+                            """"fertilize_frequency_days":30,"last_fertilized_date":${lastFertilizedDate.jsonOrNull()},""" +
+                            """"repot_frequency_months":12,"last_repotted_date":${lastRepottedDate.jsonOrNull()},""" +
                             """"prune_frequency_months":6,"last_pruned_date":"2026-03-15",""" +
                             """"notes":"Loves humidity","created_at":"2026-09-01T10:00:00.000Z"}"""
                     }}]""", HttpStatusCode.OK, JSON_HEADERS)
@@ -1296,10 +1298,89 @@ class PlantDetailScreenTest {
             runOnIdle { graph.close() }
         }
     }
+    // ------------------------------------------------------------------
+    // 0.8.1: a frequency without a last date asks for the date (morning notes item 11)
+    // ------------------------------------------------------------------
+
+    /** One line on a 360 dp phone at font 1.3; on a 320 dp one it may wrap, but never cut. */
+    @Test
+    fun careCardWithoutLastDate_saysSetTheDate_inRussianAt13_andTapSetsToday() {
+        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 360)
+        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 320)
+    }
+
+    @Test
+    fun careCardWithoutLastDate_saysSetTheDate_inEnglishAt13() {
+        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 360)
+        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 320)
+    }
+
+    private fun careNeedsDateCase(locale: String, expected: String, title: String, fontScale: Float, widthDp: Int) {
+        val graph = newHarness()
+        graph.server.lastFertilizedDate = null
+        graph.server.lastRepottedDate = null
+        val today = site.xmpp.greenthumb.ui.components.pickerToday()
+        val repo = graph.opener.open("73")
+        runBlocking { repo.refresh() }
+        runDesktopComposeUiTest {
+            setContent {
+                val base = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides
+                        androidx.compose.ui.unit.Density(base.density, fontScale),
+                ) {
+                    site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = locale) {
+                        site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.ui.Modifier.width(widthDp.dp),
+                            ) {
+                                PlantDetailScreen(
+                                    userId = "73",
+                                    plantId = "det-1",
+                                    opener = graph.opener,
+                                    onBack = {},
+                                    onDeleted = {},
+                                    deleteErrorState = PlantDeleteErrorState(),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            val label = hasText(expected)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(label, useUnmergedTree = true).fetchSemanticsNodes().size == 2 }
+            // Fertilize and repot ask for the date; the old text is gone.
+            assertTrue(onAllNodes(hasText("Не настроено"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            assertTrue(onAllNodes(hasText("Not configured"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            onAllNodes(label, useUnmergedTree = true).fetchSemanticsNodes().forEach { node ->
+                val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+                val layout = layouts.single()
+                if (widthDp >= 360) assertEquals(1, layout.lineCount, "\"$expected\" on one line at font $fontScale, $widthDp dp")
+                // A wrap-content Text reports didOverflowWidth against its paragraph width, so measure the lines.
+                val widest = (0 until layout.lineCount).maxOf { layout.getLineRight(it) - layout.getLineLeft(it) }
+                assertTrue(
+                    (0 until layout.lineCount).none { layout.isLineEllipsized(it) } && !layout.didOverflowHeight &&
+                        widest <= layout.layoutInput.constraints.maxWidth,
+                    "no ellipsis, no overflow at $widthDp dp: widest line $widest of ${layout.layoutInput.constraints.maxWidth}",
+                )
+            }
+            // A tap keeps the old action: the last date becomes today.
+            onNode(hasClickAction() and hasText(title, substring = true) and hasText(expected, substring = true))
+                .performClick()
+            waitUntil(timeoutMillis = TIMEOUT) {
+                graph.server.lastPatchBody?.contains("\"last_fertilized_date\":\"$today\"") == true
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
     private companion object {
         const val TIMEOUT: Long = 10_000L
     }
 }
+
+private fun String?.jsonOrNull(): String = this?.let { "\"$it\"" } ?: "null"
 
 /** Фикстура растения с НАСТРОЕННЫМ продвинутым уходом (все карточки). */
 private fun detailFixturePlant(id: String = "det-1", name: String = "Ficus"): PlantDto = PlantDto(
