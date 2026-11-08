@@ -153,11 +153,12 @@ class ApiClient(
         path: String,
         body: String? = null,
         timeoutMillis: Long? = null,
+        headers: Map<String, String> = emptyMap(),
     ): HttpResponse {
         val stamp = session.current()
         return withContext(requests + CookieEpoch(stamp)) {
             val first = try {
-                requestVia(client, method, path, body, timeoutMillis)
+                requestVia(client, method, path, body, timeoutMillis, headers)
             } catch (cancellation: CancellationException) {
                 throw mapTransportException(cancellation)
             } catch (cause: Throwable) {
@@ -167,7 +168,7 @@ class ApiClient(
 
             // Восстановление сессии (только на 401): re-login сохранённым ключом,
             // затем повтор исходного запроса. Не retry — сетевые ошибки сюда не входят.
-            recoverAndRetry(method, path, body, timeoutMillis) ?: first
+            recoverAndRetry(method, path, body, timeoutMillis, headers) ?: first
         }
     }
 
@@ -182,8 +183,9 @@ class ApiClient(
         path: String,
         body: String? = null,
         timeoutMillis: Long? = null,
+        headers: Map<String, String> = emptyMap(),
     ): HttpResponse {
-        val response = raw(method, path, body, timeoutMillis)
+        val response = raw(method, path, body, timeoutMillis, headers)
         val status = response.status.value
         if (status in 200..299) return response
         val text =
@@ -256,6 +258,7 @@ class ApiClient(
         path: String,
         body: String?,
         timeoutMillis: Long?,
+        headers: Map<String, String>,
     ): HttpResponse? = recoveryMutex.withLock {
         // Every held key in order (confirmed, then pending); the next one only after a 401.
         val keys = recoveryProvider.getRecoveryKeys()
@@ -272,7 +275,7 @@ class ApiClient(
                 in 200..299 -> {
                     // A pending key that worked is the account's key now (the manager promotes it).
                     recoveryProvider.onReloginSucceeded(key)
-                    val retry = retryAfterRelogin(method, path, body, timeoutMillis)
+                    val retry = retryAfterRelogin(method, path, body, timeoutMillis, headers)
                     if (retry.status.value == 401) {
                         // Второй 401 (вторая ветка): re-login удался, но повтор снова
                         // 401 — сессия не ожила. The server just accepted the key, so only the
@@ -308,8 +311,9 @@ class ApiClient(
         path: String,
         body: String?,
         timeoutMillis: Long?,
+        headers: Map<String, String>,
     ): HttpResponse = try {
-        requestVia(client, method, path, body, timeoutMillis)
+        requestVia(client, method, path, body, timeoutMillis, headers)
     } catch (cancellation: CancellationException) {
         throw mapTransportException(cancellation)
     } catch (cause: Throwable) {
@@ -380,7 +384,8 @@ class ApiClient(
             path: String,
             body: String? = null,
             timeoutMillis: Long? = null,
-        ): HttpResponse = client.request { applyRequest(method, path, body, timeoutMillis) }
+            headers: Map<String, String> = emptyMap(),
+        ): HttpResponse = client.request { applyRequest(method, path, body, timeoutMillis, headers) }
 
         /**
          * Маппинг транспортных исключений в [ApiError] — порт catch-блока `baseFetch`
@@ -432,9 +437,11 @@ class ApiClient(
             path: String,
             body: String?,
             timeoutMillis: Long? = null,
+            headers: Map<String, String> = emptyMap(),
         ) {
             this.method = method
             url(path)
+            headers.forEach { (name, value) -> this.headers.append(name, value) }
             if (timeoutMillis != null) {
                 timeout {
                     requestTimeoutMillis = timeoutMillis

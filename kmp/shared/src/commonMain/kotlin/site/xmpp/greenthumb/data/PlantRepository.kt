@@ -307,7 +307,8 @@ public class PlantRepository(
                 entry
             },
             effect = PlantEffect.Added(localId),
-            request = { api.addPlant(plant) },
+            // The local id is the add's idempotency key: the replay below sends the same one.
+            request = { api.addPlant(plant, idempotencyKey = localId) },
             onSuccess = { entry, server ->
                 db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
             },
@@ -572,7 +573,7 @@ public class PlantRepository(
                 MutationType.ADD -> {
                     val body = json.decodeFromString<InsertPlantDto>(entry.payload)
                     val localId = requireNotNull(entry.plantId)
-                    val server = api.addPlant(body)
+                    val server = api.addPlant(body, idempotencyKey = localId)
                     ensureCurrent(stamp)
                     db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
                 }

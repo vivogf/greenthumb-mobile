@@ -9,6 +9,14 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import site.xmpp.greenthumb.core.platform.PushSubscriptions
 
+/** Header that makes POST /api/plants idempotent per user (server migration 010). */
+public const val IDEMPOTENCY_KEY_HEADER: String = "Idempotency-Key"
+
+private val IDEMPOTENCY_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{1,128}$")
+
+/** Same rule as the server; it answers 400 to any other value instead of creating the plant. */
+public fun isValidIdempotencyKey(key: String): Boolean = IDEMPOTENCY_KEY_PATTERN.matches(key)
+
 /**
  * Типизированный клиент API GreenThumb — один suspend-метод на эндпоинт
  * таблицы контракта (`library/backend-contract.md`; план Stage 2 п.6).
@@ -102,8 +110,11 @@ class GreenThumbApi(private val client: ApiClient) {
     /**
      * POST /api/plants → созданное растение (user_id ставит сервер). A base64 cover gets the photo
      * upload deadline: timing out after the server already created the plant makes the queue replay it.
+     * [idempotencyKey] goes out as `Idempotency-Key` on every attempt of one queued add, so a replay after
+     * a lost answer returns the plant the server already made. A server without the feature ignores the
+     * header; a key the server would reject (see [isValidIdempotencyKey]) is not sent.
      */
-    suspend fun addPlant(plant: InsertPlantDto): PlantDto =
+    suspend fun addPlant(plant: InsertPlantDto, idempotencyKey: String? = null): PlantDto =
         json.decodeFromString(
             decodeBody(
                 client.request(
@@ -111,6 +122,10 @@ class GreenThumbApi(private val client: ApiClient) {
                     "/api/plants",
                     json.encodeToString(plant),
                     timeoutMillis = if (plant.photoUrl.isEmpty()) null else PHOTO_UPLOAD_TIMEOUT_MILLIS,
+                    headers = idempotencyKey
+                        ?.takeIf(::isValidIdempotencyKey)
+                        ?.let { mapOf(IDEMPOTENCY_KEY_HEADER to it) }
+                        .orEmpty(),
                 ),
             ),
         )
