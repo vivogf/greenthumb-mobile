@@ -18,7 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.DatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.ui.res.Res
@@ -41,8 +42,9 @@ import site.xmpp.greenthumb.ui.theme.Spacing
 /**
  * Замена `components/DatePickerInput.tsx`.
  *
- * Верхняя граница — сегодня, будущий день не выбирается. Подпись — по
- * [languageTag] ([formatPickerDate]), не хардкод ru-RU.
+ * Верхняя граница — сегодня, будущий день не выбирается. Подпись и календарь
+ * (месяцы, дни недели) — по [languageTag] ([formatPickerDate], [calendarLocaleOf]),
+ * не хардкод ru-RU и не язык телефона.
  * Отмена не пишет значение. Подтверждение пишет `YYYY-MM-DD`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,12 +67,17 @@ fun GtDatePickerField(
     val scheme = MaterialTheme.colorScheme
     val today = remember { pickerToday() }
     val selectable = remember(today) { OnOrBeforeToday(today) }
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = pickerMillis(today),
-        initialDisplayedMonthMillis = pickerMillis(today),
-        yearRange = DatePickerDefaults.YearRange.first..today.year,
-        selectableDates = selectable,
-    )
+    // rememberDatePickerState has no locale: its calendar would use the phone language.
+    val calendarLocale = remember(languageTag) { calendarLocaleOf(languageTag) }
+    val state = remember(calendarLocale, selectable) {
+        DatePickerState(
+            locale = calendarLocale,
+            initialSelectedDateMillis = pickerMillis(today),
+            initialDisplayedMonthMillis = pickerMillis(today),
+            yearRange = DatePickerDefaults.YearRange.first..today.year,
+            selectableDates = selectable,
+        )
+    }
     var open by remember { mutableStateOf(false) }
     val normalized = normalizePickerDate(value)
     val shown = normalized?.let { formatPickerDate(it, languageTag) } ?: placeholder
@@ -152,9 +159,23 @@ fun GtDatePickerField(
             },
         ) {
             val maximum = stringResource(Res.string.datePicker_maximum, formatPickerDate(today.toString(), languageTag))
+            val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
             DatePicker(
                 state = state,
+                dateFormatter = dateFormatter,
                 title = { Text(text = maximum) },
+                // The default headline formats the date in the phone language; this one uses the app language.
+                headline = {
+                    val millis = state.selectedDateMillis
+                    val full = dateFormatter.formatDate(millis, calendarLocale, forContentDescription = true)
+                    Text(
+                        text = dateFormatter.formatDate(millis, calendarLocale).orEmpty(),
+                        modifier = Modifier
+                            .padding(start = 24.dp, end = 12.dp, bottom = 12.dp)
+                            .semantics { if (full != null) contentDescription = full },
+                        maxLines = 1,
+                    )
+                },
                 showModeToggle = false,
             )
         }
