@@ -15,8 +15,8 @@ a table. M17 keeps grid names intact: shrink in 5% steps to 80%, then use single
 if a word still cannot fit; multi-word names can wrap at spaces onto two lines. The dashboard's
 existing bottom content padding (56 dp FAB + 20 dp bottom margin + 20 dp clearance) lets the last
 list/card/grid item scroll above the fixed buttons. No new animation was added.
-The last signed Android App Bundle (AAB) is release **0.8.0 (`versionCode 7`)**, built locally after
-M11c and before M12a; it has **not been uploaded to Google Play** and does not contain the M12a fixes.
+The app version is **0.8.1 (`versionCode 8`)**. The previous signed AAB, 0.8.0 (`versionCode 7`), was built
+on 2026-11-08 from `97c4400`; Google Play upload is an owner action.
 Android is the release target; JVM desktop is the development and test harness.
 
 All commands below are run from the `kmp/` directory unless stated otherwise.
@@ -317,8 +317,8 @@ probes never reach the baseline.
 
 ## Release
 
-**Current state:** the signed **0.8.0 / 7** AAB was last rebuilt locally after M11c (before M12a).
-Google Play upload and rollout remain owner actions; no upload has been performed.
+**Current state:** the build version is **0.8.1 / 8**; the previous signed AAB is 0.8.0 / 7 (2026-11-08).
+Google Play upload and rollout remain owner actions.
 
 ### Release build
 
