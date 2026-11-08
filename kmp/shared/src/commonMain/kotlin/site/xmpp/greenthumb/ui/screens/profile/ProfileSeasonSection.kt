@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +58,7 @@ import site.xmpp.greenthumb.ui.res.profile_seasonSaveFailed
 import site.xmpp.greenthumb.ui.res.profile_seasonSouth
 import site.xmpp.greenthumb.ui.res.profile_seasonTitle
 import site.xmpp.greenthumb.ui.theme.Radii
+import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
 
 /** Option order of the switcher (architecture §2.9: Авто / Север / Юг / Выкл). */
@@ -101,13 +103,17 @@ internal fun SeasonModeSection(
     var failed by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            GtWaterDropMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
+        // Same icon slot, gap and label style as the other Profile rows (M19).
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+            Box(modifier = Modifier.size(Sizes.iconSlot).testTag(ProfileRowTags.ICON)) {
+                GtWaterDropMark(tint = scheme.secondary, modifier = Modifier.fillMaxSize())
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_seasonTitle),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = scheme.onSurface,
+                    modifier = Modifier.testTag(ProfileRowTags.LABEL),
                 )
                 Text(
                     text = stringResource(Res.string.profile_seasonHint),
@@ -171,6 +177,7 @@ internal fun SeasonModeSection(
                         color = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
+                        modifier = Modifier.testTag("season_text"),
                     )
                 }
             }
@@ -180,7 +187,7 @@ internal fun SeasonModeSection(
                 text = stringResource(autoExplanation(SeasonRule(table).hemisphere(zoneId))),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
-                modifier = Modifier.testTag("season_explanation"),
+                modifier = Modifier.padding(start = ProfileRowTextStart).testTag("season_explanation"),
             )
         }
         if (failed) {
@@ -188,7 +195,7 @@ internal fun SeasonModeSection(
                 text = stringResource(Res.string.profile_seasonSaveFailed),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.error,
-                modifier = Modifier.testTag("season_error"),
+                modifier = Modifier.padding(start = ProfileRowTextStart).testTag("season_error"),
             )
         }
     }

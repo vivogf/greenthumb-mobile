@@ -7,13 +7,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -40,6 +42,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -303,35 +310,13 @@ private fun CreateMode(
     val serviceUnavailableText = stringResource(Res.string.login_errors_serviceUnavailable)
 
     LoginCard {
-        // Назад (RN Pressable arrow-back, alignSelf start, hitSlop 12).
         BackButton(onBack = onBack)
 
-        // Шапка (RN column center gap 10 → Spacing.sm; круг 64, leaf 30).
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(Spacing.xxl * 2 + Spacing.xxs)
-                    .background(scheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                GtLeafMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
-            }
-            Text(
-                text = stringResource(Res.string.login_createTitle),
-                style = MaterialTheme.typography.headlineSmall,
-                color = scheme.onSurface,
-            )
-            Text(
-                text = stringResource(Res.string.login_createSubtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
+        LoginHeader(
+            icon = { GtLeafMark(tint = scheme.secondary, modifier = it) },
+            title = stringResource(Res.string.login_createTitle),
+            subtitle = stringResource(Res.string.login_createSubtitle),
+        )
 
         // Имя (опционально): RN label 14pt + inputStyle (radius 10 → поле).
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -406,22 +391,7 @@ private fun CreateMode(
             }
         }
 
-        // Назад (RN текст mutedForeground по центру).
-        Text(
-            text = stringResource(Res.string.login_back),
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = Sizes.touch)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                ) { onBack() }
-                .wrapContentHeight(Alignment.CenterVertically),
-        )
+        // One Back control: the labelled chevron at the top (M19).
     }
 
     // Модалка ошибки (RN showAlert(common.error, explainAuthError(error, false))).
@@ -457,39 +427,53 @@ private fun LoginKeyMode(
     val invalidKeyText = stringResource(Res.string.login_errors_invalidRecoveryKey)
     val networkErrorText = stringResource(Res.string.login_errors_networkError)
     val serviceUnavailableText = stringResource(Res.string.login_errors_serviceUnavailable)
+    val submit: () -> Unit = submit@{
+        val entered = key.trim()
+        if (entered.isEmpty() || loading) return@submit
+        // Not a key: nothing goes to the server.
+        val canonical = canonicalRecoveryKey(entered)
+        if (canonical == null) {
+            errorText = invalidKeyText
+            Haptics.error()
+            return@submit
+        }
+        loading = true
+        errorText = null
+        scope.launch {
+            try {
+                // Успех → сессия SignedIn → граф уводит на вкладки
+                // (RN useEffect login.tsx:41-45 — автопереход);
+                // гаптика Success (RN login.tsx:95).
+                session.signInWithRecoveryKey(canonical)
+                Haptics.success()
+            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                throw cancellation
+            } catch (e: ApiError) {
+                errorText = explainAuthError(
+                    e,
+                    isLogin = true,
+                    invalidKeyText = invalidKeyText,
+                    networkErrorText = networkErrorText,
+                    serviceUnavailableText = serviceUnavailableText,
+                )
+                // RN notificationAsync(Error) рядом с алертом (login.tsx:99).
+                Haptics.error()
+                loading = false
+            }
+        }
+    }
 
     LoginCard {
-        // Назад.
         BackButton(onBack = onBack)
 
-        // Шапка: key-иконка, welcome back, enter key (RN gap 10).
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(Spacing.xxl * 2 + Spacing.xxs)
-                    .background(scheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl + Spacing.xxs))
-            }
-            Text(
-                text = stringResource(Res.string.login_welcomeBack),
-                style = MaterialTheme.typography.headlineSmall,
-                color = scheme.onSurface,
-            )
-            Text(
-                text = stringResource(Res.string.login_enterKey),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
+        LoginHeader(
+            icon = { GtKeyMark(tint = scheme.secondary, modifier = it) },
+            title = stringResource(Res.string.login_welcomeBack),
+            subtitle = stringResource(Res.string.login_enterKey),
+        )
 
-        // Поле ключа (RN mono; placeholder uuid-подобный).
+        // Поле ключа (RN mono; placeholder uuid-подобный). A key is not prose: no capitals, no autocorrect;
+        // Done on the keyboard signs in.
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(
                 text = stringResource(Res.string.login_recoveryKeyLabel),
@@ -503,6 +487,13 @@ private fun LoginKeyMode(
                     errorText = null
                 },
                 placeholder = stringResource(Res.string.login_recoveryKeyPlaceholder),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
             )
         }
 
@@ -510,41 +501,7 @@ private fun LoginKeyMode(
         // disabled-цвета PrimaryButton).
         PrimaryButton(
             text = if (loading) stringResource(Res.string.login_signingIn) else stringResource(Res.string.login_signIn),
-            onClick = {
-                val entered = key.trim()
-                if (entered.isEmpty() || loading) return@PrimaryButton
-                // Not a key: nothing goes to the server.
-                val canonical = canonicalRecoveryKey(entered)
-                if (canonical == null) {
-                    errorText = invalidKeyText
-                    Haptics.error()
-                    return@PrimaryButton
-                }
-                loading = true
-                errorText = null
-                scope.launch {
-                    try {
-                        // Успех → сессия SignedIn → граф уводит на вкладки
-                        // (RN useEffect login.tsx:41-45 — автопереход);
-                        // гаптика Success (RN login.tsx:95).
-                        session.signInWithRecoveryKey(canonical)
-                        Haptics.success()
-                    } catch (cancellation: kotlinx.coroutines.CancellationException) {
-                        throw cancellation
-                    } catch (e: ApiError) {
-                        errorText = explainAuthError(
-                            e,
-                            isLogin = true,
-                            invalidKeyText = invalidKeyText,
-                            networkErrorText = networkErrorText,
-                            serviceUnavailableText = serviceUnavailableText,
-                        )
-                        // RN notificationAsync(Error) рядом с алертом (login.tsx:99).
-                        Haptics.error()
-                        loading = false
-                    }
-                }
-            },
+            onClick = submit,
             enabled = !loading && key.isNotBlank(),
             modifier = Modifier.gtButtonWidth(),
         )
@@ -568,23 +525,6 @@ private fun LoginKeyMode(
             },
             outcome = savedKeyOutcome,
             enabled = !loading,
-        )
-
-        // Назад.
-        Text(
-            text = stringResource(Res.string.login_back),
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = Sizes.touch)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                ) { onBack() }
-                .wrapContentHeight(Alignment.CenterVertically),
         )
     }
 
@@ -615,9 +555,11 @@ internal object LoginTags {
  * Карточка экрана (mockup v2): 16 dp от краёв экрана, radius [Radii.card], padding 24,
  * gap 20, по центру вертикального скролла (на узких экранах карточка скроллится).
  * Боковые жестовые инсеты не учитываются: карта стоит ровно в 16 dp от края.
+ * The keyboard shrinks the scroll viewport (imePadding), so the focused field and the button
+ * below it scroll into view instead of hiding under the keyboard.
  */
 @Composable
-private fun LoginCard(content: @Composable () -> Unit) {
+internal fun LoginCard(content: @Composable () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
@@ -627,6 +569,7 @@ private fun LoginCard(content: @Composable () -> Unit) {
             .statusBarsPadding()
             .navigationBarsPadding()
             .windowInsetsPadding(WindowInsets.systemGestures.only(WindowInsetsSides.Vertical))
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Sizes.screenPadding, vertical = Spacing.xl),
         verticalArrangement = Arrangement.Center,
@@ -677,13 +620,56 @@ internal fun WarningBox(
     }
 }
 
-/** Кнопка «назад» шапки create/login (RN Pressable arrow-back, hitSlop 12). */
+/**
+ * Header of the inner login modes: badge, title and subtitle, centred in the card.
+ * [icon] receives the modifier with the icon size.
+ */
+@Composable
+internal fun LoginHeader(icon: @Composable (Modifier) -> Unit, title: String, subtitle: String?) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(Spacing.xxl * 2 + Spacing.xxs)
+                .background(scheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            icon(Modifier.size(Spacing.xxl + Spacing.xxs))
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            color = scheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/**
+ * The one Back control of create/login (RN Pressable arrow-back, hitSlop 12): a 48 dp box shifted
+ * left by its inner margin, so the chevron ink starts on the card content edge.
+ */
 @Composable
 internal fun BackButton(onBack: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val label = stringResource(Res.string.login_back)
     Box(
         modifier = Modifier
+            .offset(x = -(Sizes.touch - Sizes.iconSlot) / 2)
             .size(Sizes.touch)
+            .semantics { contentDescription = label }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -693,7 +679,7 @@ internal fun BackButton(onBack: () -> Unit) {
     ) {
         GtChevronMark(
             tint = scheme.onSurfaceVariant,
-            modifier = Modifier.size(Spacing.xl),
+            modifier = Modifier.size(Sizes.iconSlot),
             direction = GtChevronDirection.Left,
         )
     }

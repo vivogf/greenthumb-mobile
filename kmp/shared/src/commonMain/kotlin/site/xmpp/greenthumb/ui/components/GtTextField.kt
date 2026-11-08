@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
 
@@ -98,7 +99,14 @@ fun GtInputField(
         placeholder = if (placeholder.isEmpty()) {
             null
         } else {
-            { Text(text = placeholder) }
+            // A one-line field keeps a one-line hint: a wrapped hint makes the empty field taller.
+            {
+                Text(
+                    text = placeholder,
+                    maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         },
         supportingText = if (!hasError) {
             null

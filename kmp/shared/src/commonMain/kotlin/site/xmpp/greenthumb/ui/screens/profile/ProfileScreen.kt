@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -88,7 +89,6 @@ import site.xmpp.greenthumb.ui.components.GtPersonMark
 import site.xmpp.greenthumb.ui.components.GtRefreshMark
 import site.xmpp.greenthumb.ui.components.GtSendMark
 import site.xmpp.greenthumb.ui.components.GtSignOutMark
-import site.xmpp.greenthumb.ui.components.GtTitleWithAction
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtSunMark
 import site.xmpp.greenthumb.ui.components.GtSwitchIndicator
@@ -368,16 +368,18 @@ public fun ProfileScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                // Compact avatar and gap so «GreenThumb — Уход за растениями» fits one line at 384 dp and font 1.15.
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(Spacing.xl * 2)
-                        .background(scheme.primaryContainer, RoundedCornerShape(percent = 50)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    GtPersonMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl))
+                // The 40 dp avatar is centred on the 24 dp icon column, so the name starts on the row text line.
+                Box(modifier = Modifier.size(Sizes.iconSlot), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .requiredSize(Spacing.xl * 2)
+                            .background(scheme.primaryContainer, RoundedCornerShape(percent = 50)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GtPersonMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xxl))
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -446,99 +448,53 @@ public fun ProfileScreen(
         // Rows carry no horizontal padding of their own: SectionCard already insets 16 dp, so the
         // content edges match «Язык» and «Тема».
         SectionCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = Sizes.touch)
-                    .then(
-                        if (pushLoading) {
-                            Modifier
-                        } else {
-                            Modifier.gtSwitchRow(
-                                checked = pushEnabled,
-                                enabled = !pushToggling,
-                                onCheckedChange = onPushToggle,
-                            )
-                        },
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                GtBellOutlineMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                Text(
-                    text = stringResource(Res.string.profile_notifications),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                if (pushLoading) {
-                    CircularProgressIndicator(
-                        color = scheme.secondary,
-                        modifier = Modifier.size(Spacing.xl),
-                    )
+            ProfileRow(
+                label = stringResource(Res.string.profile_notifications),
+                icon = { GtBellOutlineMark(tint = scheme.secondary, modifier = it) },
+                modifier = if (pushLoading) {
+                    Modifier
                 } else {
-                    GtSwitchIndicator(checked = pushEnabled)
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = Sizes.touch)
-                    .then(
-                        // Off: no click action at all, so TalkBack does not offer a tap that does nothing.
-                        if (pushEnabled) {
-                            Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                role = Role.Button,
-                                enabled = !savingTime,
-                            ) { showTimePicker = true }
-                        } else {
-                            Modifier.alpha(GreenThumbColors.disabledContentAlpha)
-                        },
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                // Same width as the bell, so the time text starts under the title.
-                Spacer(modifier = Modifier.size(Spacing.xl))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (savingTime) {
-                            stringResource(Res.string.profile_saving)
-                        } else {
-                            stringResource(Res.string.profile_notificationEveryDay, currentTimeLabel)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (pushEnabled) greenThumbExtendedColors().accentText else scheme.onSurfaceVariant,
+                    Modifier.gtSwitchRow(
+                        checked = pushEnabled,
+                        enabled = !pushToggling,
+                        onCheckedChange = onPushToggle,
                     )
-                    Text(
-                        text = stringResource(Res.string.profile_notificationLocalTime),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                    )
-                }
-                GtChevronMark(
-                    tint = scheme.onSurfaceVariant,
-                    // Tip under the switch track's right edge, not the glyph's empty box edge.
-                    modifier = Modifier.offset(x = Sizes.chevronEndInk).size(Spacing.lg),
-                    direction = GtChevronDirection.Right,
-                )
-            }
+                },
+                trailing = {
+                    if (pushLoading) {
+                        CircularProgressIndicator(
+                            color = scheme.secondary,
+                            modifier = Modifier.size(Spacing.xl),
+                        )
+                    } else {
+                        GtSwitchIndicator(checked = pushEnabled)
+                    }
+                },
+            )
+            ProfileRow(
+                label = if (savingTime) {
+                    stringResource(Res.string.profile_saving)
+                } else {
+                    stringResource(Res.string.profile_notificationEveryDay, currentTimeLabel)
+                },
+                labelColor = if (pushEnabled) greenThumbExtendedColors().accentText else scheme.onSurfaceVariant,
+                labelWeight = FontWeight.SemiBold,
+                supporting = stringResource(Res.string.profile_notificationLocalTime),
+                chevron = true,
+                // Off: no click action at all, so TalkBack does not offer a tap that does nothing.
+                modifier = if (pushEnabled) Modifier else Modifier.alpha(GreenThumbColors.disabledContentAlpha),
+                onClick = if (pushEnabled) ({ showTimePicker = true }) else null,
+                enabled = !savingTime,
+            )
             if (pushEnabled) {
                 RowDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = Sizes.touch)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Button,
-                            enabled = !testSending,
-                        ) {
-                            if (testSending) return@clickable
+                ProfileRow(
+                    label = if (testSending) stringResource(Res.string.profile_saving)
+                    else stringResource(Res.string.profile_testNotification),
+                    icon = { GtSendMark(tint = scheme.secondary, modifier = it) },
+                    enabled = !testSending,
+                    onClick = {
+                            if (testSending) return@ProfileRow
                             scope.launch {
                                 testSending = true
                                 try {
@@ -558,25 +514,16 @@ public fun ProfileScreen(
                                     testSending = false
                                 }
                             }
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    GtSendMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                    Text(
-                        text = if (testSending) stringResource(Res.string.profile_saving)
-                        else stringResource(Res.string.profile_testNotification),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurface,
-                    )
-                }
+                    },
+                )
             }
         }
 
         // Язык (RN SectionCard 3).
         SectionCard {
-            PickerRow(
-                icon = { GtGlobeMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl)) },
+            ProfileRow(
+                icon = { GtGlobeMark(tint = scheme.secondary, modifier = it) },
+                chevron = true,
                 label = stringResource(Res.string.profile_language),
                 value = when (shownLanguage) {
                     AppLanguage.Ru -> stringResource(Res.string.profile_languageRussian)
@@ -588,8 +535,9 @@ public fun ProfileScreen(
 
         // Тема (RN SectionCard 4).
         SectionCard {
-            PickerRow(
-                icon = { GtPaletteMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl)) },
+            ProfileRow(
+                icon = { GtPaletteMark(tint = scheme.secondary, modifier = it) },
+                chevron = true,
                 label = stringResource(Res.string.profile_theme),
                 value = when (themePreference) {
                     ThemePreference.Light -> stringResource(Res.string.profile_themeLight)
@@ -602,51 +550,41 @@ public fun ProfileScreen(
 
         // Recovery key (RN SectionCard 4).
         SectionCard {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                // The title keeps one line at large font scales; «Показать» moves under it when the line is full.
-                GtTitleWithAction(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                            Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
-                            Text(
-                                text = stringResource(Res.string.profile_recoveryKey),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = scheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    },
-                    action = {
+            // Notes under the title start on the row text line (M19).
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                ProfileRow(
+                    label = stringResource(Res.string.profile_recoveryKey),
+                    icon = { GtKeyMark(tint = scheme.secondary, modifier = it) },
+                    trailing = {
                         Text(
                             text = stringResource(
                                 if (keyVisible) Res.string.profile_hide else Res.string.profile_show,
                             ),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelLarge,
                             color = scheme.tertiary,
                             modifier = Modifier
+                                .heightIn(min = Sizes.touch)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     role = Role.Button,
                                 ) { keyVisible = !keyVisible }
-                                .padding(Spacing.xxs),
+                                .wrapContentHeight(Alignment.CenterVertically),
                         )
                     },
-                    // Icon + gap minus the action's own 4 dp padding: the wrapped text starts under the title text.
-                    wrappedActionIndent = Spacing.xl + Spacing.xs,
                 )
                 Text(
                     text = stringResource(Res.string.profile_recoveryKeyHint),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = ProfileRowTextStart),
                 )
                 if (user != null && storedKey is StoredRecoveryKey.Present && !storedKey.savedOnDevice) {
                     Text(
                         text = stringResource(Res.string.session_keyNotStored),
                         style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
+                        modifier = Modifier.padding(start = ProfileRowTextStart),
                     )
                 }
                 if (user != null && unconfirmedKey != null && !keyChangePending) {
@@ -655,6 +593,7 @@ public fun ProfileScreen(
                         text = stringResource(Res.string.profile_keyChangeNotStored),
                         style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
+                        modifier = Modifier.padding(start = ProfileRowTextStart),
                     )
                 }
                 if (user != null && keyChangePending) {
@@ -662,12 +601,14 @@ public fun ProfileScreen(
                         text = stringResource(Res.string.profile_keyChangeUnfinished),
                         style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                         color = scheme.error,
+                        modifier = Modifier.padding(start = ProfileRowTextStart),
                     )
                     Text(
                         text = stringResource(Res.string.profile_keyChangeRetry),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.tertiary,
                         modifier = Modifier
+                            .padding(start = ProfileRowTextStart)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -697,6 +638,7 @@ public fun ProfileScreen(
                         text = stringResource(Res.string.session_keyNotFoundTitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.error,
+                        modifier = Modifier.padding(start = ProfileRowTextStart),
                     )
                 }
                 if (keyVisible && user != null && storedKey is StoredRecoveryKey.Present) {
@@ -778,52 +720,27 @@ public fun ProfileScreen(
                         }
                     }
                 }
-                Row(
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Button,
-                            enabled = !regenerating,
-                        ) { if (!regenerating) showRegenerateConfirm = true }
-                        .heightIn(min = Sizes.touch)
-                        .padding(vertical = Spacing.xxs),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    GtRefreshMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
-                    Text(
-                        text = if (regenerating) stringResource(Res.string.profile_generating)
-                        else stringResource(Res.string.profile_generateNewKey),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                    )
-                }
+                ProfileRow(
+                    label = if (regenerating) stringResource(Res.string.profile_generating)
+                    else stringResource(Res.string.profile_generateNewKey),
+                    icon = { GtRefreshMark(tint = scheme.secondary, modifier = it) },
+                    chevron = true,
+                    enabled = !regenerating,
+                    onClick = { if (!regenerating) showRegenerateConfirm = true },
+                )
                 if (user != null) {
-                    Row(
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                role = Role.Button,
-                            ) { onShowKeyQr() }
-                            .heightIn(min = Sizes.touch)
-                            .padding(vertical = Spacing.xxs)
-                            .testTag("profile_showKeyQr"),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        GtKeyMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.lg + Spacing.xxs))
-                        Text(
-                            text = stringResource(Res.string.profile_showKeyQr),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.tertiary,
-                        )
-                    }
+                    ProfileRow(
+                        label = stringResource(Res.string.profile_showKeyQr),
+                        icon = { GtKeyMark(tint = scheme.secondary, modifier = it) },
+                        chevron = true,
+                        tag = "profile_showKeyQr",
+                        onClick = { onShowKeyQr() },
+                    )
                     // No offer while a change is unproven: a password-manager entry must not trade a
                     // working key for one the server may not accept.
                     if (storedKey is StoredRecoveryKey.Present && storedKey.confirmed && !keyChangePending && unconfirmedKey == null) {
                         SaveKeyToPasswordManager(
+                            modifier = Modifier.padding(start = ProfileRowTextStart),
                             saver = vaultSaver,
                             userId = user.id,
                             recoveryKey = storedKey.key,
@@ -837,28 +754,13 @@ public fun ProfileScreen(
         // Streaks and achievements (architecture §5.8; RN has none).
         if (onOpenProgress != null) {
             SectionCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Button,
-                        ) { onOpenProgress() }
-                        .padding(vertical = Spacing.xxs)
-                        .testTag("profile_progress"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    GtLeafMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                    Text(
-                        text = stringResource(Res.string.progress_entry),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
-                }
+                ProfileRow(
+                    label = stringResource(Res.string.progress_entry),
+                    icon = { GtLeafMark(tint = scheme.secondary, modifier = it) },
+                    chevron = true,
+                    tag = "profile_progress",
+                    onClick = { onOpenProgress() },
+                )
             }
         }
 
@@ -869,38 +771,30 @@ public fun ProfileScreen(
 
         // About & Privacy (RN SectionCard 4).
         SectionCard {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GtLockMark(tint = scheme.secondary, modifier = Modifier.size(Spacing.xl))
-                    Spacer(modifier = Modifier.size(Spacing.xs + Spacing.xxs))
-                    Text(
-                        text = stringResource(Res.string.privacy_aboutTitle),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = scheme.onSurface,
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                ProfileRow(
+                    label = stringResource(Res.string.privacy_aboutTitle),
+                    icon = { GtLockMark(tint = scheme.secondary, modifier = it) },
+                )
                 Text(
                     text = stringResource(Res.string.privacy_aboutBody),
                     style = GtParagraph.of(MaterialTheme.typography.bodySmall),
                     color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = ProfileRowTextStart),
                 )
-                HorizontalHairline()
-                Text(
-                    text = stringResource(Res.string.privacy_bugTitle),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = stringResource(Res.string.privacy_bugBody),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
+                RowDivider()
+                ProfileRow(
+                    label = stringResource(Res.string.privacy_bugTitle),
+                    supporting = stringResource(Res.string.privacy_bugBody),
+                    icon = { GtSendMark(tint = scheme.secondary, modifier = it) },
                 )
                 Text(
                     text = SUPPORT_EMAIL,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = scheme.tertiary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
+                        .padding(start = ProfileRowTextStart)
                         .heightIn(min = Sizes.touch)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -914,51 +808,25 @@ public fun ProfileScreen(
 
         // Выход (RN SectionCard 5).
         SectionCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                        enabled = !signingOut,
-                    ) { if (!signingOut) showSignOutConfirm = true }
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                GtSignOutMark(tint = scheme.error, modifier = Modifier.size(Spacing.xl))
-                Text(
-                    text = stringResource(Res.string.profile_signOut),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.error,
-                )
-            }
+            ProfileRow(
+                label = stringResource(Res.string.profile_signOut),
+                icon = { GtSignOutMark(tint = scheme.error, modifier = it) },
+                labelColor = scheme.error,
+                enabled = !signingOut,
+                onClick = { if (!signingOut) showSignOutConfirm = true },
+            )
         }
 
         // Удаление аккаунта (Stage 12 п.4, Play-требование; в RN нет —
         // email-путь docs/account-deletion.html). Отдельная карточка:
         // необратимое действие не смешивается с обратимым выходом.
         SectionCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        role = Role.Button,
-                    ) { onDeleteAccount() }
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.xl))
-                Text(
-                    text = stringResource(Res.string.profile_deleteAccount),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.error,
-                )
-            }
+            ProfileRow(
+                label = stringResource(Res.string.profile_deleteAccount),
+                icon = { GtTrashMark(tint = scheme.error, modifier = it) },
+                labelColor = scheme.error,
+                onClick = { onDeleteAccount() },
+            )
         }
 
         Spacer(modifier = Modifier.height(Spacing.xs))
@@ -1303,6 +1171,13 @@ private fun SuccessDialog(title: String, message: String, onDismiss: () -> Unit)
 // Секции-обёртки (RN SectionCard / Row / Divider — локальные, 1:1)
 // ---------------------------------------------------------------------------
 
+/** Test tags of the unified Profile rows. */
+internal object ProfileRowTags {
+    const val ROW = "profile_row"
+    const val ICON = "profile_row_icon"
+    const val LABEL = "profile_row_label"
+}
+
 /** Карточка секции: surface + cardBorder, радиус RN 14 → [Radii.lg] (12). */
 @Composable
 private fun SectionCard(content: @Composable () -> Unit) {
@@ -1320,52 +1195,95 @@ private fun SectionCard(content: @Composable () -> Unit) {
     Spacer(modifier = Modifier.height(Spacing.sm))
 }
 
-/** Ряд строки: иконка + лейбл + значение + шеврон (RN Row). */
+/** Start of row text in a Profile card: the 24 dp icon slot plus the 16 dp gap. */
+internal val ProfileRowTextStart: Dp = Sizes.iconSlot + Spacing.lg
+
+/**
+ * One Profile row (M19): 24 dp icon slot, 16 dp gap, label in bodyLarge, optional supporting line,
+ * value, trailing slot and a right chevron; at least 48 dp tall. Every card uses it, so icons and
+ * labels keep one start line each. [icon] receives the slot-filling modifier; null leaves the slot empty.
+ */
 @Composable
-private fun PickerRow(
-    icon: @Composable () -> Unit,
+private fun ProfileRow(
     label: String,
-    value: String,
-    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: (@Composable (Modifier) -> Unit)? = null,
+    labelColor: Color = MaterialTheme.colorScheme.onSurface,
+    labelWeight: FontWeight? = null,
+    supporting: String? = null,
+    value: String? = null,
+    chevron: Boolean = false,
+    tag: String = ProfileRowTags.ROW,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Button,
-            ) { onClick() }
-            .padding(vertical = Spacing.xxs),
+            .heightIn(min = Sizes.touch)
+            .then(
+                if (onClick == null) {
+                    Modifier
+                } else {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        enabled = enabled,
+                    ) { onClick() }
+                },
+            )
+            .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        icon()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-        )
-        GtChevronMark(tint = scheme.onSurfaceVariant, modifier = Modifier.size(Spacing.lg))
+        Box(modifier = Modifier.size(Sizes.iconSlot).testTag(ProfileRowTags.ICON)) {
+            icon?.invoke(Modifier.fillMaxSize())
+        }
+        Column(modifier = Modifier.weight(1f).padding(vertical = Spacing.xxs)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = labelWeight,
+                color = labelColor,
+                modifier = Modifier.testTag(ProfileRowTags.LABEL),
+            )
+            if (supporting != null) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (value != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant,
+            )
+        }
+        trailing?.invoke()
+        if (chevron) {
+            GtChevronMark(
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(Spacing.xl),
+                direction = GtChevronDirection.Right,
+            )
+        }
     }
 }
 
-/** Разделитель строк карточки: начинается под текстом строки (иконка [Spacing.xl] + зазор [Spacing.sm]). */
+/** Разделитель строк карточки: начинается под текстом строки. */
 @Composable
 private fun RowDivider() {
     HorizontalDivider(
         color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.padding(start = Spacing.xl + Spacing.sm),
+        modifier = Modifier.padding(start = ProfileRowTextStart),
     )
 }
-
 /** Вертикальная линия между блоками privacy (RN height 1 full width). */
 @Composable
 private fun HorizontalHairline() {

@@ -2,18 +2,12 @@ package site.xmpp.greenthumb.ui.screens.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
+import site.xmpp.greenthumb.ui.components.GtKeyMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
 import site.xmpp.greenthumb.ui.components.SecondaryButton
 import site.xmpp.greenthumb.ui.components.gtButtonWidth
@@ -51,45 +45,28 @@ public fun KeyNotFoundSurface(
     busy: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = scheme.background,
-    ) {
+    // Same card, header and scroll as the sign-in modes (M19): long text at font 1.3 scrolls, not clips.
+    LoginCard {
+        LoginHeader(
+            icon = { GtKeyMark(tint = scheme.secondary, modifier = it) },
+            title = stringResource(Res.string.session_keyNotFoundTitle),
+            subtitle = stringResource(Res.string.session_keyNotFoundBody),
+        )
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(Spacing.xl),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            ) {
-                Text(
-                    text = stringResource(Res.string.session_keyNotFoundTitle),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = scheme.onSurface,
-                )
-                Text(
-                    text = stringResource(Res.string.session_keyNotFoundBody),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                PrimaryButton(
-                    text = stringResource(Res.string.session_keyNotFoundEnterKey),
-                    onClick = onEnterLogin,
-                    modifier = Modifier.gtButtonWidth(),
-                )
-                SavedKeySignInBlock(onClick = onSignInWithSavedKey, outcome = notice, enabled = !busy)
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                SecondaryButton(
-                    text = stringResource(Res.string.session_keyNotFoundCreateAccount),
-                    onClick = onEnterCreate,
-                    modifier = Modifier.gtButtonWidth(),
-                )
-            }
+            PrimaryButton(
+                text = stringResource(Res.string.session_keyNotFoundEnterKey),
+                onClick = onEnterLogin,
+                modifier = Modifier.gtButtonWidth(),
+            )
+            SavedKeySignInBlock(onClick = onSignInWithSavedKey, outcome = notice, enabled = !busy)
+            SecondaryButton(
+                text = stringResource(Res.string.session_keyNotFoundCreateAccount),
+                onClick = onEnterCreate,
+                modifier = Modifier.gtButtonWidth(),
+            )
         }
     }
 }

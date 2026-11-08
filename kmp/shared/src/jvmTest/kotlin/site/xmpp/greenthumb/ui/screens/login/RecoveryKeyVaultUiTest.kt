@@ -11,6 +11,7 @@ import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import java.util.Locale
@@ -315,7 +316,8 @@ class RecoveryKeyVaultUiTest {
         // The offer to update the saved entry replaces the plain save label.
         waitUntilAtLeastOneExists(hasText(BTN_SAVE_NEW), TIMEOUT)
         onNodeWithText(BTN_SAVE).assertDoesNotExist()
-        onNodeWithText(BTN_SAVE_NEW).performClick()
+        // Profile rows are 48 dp tall: the button can sit below the test window.
+        onNodeWithText(BTN_SAVE_NEW).performScrollTo().performClick()
         waitUntilAtLeastOneExists(hasText(MSG_SAVED), TIMEOUT)
         assertEquals(listOf("GreenThumb #$VAULT_TEST_USER_ID"), vault.savedIds)
         assertEquals(listOf(VAULT_TEST_NEW_KEY), vault.savedKeys)
