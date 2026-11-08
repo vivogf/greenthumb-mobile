@@ -20,6 +20,16 @@ all active Expo tracks (Stage 1 item 8 of the plan). Any fixed build after the
 rollout starts must have a `versionCode` greater than the previous one (see
 `incident-runbook.md`).
 
+## Decision 2026-11-08: first release without the gate
+
+Owner decision (2026-11-08): the ≥95% adoption gate below does NOT apply to the
+first KMP release (0.8.0, versionCode 7). Reason: the app is not published on
+any Play track and has no testers; the only Play install of the Expo build is
+on the owner's own phone, and the owner saves the recovery key and enters it by
+hand before that phone updates. The gate exists to protect live Expo users
+without `gt-handoff.json`; there are none. The other preconditions and the
+staged rollout below still apply.
+
 ## Why the gate (do not shorten or skip it)
 
 The Expo base with versionCode ≤ 4 does not write `gt-handoff.json` (the file
@@ -72,6 +82,7 @@ lowered.
    (Crashlytics, a Google processor). Before this step the store declaration
    diverges from reality.
 5. ☐ **Adoption gate ≥95% on versionCode ≥ 5** — closed (see above).
+   Not required for the first release (decision 2026-11-08 above).
 6. ☐ **Closed testing of 20+ testers × 14 days closed** (a Personal-account
    requirement before Production; see Phase 8 in CLAUDE.md — applies to the app
    as a whole, not just the Expo build).
