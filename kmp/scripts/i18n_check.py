@@ -49,6 +49,7 @@ RES_DIR = (
 KMP_ONLY_KEYS = {
     # 0.8.1: a fertilize/repot/prune card with a frequency but no last date asks for the date.
     "plantDetails.careSetDate",
+    "plantDetails.careLastDoneTitle",
     # M11 owner fixes: short dashboard filter label, reminders time row in the same card.
     "dashboard.waterFilter",
     "profile.notificationEveryDay",

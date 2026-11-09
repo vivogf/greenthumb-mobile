@@ -1304,18 +1304,58 @@ class PlantDetailScreenTest {
 
     /** One line on a 360 dp phone at font 1.3; on a 320 dp one it may wrap, but never cut. */
     @Test
-    fun careCardWithoutLastDate_saysSetTheDate_inRussianAt13_andTapSetsToday() {
-        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 360)
-        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 320)
+    fun careCardWithoutLastDate_saysSetTheDate_inRussianAt13_andAsksForTheDate() {
+        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 360, ru = true)
+        careNeedsDateCase(locale = "ru", expected = "Укажите дату", title = "Удобрение", fontScale = 1.3f, widthDp = 320, ru = true)
     }
 
     @Test
-    fun careCardWithoutLastDate_saysSetTheDate_inEnglishAt13() {
-        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 360)
-        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 320)
+    fun careCardWithoutLastDate_saysSetTheDate_inEnglishAt13_andAsksForTheDate() {
+        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 360, ru = false)
+        careNeedsDateCase(locale = "en", expected = "Set the date", title = "Fertilizing", fontScale = 1.3f, widthDp = 320, ru = false)
     }
 
-    private fun careNeedsDateCase(locale: String, expected: String, title: String, fontScale: Float, widthDp: Int) {
+    /** A dated care card keeps "tap = done today"; TalkBack hears the action ("Fertilize"), not just the title. */
+    @Test
+    fun careCardWithDate_tapActionIsNamed_andStillMarksToday() {
+        val graph = newHarness()
+        val today = site.xmpp.greenthumb.ui.components.pickerToday()
+        val repo = graph.opener.open("73")
+        runBlocking { repo.refresh() }
+        runDesktopComposeUiTest {
+            setContent {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                        // Phone width: in the default 1024 dp window the cards sit below the fold.
+                        androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.width(360.dp)) {
+                            PlantDetailScreen(
+                                userId = "73",
+                                plantId = "det-1",
+                                opener = graph.opener,
+                                onBack = {},
+                                onDeleted = {},
+                                deleteErrorState = PlantDeleteErrorState(),
+                            )
+                        }
+                    }
+                }
+            }
+            val card = hasClickAction() and hasText("Fertilizing", substring = true)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
+            val label = onNode(card).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.OnClick].label
+            assertEquals("Fertilize", label)
+            onNode(card).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) {
+                graph.server.lastPatchBody?.contains("\"last_fertilized_date\":\"$today\"") == true
+            }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    private fun careNeedsDateCase(locale: String, expected: String, title: String, fontScale: Float, widthDp: Int, ru: Boolean) {
+        val dialogTitle = if (ru) "Когда это делали последний раз?" else "When was it last done?"
+        val cancel = if (ru) "Отмена" else "Cancel"
+        val done = if (ru) "Готово" else "Done"
         val graph = newHarness()
         graph.server.lastFertilizedDate = null
         graph.server.lastRepottedDate = null
@@ -1365,11 +1405,42 @@ class PlantDetailScreenTest {
                     "no ellipsis, no overflow at $widthDp dp: widest line $widest of ${layout.layoutInput.constraints.maxWidth}",
                 )
             }
-            // A tap keeps the old action: the last date becomes today.
-            onNode(hasClickAction() and hasText(title, substring = true) and hasText(expected, substring = true))
-                .performClick()
+            val card = hasClickAction() and hasText(title, substring = true) and hasText(expected, substring = true)
+            // The tap asks for the date and writes nothing yet: a care event would land in the journal.
+            onNode(card).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText(dialogTitle)).fetchSemanticsNodes().isNotEmpty() }
+            onAllNodes(hasText(dialogTitle), useUnmergedTree = true).fetchSemanticsNodes().forEach { node ->
+                val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+                val layout = layouts.single()
+                assertTrue((0 until layout.lineCount).none { layout.isLineEllipsized(it) }, "dialog title not cut at $widthDp dp")
+            }
+            waitForIdle()
+            assertEquals(null, graph.server.lastPatchBody, "no PATCH before the date is confirmed")
+            // Cancel changes nothing.
+            onNode(hasClickAction() and hasText(cancel)).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText(dialogTitle)).fetchSemanticsNodes().isEmpty() }
+            waitForIdle()
+            assertEquals(null, graph.server.lastPatchBody, "Cancel sends no PATCH")
+            assertEquals(2, onAllNodes(hasText(expected), useUnmergedTree = true).fetchSemanticsNodes().size)
+            assertEquals(
+                expected,
+                onNode(card).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.OnClick].label,
+                "TalkBack names the tap action",
+            )
+            // Done saves the picked day, not today.
+            val picked = if (today.day > 1) kotlinx.datetime.LocalDate(today.year, today.month, 1) else today
+            val pickedText = androidx.compose.material3.DatePickerDefaults.dateFormatter().formatDate(
+                site.xmpp.greenthumb.ui.components.pickerMillis(picked),
+                site.xmpp.greenthumb.ui.components.calendarLocaleOf(locale),
+                forContentDescription = true,
+            )!!
+            onNode(card).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText(dialogTitle)).fetchSemanticsNodes().isNotEmpty() }
+            onNode(hasClickAction() and hasText(pickedText, substring = true, ignoreCase = true)).performClick()
+            onNode(hasClickAction() and hasText(done)).performClick()
             waitUntil(timeoutMillis = TIMEOUT) {
-                graph.server.lastPatchBody?.contains("\"last_fertilized_date\":\"$today\"") == true
+                graph.server.lastPatchBody?.contains("\"last_fertilized_date\":\"$picked\"") == true
             }
             runOnIdle { graph.close() }
         }

@@ -78,6 +78,7 @@ import site.xmpp.greenthumb.ui.components.GtCameraMark
 import site.xmpp.greenthumb.ui.components.GtCard
 import site.xmpp.greenthumb.ui.components.GtChevronDirection
 import site.xmpp.greenthumb.ui.components.GtChevronMark
+import site.xmpp.greenthumb.ui.components.GtDatePickerDialog
 import site.xmpp.greenthumb.ui.components.GtDatePickerField
 import site.xmpp.greenthumb.ui.components.GtDiagnosisMark
 import site.xmpp.greenthumb.ui.components.GtFertilizeMark
@@ -116,6 +117,7 @@ import site.xmpp.greenthumb.ui.res.plant_daysLeft
 import site.xmpp.greenthumb.ui.res.plant_delete
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.plantDetails_advancedCare
+import site.xmpp.greenthumb.ui.res.plantDetails_careLastDoneTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_careSetDate
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedBody
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedTitle
@@ -327,6 +329,7 @@ public fun PlantDetailScreen(
     val repotAction = stringResource(Res.string.plantDetails_repot)
     val pruneAction = stringResource(Res.string.plantDetails_prune)
     val doneText = stringResource(Res.string.common_done)
+    val careLastDoneTitle = stringResource(Res.string.plantDetails_careLastDoneTitle)
     val namePlaceTitle = stringResource(Res.string.plantDetails_namePlaceTitle)
     val placeLabels = listOf(
         stringResource(Res.string.plantDetails_placeLiving),
@@ -360,6 +363,8 @@ public fun PlantDetailScreen(
     var deleting by remember { mutableStateOf(false) }
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
     var speciesPickerOpen by remember { mutableStateOf(false) }
+    // Care whose last date is being picked (card without a date); null when the picker is closed.
+    var careDatePick by remember { mutableStateOf<AdvancedCare?>(null) }
     val catalog = rememberSpeciesCatalog()
 
     when (val current = state) {
@@ -643,33 +648,36 @@ public fun PlantDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 val cards = advancedCareCards(plant, countdowns).map { card ->
+                                    // Without a last date the tap asks for it: "today" would add a care event.
+                                    val onAction = {
+                                        if (card.days == null) {
+                                            focusManager.clearFocus()
+                                            careDatePick = card.care
+                                        } else {
+                                            update(carePatch(card.care, today.toString()))
+                                        }
+                                    }
                                     when (card.care) {
                                         AdvancedCare.Fertilize -> CareCardData(
                                             title = fertilizingLabel,
                                             a11yLabel = fertilizeAction,
                                             days = card.days,
                                             mark = { tint -> GtFertilizeMark(tint = tint) },
-                                            onAction = {
-                                                update(PatchPlantDto(lastFertilizedDate = Patch.Value(today.toString())))
-                                            },
+                                            onAction = onAction,
                                         )
                                         AdvancedCare.Repot -> CareCardData(
                                             title = repottingLabel,
                                             a11yLabel = repotAction,
                                             days = card.days,
                                             mark = { tint -> GtPotMark(tint = tint) },
-                                            onAction = {
-                                                update(PatchPlantDto(lastRepottedDate = Patch.Value(today.toString())))
-                                            },
+                                            onAction = onAction,
                                         )
                                         AdvancedCare.Prune -> CareCardData(
                                             title = pruningLabel,
                                             a11yLabel = pruneAction,
                                             days = card.days,
                                             mark = { tint -> GtScissorsMark(tint = tint) },
-                                            onAction = {
-                                                update(PatchPlantDto(lastPrunedDate = Patch.Value(today.toString())))
-                                            },
+                                            onAction = onAction,
                                         )
                                     }
                                 }
@@ -687,6 +695,21 @@ public fun PlantDetailScreen(
                                     }
                                 }
                             }
+                        }
+
+                        careDatePick?.let { care ->
+                            GtDatePickerDialog(
+                                initialDate = null,
+                                onConfirm = { date ->
+                                    careDatePick = null
+                                    update(carePatch(care, date))
+                                },
+                                onDismiss = { careDatePick = null },
+                                confirmLabel = doneText,
+                                dismissLabel = cancelText,
+                                languageTag = locale,
+                                title = careLastDoneTitle,
+                            )
                         }
 
                         // ── Species (shown only when the plant has one) ──
@@ -1096,6 +1119,13 @@ private fun Modifier.touchTextLink(onClick: () -> Unit): Modifier =
         .padding(horizontal = Spacing.xs)
 
 
+/** PATCH that sets the last date of [care]. */
+private fun carePatch(care: AdvancedCare, date: String): PatchPlantDto = when (care) {
+    AdvancedCare.Fertilize -> PatchPlantDto(lastFertilizedDate = Patch.Value(date))
+    AdvancedCare.Repot -> PatchPlantDto(lastRepottedDate = Patch.Value(date))
+    AdvancedCare.Prune -> PatchPlantDto(lastPrunedDate = Patch.Value(date))
+}
+
 /** Данные карточки действия ухода. */
 private data class CareCardData(
     val title: String,
@@ -1105,7 +1135,7 @@ private data class CareCardData(
     val onAction: () -> Unit,
 )
 
-/** Карточка действия ухода 2×N (RN CareActionCard): тап = дата сегодня. */
+/** Карточка действия ухода 2×N (RN CareActionCard): тап = дата сегодня, без даты — выбор даты. */
 @Composable
 private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
@@ -1129,6 +1159,8 @@ private fun CareCard(card: CareCardData, modifier: Modifier = Modifier) {
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                // TalkBack names what the tap does, not only the card title.
+                onClickLabel = if (card.days == null) daysText else card.a11yLabel,
                 role = Role.Button,
                 onClick = card.onAction,
             )

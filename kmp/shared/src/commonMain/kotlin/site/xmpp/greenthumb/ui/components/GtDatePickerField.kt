@@ -65,19 +65,6 @@ fun GtDatePickerField(
     onOpenRequestHandled: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
-    val today = remember { pickerToday() }
-    val selectable = remember(today) { OnOrBeforeToday(today) }
-    // rememberDatePickerState has no locale: its calendar would use the phone language.
-    val calendarLocale = remember(languageTag) { calendarLocaleOf(languageTag) }
-    val state = remember(calendarLocale, selectable) {
-        DatePickerState(
-            locale = calendarLocale,
-            initialSelectedDateMillis = pickerMillis(today),
-            initialDisplayedMonthMillis = pickerMillis(today),
-            yearRange = DatePickerDefaults.YearRange.first..today.year,
-            selectableDates = selectable,
-        )
-    }
     var open by remember { mutableStateOf(false) }
     val normalized = normalizePickerDate(value)
     val shown = normalized?.let { formatPickerDate(it, languageTag) } ?: placeholder
@@ -87,15 +74,6 @@ fun GtDatePickerField(
         if (!openRequested) return@LaunchedEffect
         if (enabled) open = true
         onOpenRequestHandled()
-    }
-    LaunchedEffect(open, normalized, today) {
-        if (!open) return@LaunchedEffect
-        val initial = normalized
-            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?.takeIf { it <= today }
-            ?: today
-        state.selectedDateMillis = pickerMillis(initial)
-        state.displayedMonthMillis = pickerMillis(initial)
     }
 
     Column(modifier = modifier) {
@@ -130,58 +108,108 @@ fun GtDatePickerField(
     }
 
     if (open) {
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                val selected = state.selectedDateMillis
-                val canConfirm = selected != null && isSelectablePickerDate(selected, today)
-                TextButton(
-                    onClick = {
-                        val millis = state.selectedDateMillis
-                        if (millis != null && isSelectablePickerDate(millis, today)) {
-                            onValueChange(dateFromPickerMillis(millis).toString())
-                        }
-                        open = false
-                    },
-                    enabled = canConfirm,
-                    colors = ButtonDefaults.textButtonColors(contentColor = scheme.tertiary),
-                ) {
-                    Text(text = confirmLabel)
-                }
+        GtDatePickerDialog(
+            initialDate = normalized,
+            onConfirm = { date ->
+                open = false
+                onValueChange(date)
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { open = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = scheme.onSurfaceVariant),
-                ) {
-                    Text(text = dismissLabel)
-                }
-            },
-        ) {
-            val maximum = stringResource(Res.string.datePicker_maximum, formatPickerDate(today.toString(), languageTag))
-            val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
-            DatePicker(
-                state = state,
-                dateFormatter = dateFormatter,
-                title = { Text(text = maximum) },
-                // The default headline formats the date in the phone language; this one uses the app language.
-                headline = {
-                    val millis = state.selectedDateMillis
-                    val full = dateFormatter.formatDate(millis, calendarLocale, forContentDescription = true)
-                    Text(
-                        text = dateFormatter.formatDate(millis, calendarLocale).orEmpty(),
-                        modifier = Modifier
-                            .padding(start = 24.dp, end = 12.dp, bottom = 12.dp)
-                            .semantics { if (full != null) contentDescription = full },
-                        maxLines = 1,
-                    )
-                },
-                showModeToggle = false,
-            )
-        }
+            onDismiss = { open = false },
+            confirmLabel = confirmLabel,
+            dismissLabel = dismissLabel,
+            languageTag = languageTag,
+        )
     }
 }
 
+/**
+ * The calendar dialog of [GtDatePickerField] without the field. Today is the upper bound and the default.
+ * [title] replaces the "Maximum …" line. Confirm returns `YYYY-MM-DD`; dismiss returns nothing.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GtDatePickerDialog(
+    initialDate: String?,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+    confirmLabel: String,
+    dismissLabel: String,
+    languageTag: String,
+    title: String? = null,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val today = remember { pickerToday() }
+    val selectable = remember(today) { OnOrBeforeToday(today) }
+    // rememberDatePickerState has no locale: its calendar would use the phone language.
+    val calendarLocale = remember(languageTag) { calendarLocaleOf(languageTag) }
+    val state = remember(calendarLocale, selectable) {
+        val initial = normalizePickerDate(initialDate)
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?.takeIf { it <= today }
+            ?: today
+        DatePickerState(
+            locale = calendarLocale,
+            initialSelectedDateMillis = pickerMillis(initial),
+            initialDisplayedMonthMillis = pickerMillis(initial),
+            yearRange = DatePickerDefaults.YearRange.first..today.year,
+            selectableDates = selectable,
+        )
+    }
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            val selected = state.selectedDateMillis
+            val canConfirm = selected != null && isSelectablePickerDate(selected, today)
+            TextButton(
+                onClick = {
+                    val millis = state.selectedDateMillis
+                    if (millis != null && isSelectablePickerDate(millis, today)) {
+                        onConfirm(dateFromPickerMillis(millis).toString())
+                    } else {
+                        onDismiss()
+                    }
+                },
+                enabled = canConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = scheme.tertiary),
+            ) {
+                Text(text = confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = scheme.onSurfaceVariant),
+            ) {
+                Text(text = dismissLabel)
+            }
+        },
+    ) {
+        val heading = title
+            ?: stringResource(Res.string.datePicker_maximum, formatPickerDate(today.toString(), languageTag))
+        val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
+        DatePicker(
+            state = state,
+            dateFormatter = dateFormatter,
+            // A custom title gets no slot padding from Material3; these are the values of its default title.
+            title = {
+                Text(text = heading, modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp))
+            },
+            // The default headline formats the date in the phone language; this one uses the app language.
+            headline = {
+                val millis = state.selectedDateMillis
+                val full = dateFormatter.formatDate(millis, calendarLocale, forContentDescription = true)
+                Text(
+                    text = dateFormatter.formatDate(millis, calendarLocale).orEmpty(),
+                    modifier = Modifier
+                        .padding(start = 24.dp, end = 12.dp, bottom = 12.dp)
+                        .semantics { if (full != null) contentDescription = full },
+                    maxLines = 1,
+                )
+            },
+            showModeToggle = false,
+        )
+    }
+}
 private class OnOrBeforeToday(private val today: LocalDate) : SelectableDates {
     override fun isSelectableDate(utcTimeMillis: Long): Boolean =
         isSelectablePickerDate(utcTimeMillis, today)
