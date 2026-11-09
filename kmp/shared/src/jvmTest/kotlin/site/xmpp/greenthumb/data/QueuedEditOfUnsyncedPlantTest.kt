@@ -1,0 +1,110 @@
+package site.xmpp.greenthumb.data
+
+import io.ktor.client.engine.mock.MockRequestHandler
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.runBlocking
+import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.InsertPlantDto
+import site.xmpp.greenthumb.core.network.Patch
+import site.xmpp.greenthumb.core.network.PatchPlantDto
+import site.xmpp.greenthumb.core.network.PlantDto
+import java.io.IOException
+import kotlin.test.Ignore
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+/**
+ * A water or an edit made while the plant's own "add" still waits in the offline journal must reach the
+ * server after the add is replayed: the later journal rows carry the local id, the server knows the plant
+ * by its own id.
+ *
+ * Ignored: known defect (morning notes, F7). The add replay swaps the local id for the server id in the plants
+ * table but not in the later journal rows, so their PATCH hits the local id, gets 404 and is rolled back.
+ */
+@Ignore
+class QueuedEditOfUnsyncedPlantTest {
+
+    private val localId = "00000000-0000-4000-8000-0000000000b1"
+
+    private class FakeServer {
+        val plants = mutableListOf<PlantDto>()
+        val patchedIds = mutableListOf<String>()
+        var online = false
+
+        val handler: MockRequestHandler = { request ->
+            when {
+                request.method == HttpMethod.Get -> ok(plantsJson(plants))
+                !online -> throw IOException("offline")
+                request.method == HttpMethod.Post -> {
+                    val body = ApiClient.json.decodeFromString<InsertPlantDto>(requireNotNull(requestBody(request.body)))
+                    val created = plant("server-1", body.lastWateredDate, name = body.name)
+                    plants += created
+                    ok(plantJson(created))
+                }
+                request.method == HttpMethod.Patch -> {
+                    val id = request.url.encodedPath.substringAfterLast('/')
+                    patchedIds += id
+                    val index = plants.indexOfFirst { it.id == id }
+                    if (index < 0) {
+                        respond("""{"error":"Plant not found"}""", HttpStatusCode.NotFound, JSON_HEADERS)
+                    } else {
+                        val patch = ApiClient.json.decodeFromString<PatchPlantDto>(requireNotNull(requestBody(request.body)))
+                        var updated = plants[index]
+                        (patch.lastWateredDate as? Patch.Value)?.let { updated = updated.copy(lastWateredDate = it.value) }
+                        (patch.name as? Patch.Value)?.let { updated = updated.copy(name = it.value) }
+                        plants[index] = updated
+                        ok(plantJson(updated))
+                    }
+                }
+                else -> error("unexpected ${request.method} ${request.url}")
+            }
+        }
+    }
+
+    @Test
+    fun waterOfQueuedPlant_reachesTheServerAfterTheAddIsReplayed() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+            runCatching { box.repo.water(localId) }
+
+            server.online = true
+            box.repo.replayPending()
+
+            assertEquals(listOf("server-1"), server.patchedIds, "the water PATCH goes to the server id")
+            assertEquals(TODAY, server.plants.single().lastWateredDate)
+            assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+            assertTrue(box.repo.pendingJournal().isEmpty())
+        }
+    }
+
+    @Test
+    fun editOfQueuedPlant_reachesTheServerAfterTheAddIsReplayed() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+            assertIs<SaveOutcome.Queued>(box.repo.updateOrQueue(localId, PatchPlantDto(name = Patch.Value("Big fern"))))
+
+            server.online = true
+            box.repo.replayPending()
+
+            assertEquals(listOf("server-1"), server.patchedIds, "the edit PATCH goes to the server id")
+            assertEquals("Big fern", server.plants.single().name)
+            assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+            assertTrue(box.repo.pendingJournal().isEmpty())
+        }
+    }
+
+    private fun insertFern(): InsertPlantDto = InsertPlantDto(
+        name = "Fern",
+        location = "shelf",
+        waterFrequencyDays = 7,
+        lastWateredDate = "2026-09-20",
+    )
+}
