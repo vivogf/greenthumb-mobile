@@ -319,8 +319,9 @@ probes never reach the baseline.
 
 **Current state:** the build version is **0.8.2 / 9**; the previous release is 0.8.1 / 8, the first KMP AAB 0.8.0 / 7 (2026-11-08).
 0.8.2 needs two server pieces deployed first: care-entry delete and journal correction (PWA `e2972db`), and the
-diagnosis answers by PWA `1a3b8f3` + `dcd09c6` — 422 `no_plant` for a photo with nothing to diagnose, 503 for a
-provider refusal. Against an older server a photo without a plant still reads «Проверка растения временно недоступна»
+diagnosis answers by PWA `1a3b8f3` + `dcd09c6` + `fa5e09a` — 422 `no_plant` for a photo with nothing to diagnose,
+503 for a provider refusal, and a Pl@ntNet quota of its own as 503 instead of the user's «Daily identification limit
+reached». Against an older server a photo without a plant still reads «Проверка растения временно недоступна»
 instead of the new text.
 Google Play upload and rollout remain owner actions.
 
