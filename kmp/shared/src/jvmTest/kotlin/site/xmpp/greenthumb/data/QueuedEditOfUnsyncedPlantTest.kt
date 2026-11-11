@@ -34,6 +34,7 @@ class QueuedEditOfUnsyncedPlantTest {
         var online = false
         var refusePatch = false
         var listDown = false
+        var patchOffline = false
 
         val handler: MockRequestHandler = { request ->
             when {
@@ -46,6 +47,7 @@ class QueuedEditOfUnsyncedPlantTest {
                     plants += created
                     ok(plantJson(created))
                 }
+                request.method == HttpMethod.Patch && patchOffline -> throw IOException("offline")
                 request.method == HttpMethod.Patch -> {
                     val id = request.url.encodedPath.substringAfterLast('/')
                     patchedIds += id
@@ -101,6 +103,51 @@ class QueuedEditOfUnsyncedPlantTest {
             assertEquals("Big fern", server.plants.single().name)
             assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
             assertTrue(box.repo.pendingJournal().isEmpty())
+        }
+    }
+
+    /** Online again, a new edit or water of the plant replays the add first and then targets the server id. */
+    @Test
+    fun editAndWaterOnlineAfterQueuedAdd_targetTheServerId() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+
+            server.online = true
+            assertIs<SaveOutcome.Saved>(box.repo.updateOrQueue(localId, PatchPlantDto(name = Patch.Value("Big fern"))))
+            box.repo.water("server-1")
+
+            assertEquals(listOf("server-1", "server-1"), server.patchedIds)
+            assertEquals("Big fern", server.plants.single().name)
+            assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+            assertTrue(box.repo.pendingJournal().isEmpty())
+        }
+    }
+
+    /**
+     * The add replay succeeds, the edit after it meets no network: the edit stays queued under the server id.
+     * Until it is sent the card shows the server's copy (the add answer), not the edit.
+     */
+    @Test
+    fun editAfterQueuedAdd_heldOnTheEdit_isQueuedUnderTheServerId() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+
+            server.online = true
+            server.patchOffline = true
+            val outcome = box.repo.updateOrQueue(localId, PatchPlantDto(name = Patch.Value("Big fern")))
+
+            assertEquals(SaveOutcome.Queued("server-1"), outcome)
+            assertEquals(listOf("server-1"), box.repo.pendingJournal().map { it.plantId })
+            assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+
+            server.patchOffline = false
+            box.repo.replayPending()
+            assertEquals("Big fern", server.plants.single().name)
+            assertEquals(listOf("server-1" to "Big fern"), box.repo.currentPlants().map { it.id to it.name })
         }
     }
 

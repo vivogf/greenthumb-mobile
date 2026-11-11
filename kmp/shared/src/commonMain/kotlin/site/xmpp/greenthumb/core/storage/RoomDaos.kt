@@ -73,6 +73,9 @@ public interface PendingMutationDao {
 
     @Query("DELETE FROM pending_mutations WHERE id = :id")
     public suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM pending_mutations WHERE id = :id")
+    public suspend fun getById(id: String): PendingMutationEntity?
 }
 
 /**
@@ -185,6 +188,7 @@ public interface PlantStoreDao {
             // the server knows the plant only by its own id.
             renamePendingPlant(removeId, plant.id)
             renamePendingSnapshots(removeId, plant.id)
+            renamePendingPayloads(removeId, plant.id)
         }
         upsertPlant(plant)
         deletePending(pendingId)
@@ -199,6 +203,13 @@ public interface PlantStoreDao {
             "WHERE snapshot_json LIKE '%' || :oldId || '%'",
     )
     public suspend fun renamePendingSnapshots(oldId: String, newId: String)
+
+    /** water_all lists plant ids, delete_event carries the entry with its plant id. */
+    @Query(
+        "UPDATE pending_mutations SET payload = REPLACE(payload, '\"' || :oldId || '\"', '\"' || :newId || '\"') " +
+            "WHERE payload LIKE '%' || :oldId || '%'",
+    )
+    public suspend fun renamePendingPayloads(oldId: String, newId: String)
 
     /** Подтверждение: сервер принял, локальные строки уже верные. */
     @Transaction

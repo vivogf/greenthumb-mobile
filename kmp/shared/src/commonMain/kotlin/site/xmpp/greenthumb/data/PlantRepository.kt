@@ -81,6 +81,9 @@ public class PlantRepository(
 ) {
     private val gate = Mutex()
     private val plantQueues = PlantMutationQueue()
+
+    /** Local id → server id, learned when an add replay inside [runOptimistic] renamed the plant. */
+    private val renamedIds = mutableMapOf<String, String>()
     private val json = ApiClient.json
 
     private val effectSink = MutableSharedFlow<PlantEffect>(
@@ -205,14 +208,14 @@ public class PlantRepository(
                 entry
             },
             effect = PlantEffect.Water(plantId),
-            request = {
+            request = { id ->
                 api.updatePlant(
-                    plantId,
+                    id,
                     PatchPlantDto(lastWateredDate = Patch.Value(today)),
                 )
             },
             onSuccess = { entry, server ->
-                db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
+                db.store().replacePlantDropPending(requireNotNull(entry.plantId), server.toEntity(), entry.id)
             },
         )
     }
@@ -339,10 +342,11 @@ public class PlantRepository(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {
+            val liveId = renamedIds[plantId] ?: plantId
             val queued = keepForReplay(error) &&
-                db.pendingMutations().listOldestFirst().any { it.plantId == plantId }
+                db.pendingMutations().listOldestFirst().any { it.plantId == liveId }
             if (!queued) throw error
-            SaveOutcome.Queued(plantId)
+            SaveOutcome.Queued(liveId)
         }
 
     public suspend fun update(plantId: String, patch: PatchPlantDto): PlantDto {
@@ -366,9 +370,9 @@ public class PlantRepository(
                 entry
             },
             effect = PlantEffect.Updated(plantId),
-            request = { api.updatePlant(plantId, patch) },
+            request = { id -> api.updatePlant(id, patch) },
             onSuccess = { entry, server ->
-                db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
+                db.store().replacePlantDropPending(requireNotNull(entry.plantId), server.toEntity(), entry.id)
             },
         )
     }
@@ -394,7 +398,7 @@ public class PlantRepository(
                 entry
             },
             effect = PlantEffect.Deleted(plantId),
-            request = { api.deletePlant(plantId) },
+            request = { id -> api.deletePlant(id) },
             onSuccess = { entry, _ ->
                 db.store().dropPending(entry.id)
             },
@@ -415,6 +419,7 @@ public class PlantRepository(
         }
 
     private suspend fun deleteCareEntryQueued(plantId: String, eventId: String): PlantDto {
+        var liveId = plantId
         val server = runOptimistic(
             write = {
                 val event = db.careEvents().getById(eventId)?.takeIf { it.plantId == plantId }
@@ -433,10 +438,13 @@ public class PlantRepository(
                 entry
             },
             effect = PlantEffect.Updated(plantId),
-            request = { deleteEventOnServer(plantId, eventId) },
-            onSuccess = { entry, server -> confirmEntryDelete(plantId, entry, server) },
+            request = { id ->
+                liveId = id
+                deleteEventOnServer(id, eventId)
+            },
+            onSuccess = { entry, server -> confirmEntryDelete(requireNotNull(entry.plantId), entry, server) },
         )
-        return server ?: requireNotNull(db.plants().getById(plantId)).toDto()
+        return server ?: requireNotNull(db.plants().getById(liveId)).toDto()
     }
 
     /** 404: someone (another device, an earlier replay) already deleted it. */
@@ -492,18 +500,23 @@ public class PlantRepository(
     private suspend fun <T> runOptimistic(
         write: suspend () -> PendingMutationEntity,
         effect: PlantEffect,
-        request: suspend () -> T,
+        request: suspend (plantId: String) -> T,
         onSuccess: suspend (PendingMutationEntity, T) -> Unit,
     ): T = gate.withLock {
-        val entry = write()
+        val written = write()
         effectSink.tryEmit(effect)
-        when (val older = drainBefore(entry.id)) {
+        when (val older = drainBefore(written.id)) {
             is DrainStep.Held -> throw older.cause
             else -> {}
         }
+        // The drain may have replayed this plant's offline add: the row now names the server id.
+        val entry = db.pendingMutations().getById(written.id) ?: written
+        val oldId = written.plantId
+        val liveId = entry.plantId
+        if (oldId != null && liveId != null && oldId != liveId) renamedIds[oldId] = liveId
         val stamp = session.current()
         val result = try {
-            request()
+            request(liveId.orEmpty())
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {

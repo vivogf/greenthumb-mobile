@@ -874,7 +874,12 @@ public fun PlantDetailScreen(
                             online = online,
                             refreshKey = journalRefreshKey,
                             locale = locale,
-                            deleteCareEntry = { eventId -> repo.deleteCareEntry(plant.id, eventId) },
+                            // A journal refresh already in flight fetched the list before the delete; a new one follows it.
+                            deleteCareEntry = { eventId ->
+                                repo.deleteCareEntry(plant.id, eventId).also {
+                                    if (it is SaveOutcome.Saved) journalRefreshKey++
+                                }
+                            },
                         )
 
                         // ── Удаление ──

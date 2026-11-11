@@ -340,8 +340,12 @@ class PlantDetailScreenTest {
                         ?: "Ficus"
                     val notes = Regex("\"notes\":\"([^\"]*)\"").find(body ?: "")?.groupValues?.get(1)
                         ?: "Loves humidity"
+                    // A fertilize mark keeps the card: echo the fertilize fields (undo tests tap it twice).
+                    val fertilize = Regex("\"last_fertilized_date\":(\"[0-9-]+\"|null)").find(body ?: "")?.groupValues?.get(1)
+                        ?.let { """"fertilize_frequency_days":30,"last_fertilized_date":$it,""" }
+                        .orEmpty()
                     respond("""{"id":"det-1","user_id":"73","name":"$name","location":"Living Room",""" +
-                        """"photo_url":"","water_frequency_days":7,"last_watered_date":"2026-09-20",""" +
+                        """"photo_url":"","water_frequency_days":7,"last_watered_date":"2026-09-20",$fertilize""" +
                         """"notes":"$notes","created_at":"2026-09-01T10:00:00.000Z"}""", HttpStatusCode.OK, JSON_HEADERS)
                 }
                 path.startsWith("/api/plants/") && request.method == HttpMethod.Delete -> {
@@ -1490,8 +1494,12 @@ class PlantDetailScreenTest {
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
             assertEquals("""{"last_fertilized_date":"$today"}""", graph.server.lastPatchBody)
             assertTrue(onAllNodes(hasText("Отмечено: Удобрение", substring = true)).fetchSemanticsNodes().isNotEmpty(), "snackbar names the care")
-            onNode(undo).performClick()
+            // A second tap while the offer is open: one undo still returns to the date before the first tap.
+            onNode(card).performClick()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
+            onNode(undo).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 3 }
             assertEquals("""{"last_fertilized_date":"2026-08-01"}""", graph.server.lastPatchBody)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isEmpty() }
             runOnIdle { graph.close() }
