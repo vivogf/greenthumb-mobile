@@ -12,15 +12,20 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -152,6 +157,7 @@ class PlantJournalTableTest {
         repo: PlantRepository,
         locale: String,
         fontScale: Float,
+        widthDp: Int = 360,
         deleteCareEntry: (suspend (String) -> SaveOutcome)? = null,
     ) {
         setContent {
@@ -160,7 +166,7 @@ class PlantJournalTableTest {
                 CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
                     GreenThumbTheme(darkTheme = true) {
                         // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding).
-                        Box(Modifier.width(360.dp).verticalScroll(rememberScrollState())) {
+                        Box(Modifier.width(widthDp.dp).verticalScroll(rememberScrollState())) {
                             PlantJournalSection(
                                 journal = repo.journal,
                                 timeline = repo.timeline,
@@ -357,7 +363,70 @@ class PlantJournalTableTest {
         }
     }
 
+    /**
+     * 0.8.2: the composer is centred as one block — the hint sits in the middle of the field, the «Сохранить
+     * заметку» button of its own width stands under the field's centre, and the trash of a row has no square.
+     */
+    @Test
+    fun composer_hint_and_button_are_centred_and_the_trash_is_bare() {
+        val repo = openRepo()
+        // Narrow phone (300 dp column, ~320 dp screen) at the largest font: the worst case for a full-width bar.
+        for ((locale, fontScale, widthDp) in listOf(
+            Triple("ru", 1.3f, 360),
+            Triple("en", 1f, 360),
+            Triple("ru", 1.3f, 300),
+        )) {
+            val where = "[$locale x$fontScale ${widthDp}dp]"
+            runDesktopComposeUiTest {
+                show(repo, locale, fontScale, widthDp = widthDp)
+                val field = one("journal_noteInput")
+                val fieldCentre = field.positionInRoot.x + field.size.width / 2f
+                val hint = nodes(hasText(if (locale == "ru") "Добавить заметку…" else "Add a note…", substring = true)).single()
+                val result = layout(hint)
+                val hintCentre = result.getLineLeft(0) + result.getLineRight(0)
+                println("M15 composer $where fieldCentre=$fieldCentre hintInk=${result.getLineLeft(0)}..${result.getLineRight(0)} width=${result.size.width}")
+                assertTrue(
+                    abs(hintCentre / 2f - result.size.width / 2f) <= 2f,
+                    "$where the hint is centred in the field: ink ${result.getLineLeft(0)}..${result.getLineRight(0)} of ${result.size.width}",
+                )
+                // The typed note itself stays on the left, like the same note in the journal row below.
+                onNode(hasTestTag("journal_noteInput")).performTextInput(if (locale == "ru") "Первая строка" else "First line")
+                val typed = layout(onNode(hasTestTag("journal_noteInput")).fetchSemanticsNode())
+                assertTrue(
+                    typed.getLineLeft(0) < result.size.width * 0.1f,
+                    "$where the typed note starts at the left edge: ${typed.getLineLeft(0)} px of ${result.size.width}",
+                )
+                val button = one("journal_addNote")
+                val buttonCentre = button.positionInRoot.x + button.size.width / 2f
+                assertEquals(fieldCentre, buttonCentre, 2f, "$where the save button stands under the field's centre")
+                // A stretched button (the old gtButtonWidth) fills the field exactly; this one stops at its label.
+                assertTrue(
+                    button.size.width < field.size.width - 8f,
+                    "$where the button keeps its own width (${button.size.width} px of ${field.size.width} px), not a bar",
+                )
+                val labelText = if (locale == "ru") "Сохранить заметку" else "Add note"
+                val label = layout(
+                    nodes(hasAnyAncestor(hasTestTag("journal_addNote")) and hasText(labelText)).single(),
+                )
+                assertEquals(1, label.lineCount, "$where the button label stays on one line")
+                // The trash is an icon, not a framed button: no hairline runs along the top edge of its box.
+                // (A framed GtIconButton draws outline at y = 0..1 and surface below, so the column would split.)
+                val delete = one("journal_delete_e-note")
+                val pixels = onNode(hasTestTag("journal_delete_e-note"), useUnmergedTree = true)
+                    .captureToImage().toPixelMap()
+                val column = (0..2).map { y -> pixels[pixels.width / 2, y] }
+                val spread = column.maxOf { a -> column.maxOf { b -> colourDistance(a, b) } }
+                println("M15 composer $where delete=${delete.size.width}x${delete.size.height} column=$column")
+                assertTrue(spread < 0.02f, "$where the delete has no square frame: top edge $column")
+            }
+        }
+    }
+
     private companion object {
         const val TIMEOUT: Long = 10_000L
+
+        /** Sum of channel differences: 0 for the same colour, ~3 for black against white. */
+        fun colourDistance(a: Color, b: Color): Float =
+            abs(a.red - b.red) + abs(a.green - b.green) + abs(a.blue - b.blue)
     }
 }

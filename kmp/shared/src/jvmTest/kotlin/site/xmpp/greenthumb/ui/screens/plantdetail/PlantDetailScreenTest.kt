@@ -1548,13 +1548,13 @@ class PlantDetailScreenTest {
             onNode(card).performClick()
             val undo = hasClickAction() and hasText("Undo")
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
-            mainClock.advanceTimeBy(CARE_UNDO_MILLIS - 1_000)
+            mainClock.advanceTimeBy(2_000)
             waitForIdle()
             assertTrue(
                 onAllNodes(undo).fetchSemanticsNodes().isNotEmpty(),
-                "the bar outlives the owner's 4 s tap: it is still there one second before its end",
+                "the bar outlives a two-second look: a wrong mark is noticed well inside 3 s",
             )
-            mainClock.advanceTimeBy(2_000)
+            mainClock.advanceTimeBy(CARE_UNDO_MILLIS - 2_000 + 500)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isEmpty() }
             assertEquals(1, graph.server.patchCount)
             onNode(hasClickAction() and hasContentDescription("Water", substring = true)).performClick()

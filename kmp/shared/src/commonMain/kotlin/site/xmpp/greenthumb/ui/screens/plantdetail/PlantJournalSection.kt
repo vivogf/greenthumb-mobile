@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.boundsInWindow
@@ -69,7 +70,6 @@ import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtWaterDropMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
-import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
@@ -293,6 +293,8 @@ internal fun PlantJournalSection(
                     onValueChange = { draft = it.take(CARE_NOTE_MAX_LENGTH) },
                     placeholder = stringResource(Res.string.journal_notePlaceholder),
                     singleLine = false,
+                    // Centred hint, as the owner asked; the typed note stays left-aligned, like the note row below.
+                    placeholderTextAlign = TextAlign.Center,
                     modifier = Modifier
                         .onFocusChanged { inputFocused = it.isFocused }
                         .testTag("journal_noteInput"),
@@ -317,7 +319,8 @@ internal fun PlantJournalSection(
                     text = stringResource(Res.string.journal_addNote),
                     onClick = ::submit,
                     enabled = draft.isNotBlank() && !saving,
-                    modifier = Modifier.gtButtonWidth().testTag("journal_addNote"),
+                    // Its own width, centred under the field (the owner asked for the centred composer, not a full-width bar).
+                    modifier = Modifier.align(Alignment.CenterHorizontally).testTag("journal_addNote"),
                 )
             }
             if (entries != null && rows.isEmpty()) {
@@ -479,6 +482,10 @@ private fun JournalRow(
                     contentDescription = stringResource(
                         if (entry.type == CareEventType.NOTE) Res.string.journal_deleteNote else Res.string.journal_deleteEntry,
                     ),
+                    // The icon alone: a square around it read as a button frame the owner did not want here.
+                    plain = true,
+                    // A delete is a plain action: no selected state, so TalkBack does not read "not checked".
+                    selectable = false,
                     modifier = Modifier.testTag("journal_delete_${entry.id}"),
                 ) {
                     GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.lg))

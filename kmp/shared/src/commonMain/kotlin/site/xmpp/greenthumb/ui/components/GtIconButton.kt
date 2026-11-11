@@ -25,6 +25,9 @@ import site.xmpp.greenthumb.ui.theme.Sizes
  * Квадратная кнопка-иконка (переключатель вида, копирование ключа).
  * Сторона — [Sizes.touch] (48 dp, mockup v2 `.ib`; минимальная цель касания).
  * Выбранная — рамка primary и фон muted.
+ *
+ * [plain] — только иконка на 48 dp цели касания, без фона и рамки: так выглядит корзина в журнале, где квадрат
+ * вокруг иконки читался как лишний ореол.
  */
 @Composable
 fun GtIconButton(
@@ -35,6 +38,8 @@ fun GtIconButton(
     selected: Boolean = false,
     /** False for a plain action (✕, ✓): no selected state, so TalkBack does not read "not checked". */
     selectable: Boolean = true,
+    /** No container: no background, no border — the icon alone, still with the full touch target. */
+    plain: Boolean = false,
     onPressedChange: (Boolean) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
@@ -43,11 +48,17 @@ fun GtIconButton(
     val pressed by source.collectIsPressedAsState()
     LaunchedEffect(pressed) { onPressedChange(pressed) }
     val shape = RoundedCornerShape(Radii.sm)
+    val container = if (plain) {
+        Modifier
+    } else {
+        Modifier
+            .background(if (selected) scheme.surfaceVariant else scheme.surface, shape)
+            .borderHairline(if (selected && enabled) scheme.primary else scheme.outline, shape)
+    }
     Box(
         modifier = modifier
             .size(Sizes.touch)
-            .background(if (selected) scheme.surfaceVariant else scheme.surface, shape)
-            .borderHairline(if (selected && enabled) scheme.primary else scheme.outline, shape)
+            .then(container)
             .clickable(
                 enabled = enabled,
                 onClick = { if (enabled) onClick() },

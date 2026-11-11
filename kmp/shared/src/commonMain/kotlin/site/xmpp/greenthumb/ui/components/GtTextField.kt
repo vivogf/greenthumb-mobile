@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -68,6 +69,9 @@ fun GtTextField(
 /**
  * Само поле без подписи и без резерва под неё; подпись над ним рисует
  * вызывающий. Текст ошибки появляется под полем только при [error].
+ *
+ * [placeholderTextAlign] двигает только подсказку: журнал ставит `Center`, чтобы «Добавить заметку…» стояла по
+ * центру поля. Сам ввод остаётся слева — заметка так же выглядит в строке журнала.
  */
 @Composable
 fun GtInputField(
@@ -78,6 +82,7 @@ fun GtInputField(
     error: String? = null,
     enabled: Boolean = true,
     singleLine: Boolean = true,
+    placeholderTextAlign: TextAlign = TextAlign.Start,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     leadingIcon: (@Composable () -> Unit)? = null,
@@ -103,6 +108,8 @@ fun GtInputField(
             {
                 Text(
                     text = placeholder,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = placeholderTextAlign,
                     maxLines = if (singleLine) 1 else Int.MAX_VALUE,
                     overflow = TextOverflow.Ellipsis,
                 )

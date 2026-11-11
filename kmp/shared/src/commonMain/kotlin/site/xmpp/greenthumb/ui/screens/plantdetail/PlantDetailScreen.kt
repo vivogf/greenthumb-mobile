@@ -1210,12 +1210,12 @@ private fun lastCareDate(plant: PlantDto, care: AdvancedCare): String? = when (c
 }
 
 /**
- * How long the «Отменить» bar may stay before it closes by itself, or null when it waits for the user. 10 s by
- * day (the owner's tester missed 5 s); with a screen reader on there is no timer at all — the bar gains a close
- * button and stays until the user acts, because reading a spoken message and reaching the button takes longer than
- * a glance.
+ * How long the «Отменить» bar may stay before it closes by itself, or null when it waits for the user. 3 s: the
+ * owner's call — a wrong mark is noticed at once, and a longer bar hides the journal. Only fertilize, repot and
+ * prune offer it; watering has none, because the server keeps water entries when a date moves back. With a screen
+ * reader on there is no timer at all: the bar gains a close button and stays until the user acts.
  */
-internal const val CARE_UNDO_MILLIS: Long = 10_000L
+internal const val CARE_UNDO_MILLIS: Long = 3_000L
 
 internal fun careUndoTimeoutMillis(screenReaderOn: Boolean): Long? = if (screenReaderOn) null else CARE_UNDO_MILLIS
 
