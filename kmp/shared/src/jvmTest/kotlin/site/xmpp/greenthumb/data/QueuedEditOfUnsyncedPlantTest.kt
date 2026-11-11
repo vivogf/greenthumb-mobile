@@ -11,7 +11,6 @@ import site.xmpp.greenthumb.core.network.Patch
 import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
 import java.io.IOException
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -22,10 +21,9 @@ import kotlin.test.assertTrue
  * server after the add is replayed: the later journal rows carry the local id, the server knows the plant
  * by its own id.
  *
- * Ignored: known defect (morning notes, F7). The add replay swaps the local id for the server id in the plants
- * table but not in the later journal rows, so their PATCH hits the local id, gets 404 and is rolled back.
+ * Morning notes F7: the add replay used to swap the local id only in the plants table, so the later PATCH hit
+ * the local id, got 404 and was rolled back.
  */
-@Ignore
 class QueuedEditOfUnsyncedPlantTest {
 
     private val localId = "00000000-0000-4000-8000-0000000000b1"
@@ -34,9 +32,12 @@ class QueuedEditOfUnsyncedPlantTest {
         val plants = mutableListOf<PlantDto>()
         val patchedIds = mutableListOf<String>()
         var online = false
+        var refusePatch = false
+        var listDown = false
 
         val handler: MockRequestHandler = { request ->
             when {
+                request.method == HttpMethod.Get && listDown -> throw IOException("list down")
                 request.method == HttpMethod.Get -> ok(plantsJson(plants))
                 !online -> throw IOException("offline")
                 request.method == HttpMethod.Post -> {
@@ -49,7 +50,9 @@ class QueuedEditOfUnsyncedPlantTest {
                     val id = request.url.encodedPath.substringAfterLast('/')
                     patchedIds += id
                     val index = plants.indexOfFirst { it.id == id }
-                    if (index < 0) {
+                    if (refusePatch) {
+                        respond("""{"error":"Invalid"}""", HttpStatusCode.BadRequest, JSON_HEADERS)
+                    } else if (index < 0) {
                         respond("""{"error":"Plant not found"}""", HttpStatusCode.NotFound, JSON_HEADERS)
                     } else {
                         val patch = ApiClient.json.decodeFromString<PatchPlantDto>(requireNotNull(requestBody(request.body)))
@@ -97,6 +100,27 @@ class QueuedEditOfUnsyncedPlantTest {
             assertEquals(listOf("server-1"), server.patchedIds, "the edit PATCH goes to the server id")
             assertEquals("Big fern", server.plants.single().name)
             assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+            assertTrue(box.repo.pendingJournal().isEmpty())
+        }
+    }
+
+    /** A refused edit rolls back to its snapshot, which now names the server id: no ghost plant on the local id. */
+    @Test
+    fun refusedEditOfQueuedPlant_rollsBackOntoTheServerId() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+            assertIs<SaveOutcome.Queued>(box.repo.updateOrQueue(localId, PatchPlantDto(name = Patch.Value("Big fern"))))
+
+            server.online = true
+            server.refusePatch = true
+            // No list refresh after the replay: the local cache alone must be right.
+            server.listDown = true
+            runCatching { box.repo.replayPending() }
+
+            assertEquals(listOf("server-1"), server.patchedIds)
+            assertEquals(listOf("server-1" to "Fern"), box.repo.currentPlants().map { it.id to it.name })
             assertTrue(box.repo.pendingJournal().isEmpty())
         }
     }

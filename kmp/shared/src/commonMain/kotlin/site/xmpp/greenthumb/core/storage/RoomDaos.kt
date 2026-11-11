@@ -181,10 +181,24 @@ public interface PlantStoreDao {
     ) {
         if (removeId != plant.id) {
             deletePlant(removeId)
+            // Later journal rows (water, edit, delete of a plant added offline) still name the local id;
+            // the server knows the plant only by its own id.
+            renamePendingPlant(removeId, plant.id)
+            renamePendingSnapshots(removeId, plant.id)
         }
         upsertPlant(plant)
         deletePending(pendingId)
     }
+
+    @Query("UPDATE pending_mutations SET plant_id = :newId WHERE plant_id = :oldId")
+    public suspend fun renamePendingPlant(oldId: String, newId: String)
+
+    /** Snapshots are PlantDto JSON; ids are UUIDs, so the quoted id matches only the id field. */
+    @Query(
+        "UPDATE pending_mutations SET snapshot_json = REPLACE(snapshot_json, '\"' || :oldId || '\"', '\"' || :newId || '\"') " +
+            "WHERE snapshot_json LIKE '%' || :oldId || '%'",
+    )
+    public suspend fun renamePendingSnapshots(oldId: String, newId: String)
 
     /** Подтверждение: сервер принял, локальные строки уже верные. */
     @Transaction
