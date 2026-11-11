@@ -155,6 +155,17 @@ class DiagnosisLogicTest {
         assertEquals(DiagnosisError.Unavailable, DiagnosisLogic.errorFor(IllegalStateException("bad answer")))
     }
 
+    // A photo with no plant is a verdict about the photo (422 no_plant), not a service outage: the screen asks for
+    // another photo instead of blaming the service. Any other 4xx keeps the old "could not read the photo" answer.
+    @Test
+    fun no_plant_answer_maps_to_its_own_state() {
+        assertEquals(DiagnosisError.NoPlant, DiagnosisLogic.errorFor(ApiError.Client(422, """{"error":"No plant or disease signs recognised","code":"no_plant"}""")))
+        assertEquals(DiagnosisError.NoPlant, DiagnosisLogic.errorFor(ApiError.Client(422, """{"code":"no_plant"}""")))
+        assertEquals(DiagnosisError.Failed, DiagnosisLogic.errorFor(ApiError.Client(422, """{"code":"validation"}""")))
+        assertEquals(DiagnosisError.Failed, DiagnosisLogic.errorFor(ApiError.Client(422, "not json")))
+        assertEquals(DiagnosisError.Unavailable, DiagnosisLogic.errorFor(ApiError.Server(503, """{"code":"diagnosis_unavailable"}""")))
+    }
+
     @Test
     fun limit_scope_picks_the_message() {
         assertEquals(

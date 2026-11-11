@@ -523,6 +523,7 @@
     <string name="diagnosis_advice">What to do</string>
     <string name="diagnosis_disclaimer">This is a hint, not a verdict. If the plant keeps getting worse, ask a specialist.</string>
     <string name="diagnosis_unavailable">Plant check is temporarily unavailable</string>
+    <string name="diagnosis_noPlant">We couldn't see a plant or signs of disease. Take a close photo of a leaf in daylight.</string>
     <string name="diagnosis_dailyLimit">Daily diagnosis limit reached. Try again tomorrow.</string>
     <string name="diagnosis_networkError">Could not reach the server. Check your connection and try again.</string>
     <string name="diagnosis_failed">The photo could not be analyzed. Try another photo.</string>

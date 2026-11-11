@@ -45,6 +45,7 @@ import site.xmpp.greenthumb.ui.res.diagnosis_networkError
 import site.xmpp.greenthumb.ui.res.diagnosis_newDiagnosis
 import site.xmpp.greenthumb.ui.res.diagnosis_photoPreview
 import site.xmpp.greenthumb.ui.res.diagnosis_resultTitle
+import site.xmpp.greenthumb.ui.res.diagnosis_noPlant
 import site.xmpp.greenthumb.ui.res.diagnosis_saveFailed
 import site.xmpp.greenthumb.ui.res.diagnosis_saveToJournal
 import site.xmpp.greenthumb.ui.res.diagnosis_savedToJournal
@@ -70,6 +71,7 @@ public fun likelihoodWord(likelihood: Likelihood): String = stringResource(
 public fun diagnosisErrorText(error: DiagnosisError): String = stringResource(
     when (error) {
         DiagnosisError.Unavailable -> Res.string.diagnosis_unavailable
+        DiagnosisError.NoPlant -> Res.string.diagnosis_noPlant
         DiagnosisError.DailyLimit -> Res.string.diagnosis_dailyLimit
         DiagnosisError.ServiceLimit -> Res.string.diagnosis_serviceLimit
         DiagnosisError.Network -> Res.string.diagnosis_networkError

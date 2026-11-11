@@ -511,8 +511,9 @@ public class SmartCameraController(
             val seam = diagnoser ?: return unavailable
             seam.diagnose(dataUri, note, language)
         }
+        // A 200 without a single usable cause is the same verdict as 422 no_plant: nothing to show for this photo.
         val result = DiagnosisLogic.toResult(response)
-            ?: return SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.Unavailable))
+            ?: return SmartCameraPhase.Failed(SmartCameraFailure.Diagnosis(DiagnosisError.NoPlant))
         return SmartCameraPhase.DiseaseResult(result)
     }
 

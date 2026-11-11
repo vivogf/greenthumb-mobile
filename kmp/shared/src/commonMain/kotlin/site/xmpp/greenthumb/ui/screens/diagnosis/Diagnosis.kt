@@ -30,6 +30,12 @@ public enum class DiagnosisError {
     /** 503 `diagnosis_unavailable`, other 5xx or an answer the app cannot show. */
     Unavailable,
 
+    /**
+     * 422 `no_plant`: the service worked and found no plant (or no sign of disease) in the photo, so another
+     * photo helps and the attempt costs no daily check. Not a service failure.
+     */
+    NoPlant,
+
     /** 429 `daily_limit` for this account (`scope: "user"`, or no scope). */
     DailyLimit,
 
@@ -120,9 +126,10 @@ public object DiagnosisLogic {
     public fun errorFor(error: Throwable): DiagnosisError = when (error) {
         is ApiError.Network, is ApiError.Timeout -> DiagnosisError.Network
         is ApiError.Client -> when {
-            error.status != 429 -> DiagnosisError.Failed
-            limitScope(error.body) == "global" -> DiagnosisError.ServiceLimit
-            else -> DiagnosisError.DailyLimit
+            error.status == 429 && limitScope(error.body) == "global" -> DiagnosisError.ServiceLimit
+            error.status == 429 -> DiagnosisError.DailyLimit
+            error.status == 422 && hasNoPlantCode(error.body) -> DiagnosisError.NoPlant
+            else -> DiagnosisError.Failed
         }
         is ApiError.Server -> DiagnosisError.Unavailable
         is ApiError.Unauthorized -> DiagnosisError.Failed
@@ -144,11 +151,19 @@ public object DiagnosisLogic {
     }
 
     /** `scope` of a 429 `daily_limit` body, or null when the body has none. */
-    private fun limitScope(body: String): String? = try {
-        Json.parseToJsonElement(body).jsonObject["scope"]?.jsonPrimitive?.content
+    private fun limitScope(body: String): String? = field(body, "scope")
+
+    /** The 422 body of a photo the service could not read as a plant carries `code: "no_plant"`. */
+    private fun hasNoPlantCode(body: String): Boolean = field(body, "code") == NO_PLANT_CODE
+
+    /** A string field of a JSON object body, or null when the body is not one or the field is missing. */
+    private fun field(body: String, name: String): String? = try {
+        Json.parseToJsonElement(body).jsonObject[name]?.jsonPrimitive?.content
     } catch (_: Exception) {
         null
     }
+
+    private const val NO_PLANT_CODE: String = "no_plant"
 
     /**
      * Raw bytes of the plant cover: a legacy `data:` URI is decoded here, any other URL is

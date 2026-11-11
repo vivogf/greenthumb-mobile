@@ -196,7 +196,10 @@ class SmartCameraPlantDiagnosisTest {
             json(HttpStatusCode.TooManyRequests, """{"error":"limit","code":"daily_limit","scope":"global"}""") to DiagnosisError.ServiceLimit,
             json(HttpStatusCode.InternalServerError, """{"error":"boom"}""") to DiagnosisError.Unavailable,
             json(HttpStatusCode.BadRequest, """{"error":"Invalid photo"}""") to DiagnosisError.Failed,
-            json(HttpStatusCode.OK, """{"causes":[],"summary":"x"}""") to DiagnosisError.Unavailable,
+            // A photo with no plant and no disease signs: the server says 422 no_plant, and an older server's
+            // 200 with an empty causes list reads the same way instead of «temporarily unavailable».
+            json(HttpStatusCode.UnprocessableEntity, """{"error":"No plant or disease signs recognised","code":"no_plant"}""") to DiagnosisError.NoPlant,
+            json(HttpStatusCode.OK, """{"causes":[],"summary":"x"}""") to DiagnosisError.NoPlant,
             offline to DiagnosisError.Network,
         )
         for ((handler, expected) in cases) {

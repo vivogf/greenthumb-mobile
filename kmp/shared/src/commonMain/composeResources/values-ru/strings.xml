@@ -533,6 +533,7 @@
     <string name="diagnosis_advice">Что делать</string>
     <string name="diagnosis_disclaimer">Это подсказка, а не диагноз. Если растению становится хуже, обратитесь к специалисту.</string>
     <string name="diagnosis_unavailable">Проверка растения временно недоступна</string>
+    <string name="diagnosis_noPlant">На фото не видно растения или признаков болезни. Сфотографируйте лист крупно, при дневном свете.</string>
     <string name="diagnosis_dailyLimit">Дневной лимит диагностик исчерпан. Попробуйте завтра.</string>
     <string name="diagnosis_networkError">Нет связи с сервером. Проверьте интернет и повторите.</string>
     <string name="diagnosis_failed">Не удалось разобрать фото. Попробуйте другое фото.</string>

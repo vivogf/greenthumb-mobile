@@ -145,6 +145,7 @@ KMP_ONLY_KEYS = {
     "diagnosis.advice",
     "diagnosis.disclaimer",
     "diagnosis.unavailable",
+    "diagnosis.noPlant",
     "diagnosis.dailyLimit",
     "diagnosis.networkError",
     "diagnosis.failed",
