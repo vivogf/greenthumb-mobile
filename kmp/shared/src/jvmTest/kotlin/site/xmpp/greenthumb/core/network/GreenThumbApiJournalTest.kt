@@ -102,4 +102,20 @@ class GreenThumbApiJournalTest {
         assertEquals(409, error.status)
         client.close()
     }
+
+    @Test
+    fun `deleteEvent returns the plant of a 200 care entry answer and null for 204`() = runTest {
+        val plantJson =
+            """{"id":"p1","user_id":7,"name":"Monstera","location":"","photo_url":"","water_frequency_days":7,""" +
+                """"last_watered_date":"2026-11-07","fertilize_frequency_days":30,"last_fertilized_date":"2026-11-05",""" +
+                """"notes":"","created_at":"2026-11-01T00:00:00.000Z"}"""
+        val captured = Captured()
+        val (api, client) = apiFor(captured, response = plantJson)
+        val plant = api.deleteEvent("p1", "e1")
+        assertEquals("2026-11-05", plant?.lastFertilizedDate)
+        client.close()
+        val (api204, client204) = apiFor(Captured(), status = HttpStatusCode.NoContent, response = "")
+        assertNull(api204.deleteEvent("p1", "n1"))
+        client204.close()
+    }
 }

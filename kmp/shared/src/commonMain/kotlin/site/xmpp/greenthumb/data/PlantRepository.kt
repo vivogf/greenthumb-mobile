@@ -402,6 +402,61 @@ public class PlantRepository(
     }
 
     /**
+     * Deletes a water, fertilize, repot or prune entry from the care journal. The entry leaves the cache and
+     * the card date moves back ([afterEntryDelete]) at once; the DELETE goes through the offline journal like
+     * other plant mutations, so no connection gives [SaveOutcome.Queued]. A server answer of 404 means the
+     * entry is already gone. An HTTP refusal (409 from a server older than 0.8.2, see [isOldServerRefusal])
+     * restores the entry and the date and throws. Notes, photos and unknown ids throw
+     * [IllegalArgumentException] without a request.
+     */
+    public suspend fun deleteCareEntry(plantId: String, eventId: String): SaveOutcome =
+        plantQueues.withPlant(plantId) {
+            queuedOnHold(plantId) { deleteCareEntryQueued(plantId, eventId) }
+        }
+
+    private suspend fun deleteCareEntryQueued(plantId: String, eventId: String): PlantDto {
+        val server = runOptimistic(
+            write = {
+                val event = db.careEvents().getById(eventId)?.takeIf { it.plantId == plantId }
+                requireNotNull(event) { "entry $eventId is not in the journal of $plantId" }
+                require(event.type in DELETABLE_CARE_ENTRY_TYPES) { "a ${event.type} entry is not a care entry" }
+                val current = db.plants().getById(plantId)
+                    ?: error("plant $plantId is not in the local cache")
+                val entry = pending(
+                    type = MutationType.DELETE_EVENT,
+                    plantId = plantId,
+                    payload = json.encodeToString(DeleteEventPayload(event.toDto())),
+                    snapshotJson = json.encodeToString(current.toDto()),
+                )
+                val remaining = db.careEvents().listForPlant(plantId)
+                db.store().deleteEventWithPending(current.afterEntryDelete(event, remaining), eventId, entry)
+                entry
+            },
+            effect = PlantEffect.Updated(plantId),
+            request = { deleteEventOnServer(plantId, eventId) },
+            onSuccess = { entry, server -> confirmEntryDelete(plantId, entry, server) },
+        )
+        return server ?: requireNotNull(db.plants().getById(plantId)).toDto()
+    }
+
+    /** 404: someone (another device, an earlier replay) already deleted it. */
+    private suspend fun deleteEventOnServer(plantId: String, eventId: String): PlantDto? =
+        try {
+            api.deleteEvent(plantId, eventId)
+        } catch (error: ApiError.Client) {
+            if (error.status != 404) throw error
+            null
+        }
+
+    private suspend fun confirmEntryDelete(plantId: String, entry: PendingMutationEntity, server: PlantDto?) {
+        if (server != null) {
+            db.store().replacePlantDropPending(plantId, server.toEntity(), entry.id)
+        } else {
+            db.store().dropPending(entry.id)
+        }
+    }
+
+    /**
      * Стирает файл базы пользователя. Для своего [userId] сначала дожидается
      * текущей мутации и закрывает инстанс. Чужой id только удаляет файлы.
      */
@@ -488,6 +543,12 @@ public class PlantRepository(
             MutationType.WATER, MutationType.UPDATE, MutationType.DELETE ->
                 db.store().restorePlantDropPending(
                     decodePlant(requireNotNull(entry.snapshotJson)).toEntity(),
+                    entry.id,
+                )
+            MutationType.DELETE_EVENT ->
+                db.store().restorePlantAndEventDropPending(
+                    decodePlant(requireNotNull(entry.snapshotJson)).toEntity(),
+                    json.decodeFromString<DeleteEventPayload>(entry.payload).event.toEntity(),
                     entry.id,
                 )
             else -> db.store().dropPending(entry.id)
@@ -589,6 +650,13 @@ public class PlantRepository(
                     api.deletePlant(plantId)
                     ensureCurrent(stamp)
                     db.store().dropPending(entry.id)
+                }
+                MutationType.DELETE_EVENT -> {
+                    val payload = json.decodeFromString<DeleteEventPayload>(entry.payload)
+                    val plantId = requireNotNull(entry.plantId)
+                    val server = deleteEventOnServer(plantId, payload.event.id)
+                    ensureCurrent(stamp)
+                    confirmEntryDelete(plantId, entry, server)
                 }
                 else -> rollback(entry)
             }

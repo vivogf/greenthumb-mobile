@@ -486,6 +486,12 @@
     <string name="journal_deleteTitle">Delete this note?</string>
     <string name="journal_deleteMessage">The note will be removed from the journal.</string>
     <string name="journal_deleteFailed">Couldn’t delete the note. Check your connection and try again.</string>
+    <string name="journal_deleteEntry">Delete entry</string>
+    <string name="journal_deleteEntryTitle">Delete this entry?</string>
+    <string name="journal_deleteEntryMessage">The entry will be removed from the journal. If the care card shows this date, it goes back to the previous one.</string>
+    <string name="journal_deleteWaterMessage">The entry will be removed from the journal. The watering date stays the same.</string>
+    <string name="journal_deleteEntryFailed">Couldn’t delete the entry. Try again later.</string>
+    <string name="journal_deleteNeedsServer">This entry can’t be deleted yet: the server is not updated. Try again later.</string>
     <!-- Photo timeline on plant detail (architecture §5.5). -->
     <string name="timeline_title">Photo diary</string>
     <string name="timeline_addPhoto">Add snapshot</string>

@@ -168,11 +168,15 @@ class GreenThumbApi(private val client: ApiClient) {
             NoteRequest(type = CareEventType.NOTE, note = note, occurredOn = occurredOn),
         )
 
-    /** DELETE /api/plants/:id/events/:eventId → 204; non-note 409, missing 404. */
-    suspend fun deleteEvent(plantId: String, eventId: String) {
-        client.request(HttpMethod.Delete, "/api/plants/$plantId/events/$eventId")
+    /**
+     * DELETE /api/plants/:id/events/:eventId. A note → 204 (null); a care entry (water, fertilize, repot, prune) →
+     * 200 with the plant, whose last date the server recomputed (null if the body is empty). A photo entry → 409,
+     * and a server older than 0.8.2 answers 409 for care entries too; missing → 404.
+     */
+    suspend fun deleteEvent(plantId: String, eventId: String): PlantDto? {
+        val text = decodeBody(client.request(HttpMethod.Delete, "/api/plants/$plantId/events/$eventId"))
+        return if (text.isBlank()) null else json.decodeFromString<PlantDto>(text)
     }
-
     /** GET /api/plants/:id/photos → { photos } newest first. */
     suspend fun listPhotos(plantId: String): List<TimelinePhotoDto> =
         request<TimelinePhotosPage>(HttpMethod.Get, "/api/plants/$plantId/photos").photos

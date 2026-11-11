@@ -75,6 +75,13 @@ KMP_ONLY_KEYS = {
     "journal.deleteTitle",
     "journal.deleteMessage",
     "journal.deleteFailed",
+    # Care-entry delete (0.8.2, care journal (b)): water/fertilize/repot/prune rows.
+    "journal.deleteEntry",
+    "journal.deleteEntryTitle",
+    "journal.deleteEntryMessage",
+    "journal.deleteWaterMessage",
+    "journal.deleteEntryFailed",
+    "journal.deleteNeedsServer",
     # timeline.* — photo timeline on plant detail (architecture §5.5); RN has none.
     "timeline.title",
     "timeline.addPhoto",

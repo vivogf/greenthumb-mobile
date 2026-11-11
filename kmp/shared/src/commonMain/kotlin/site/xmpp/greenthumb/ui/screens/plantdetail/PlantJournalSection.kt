@@ -46,9 +46,12 @@ import site.xmpp.greenthumb.core.network.CARE_NOTE_MAX_LENGTH
 import site.xmpp.greenthumb.core.network.CareEventDto
 import site.xmpp.greenthumb.core.network.CareEventType
 import site.xmpp.greenthumb.core.network.TimelinePhotoDto
+import site.xmpp.greenthumb.data.DELETABLE_CARE_ENTRY_TYPES
 import site.xmpp.greenthumb.data.PlantJournal
 import site.xmpp.greenthumb.data.PlantTimeline
+import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.data.isHeldForReplay
+import site.xmpp.greenthumb.data.isOldServerRefusal
 import site.xmpp.greenthumb.ui.components.GtAlertButton
 import site.xmpp.greenthumb.ui.components.GtAlertButtonStyle
 import site.xmpp.greenthumb.ui.components.GtAlertDialog
@@ -71,7 +74,13 @@ import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
 import site.xmpp.greenthumb.ui.res.journal_addNote
+import site.xmpp.greenthumb.ui.res.journal_deleteEntry
+import site.xmpp.greenthumb.ui.res.journal_deleteEntryFailed
+import site.xmpp.greenthumb.ui.res.journal_deleteEntryMessage
+import site.xmpp.greenthumb.ui.res.journal_deleteEntryTitle
 import site.xmpp.greenthumb.ui.res.journal_deleteFailed
+import site.xmpp.greenthumb.ui.res.journal_deleteNeedsServer
+import site.xmpp.greenthumb.ui.res.journal_deleteWaterMessage
 import site.xmpp.greenthumb.ui.res.journal_deleteMessage
 import site.xmpp.greenthumb.ui.res.journal_deleteNote
 import site.xmpp.greenthumb.ui.res.journal_deleteTitle
@@ -106,7 +115,7 @@ internal fun journalTypeLabel(type: String): StringResource = when (type) {
 }
 
 /** Inline status under the note field. */
-private enum class NoteMessage { NetworkRequired, SaveFailed, DeleteFailed }
+private enum class NoteMessage { NetworkRequired, SaveFailed, DeleteFailed, DeleteEntryFailed, DeleteNeedsServer }
 
 /**
  * "Журнал" card of plant detail (architecture §5.5, §8.5).
@@ -122,6 +131,10 @@ private enum class NoteMessage { NetworkRequired, SaveFailed, DeleteFailed }
  *
  * A `photo` entry shows its timeline photo from [timeline] as a thumbnail with the caption
  * (a saved «Что с растением?» result, for example).
+ *
+ * With [deleteCareEntry], water, fertilize, repot and prune entries get the same delete button as notes.
+ * The repository removes the row and moves the card date at once and queues the request offline,
+ * so only a refusal shows a message here.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -133,6 +146,7 @@ internal fun PlantJournalSection(
     locale: String,
     modifier: Modifier = Modifier,
     timeline: PlantTimeline? = null,
+    deleteCareEntry: (suspend (eventId: String) -> SaveOutcome)? = null,
 ) {
     val entries by remember(journal, plantId) {
         journal.observe(plantId).catch { emit(emptyList()) }
@@ -198,6 +212,20 @@ internal fun PlantJournalSection(
     }
 
     fun delete(entry: CareEventDto) {
+        val deleteCare = deleteCareEntry
+        if (entry.type != CareEventType.NOTE && deleteCare != null) {
+            scope.launch {
+                try {
+                    deleteCare(entry.id)
+                    if (message == NoteMessage.DeleteEntryFailed || message == NoteMessage.DeleteNeedsServer) message = null
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (error: Throwable) {
+                    message = if (isOldServerRefusal(error)) NoteMessage.DeleteNeedsServer else NoteMessage.DeleteEntryFailed
+                }
+            }
+            return
+        }
         scope.launch {
             try {
                 journal.deleteNote(plantId, entry.id)
@@ -276,6 +304,8 @@ internal fun PlantJournalSection(
                                 NoteMessage.NetworkRequired -> Res.string.journal_networkRequired
                                 NoteMessage.SaveFailed -> Res.string.journal_saveFailed
                                 NoteMessage.DeleteFailed -> Res.string.journal_deleteFailed
+                                NoteMessage.DeleteEntryFailed -> Res.string.journal_deleteEntryFailed
+                                NoteMessage.DeleteNeedsServer -> Res.string.journal_deleteNeedsServer
                             },
                         ),
                         style = MaterialTheme.typography.bodySmall,
@@ -305,6 +335,8 @@ internal fun PlantJournalSection(
                     locale = locale,
                     today = today,
                     dateWidth = dateWidth,
+                    deletable = entry.type == CareEventType.NOTE ||
+                        (deleteCareEntry != null && entry.type in DELETABLE_CARE_ENTRY_TYPES),
                     onDelete = {
                         focusManager.clearFocus()
                         pendingDelete = entry
@@ -315,9 +347,16 @@ internal fun PlantJournalSection(
     }
 
     pendingDelete?.let { entry ->
+        val isNote = entry.type == CareEventType.NOTE
         GtAlertDialog(
-            title = stringResource(Res.string.journal_deleteTitle),
-            message = stringResource(Res.string.journal_deleteMessage),
+            title = stringResource(if (isNote) Res.string.journal_deleteTitle else Res.string.journal_deleteEntryTitle),
+            message = stringResource(
+                when (entry.type) {
+                    CareEventType.NOTE -> Res.string.journal_deleteMessage
+                    CareEventType.WATER -> Res.string.journal_deleteWaterMessage
+                    else -> Res.string.journal_deleteEntryMessage
+                },
+            ),
             buttons = listOf(
                 GtAlertButton(
                     text = stringResource(Res.string.plantDetails_cancel),
@@ -349,7 +388,7 @@ private fun JournalTypeIcon(type: String, tint: Color, modifier: Modifier) = whe
 
 /**
  * One journal row as a table row: date column of [dateWidth] (shared by all rows) · 48 dp leading slot
- * (photo thumbnail or type icon) · type label and text · 48 dp trailing slot (delete on a note, empty otherwise),
+ * (photo thumbnail or type icon) · type label and text · 48 dp trailing slot (delete when [deletable], empty otherwise),
  * so every column starts at the same x in every row.
  */
 @Composable
@@ -359,6 +398,7 @@ private fun JournalRow(
     locale: String,
     today: LocalDate,
     dateWidth: Dp,
+    deletable: Boolean,
     onDelete: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -433,10 +473,13 @@ private fun JournalRow(
             modifier = Modifier.width(Sizes.touch).testTag("journal_trailing_${entry.id}"),
             contentAlignment = Alignment.Center,
         ) {
-            if (entry.type == CareEventType.NOTE) {
+            if (deletable) {
                 GtIconButton(
                     onClick = onDelete,
-                    contentDescription = stringResource(Res.string.journal_deleteNote),
+                    contentDescription = stringResource(
+                        if (entry.type == CareEventType.NOTE) Res.string.journal_deleteNote else Res.string.journal_deleteEntry,
+                    ),
+                    modifier = Modifier.testTag("journal_delete_${entry.id}"),
                 ) {
                     GtTrashMark(tint = scheme.error, modifier = Modifier.size(Spacing.lg))
                 }

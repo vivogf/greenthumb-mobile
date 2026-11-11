@@ -496,6 +496,12 @@
     <string name="journal_deleteTitle">Удалить заметку?</string>
     <string name="journal_deleteMessage">Заметка будет удалена из журнала.</string>
     <string name="journal_deleteFailed">Не удалось удалить заметку. Проверьте подключение и повторите.</string>
+    <string name="journal_deleteEntry">Удалить запись</string>
+    <string name="journal_deleteEntryTitle">Удалить запись?</string>
+    <string name="journal_deleteEntryMessage">Запись удалится из журнала. Если на карточке ухода стоит эта дата, вернётся предыдущая.</string>
+    <string name="journal_deleteWaterMessage">Запись удалится из журнала. Дата полива не изменится.</string>
+    <string name="journal_deleteEntryFailed">Не удалось удалить запись. Повторите позже.</string>
+    <string name="journal_deleteNeedsServer">Эту запись пока нельзя удалить: сервер ещё не обновлён. Повторите позже.</string>
     <!-- Photo timeline on plant detail (architecture §5.5). -->
     <string name="timeline_title">Фотодневник</string>
     <string name="timeline_addPhoto">Добавить снимок</string>

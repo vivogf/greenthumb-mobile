@@ -836,6 +836,7 @@ public fun PlantDetailScreen(
                             online = online,
                             refreshKey = journalRefreshKey,
                             locale = locale,
+                            deleteCareEntry = { eventId -> repo.deleteCareEntry(plant.id, eventId) },
                         )
 
                         // ── Удаление ──

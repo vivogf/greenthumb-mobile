@@ -19,6 +19,8 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -40,19 +42,22 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
 import site.xmpp.greenthumb.core.network.ApiClient
+import site.xmpp.greenthumb.core.network.ApiError
 import site.xmpp.greenthumb.core.network.GreenThumbApi
 import site.xmpp.greenthumb.core.network.NoSessionRecoveryProvider
 import site.xmpp.greenthumb.core.platform.AppEnvironment
 import site.xmpp.greenthumb.core.storage.JvmPlantDatabases
 import site.xmpp.greenthumb.data.AccountPlantGate
 import site.xmpp.greenthumb.data.PlantRepository
+import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 
 /**
  * M15 journal table (VAL-CARD15-003): every row of every type has the same date column, a 48 dp
  * leading slot (thumbnail for a photo, type icon otherwise), a text column starting at one x and a
- * 48 dp trailing slot (delete only on a note), in ru and en at font scale 1.0 and 1.3.
+ * 48 dp trailing slot (delete on a note, and on care entries when the screen passes a delete action),
+ * in ru and en at font scale 1.0 and 1.3.
  */
 @OptIn(ExperimentalTestApi::class)
 class PlantJournalTableTest {
@@ -143,7 +148,12 @@ class PlantJournalTableTest {
         return repo
     }
 
-    private fun ComposeUiTest.show(repo: PlantRepository, locale: String, fontScale: Float) {
+    private fun ComposeUiTest.show(
+        repo: PlantRepository,
+        locale: String,
+        fontScale: Float,
+        deleteCareEntry: (suspend (String) -> SaveOutcome)? = null,
+    ) {
         setContent {
             AppEnvironment(customAppLocale = locale) {
                 val base = LocalDensity.current
@@ -158,6 +168,7 @@ class PlantJournalTableTest {
                                 online = true,
                                 refreshKey = 0,
                                 locale = locale,
+                                deleteCareEntry = deleteCareEntry,
                             )
                         }
                     }
@@ -276,6 +287,72 @@ class PlantJournalTableTest {
                         "$where delete sits in the note's trailing slot",
                     )
                 }
+            }
+        }
+    }
+
+    /** 0.8.2: with a delete action, care rows get a delete button and a confirmation that names the date effect. */
+    @Test
+    fun care_entries_get_a_confirmed_delete_and_an_old_server_refusal_is_explained() {
+        val repo = openRepo()
+        for ((locale, fontScale) in listOf("ru" to 1.3f, "en" to 1f)) {
+            val where = "[$locale x$fontScale]"
+            val ru = locale == "ru"
+            val calls = mutableListOf<String>()
+            var refuse = false
+            runDesktopComposeUiTest {
+                show(repo, locale, fontScale) { id ->
+                    calls += id
+                    if (refuse) throw ApiError.Client(409, """{"error":"Only notes"}""")
+                    SaveOutcome.Queued("p-1")
+                }
+                val entryLabel = if (ru) "Удалить запись" else "Delete entry"
+                val careIds = listOf("e-water", "e-fert", "e-repot", "e-prune", "e-old")
+                careIds.forEach { id ->
+                    assertTrue(
+                        nodes(hasClickAction() and hasContentDescription(entryLabel) and hasAnyAncestor(hasTestTag("journal_trailing_$id"))).isNotEmpty(),
+                        "$where $id has a delete button",
+                    )
+                }
+                listOf("e-photo", "e-mist").forEach { id ->
+                    assertTrue(nodes(hasTestTag("journal_delete_$id")).isEmpty(), "$where $id has no delete")
+                }
+                assertEquals(careIds.size, nodes(hasClickAction() and hasContentDescription(entryLabel)).size, "$where care delete count")
+
+                // Water: the message says the date stays; Cancel sends nothing.
+                onNode(hasTestTag("journal_delete_e-water"), useUnmergedTree = true).performClick()
+                onNodeWithText(if (ru) "Удалить запись?" else "Delete this entry?").assertExists()
+                onNodeWithText(
+                    if (ru) "Запись удалится из журнала. Дата полива не изменится."
+                    else "The entry will be removed from the journal. The watering date stays the same.",
+                ).assertExists()
+                onNodeWithText(if (ru) "Отмена" else "Cancel").performClick()
+                waitForIdle()
+                assertTrue(calls.isEmpty(), "$where cancel sends nothing")
+
+                // Fertilize: the message names the card date; Delete calls the repository once.
+                onNode(hasTestTag("journal_delete_e-fert"), useUnmergedTree = true).performClick()
+                onNodeWithText(
+                    if (ru) "Запись удалится из журнала. Если на карточке ухода стоит эта дата, вернётся предыдущая."
+                    else "The entry will be removed from the journal. If the care card shows this date, it goes back to the previous one.",
+                ).assertExists()
+                onNodeWithText(if (ru) "Удалить" else "Delete").performClick()
+                waitUntil(timeoutMillis = TIMEOUT) { calls.isNotEmpty() }
+                assertEquals(listOf("e-fert"), calls, "$where one delete call")
+
+                // An old server answers 409: the screen says the server is not updated yet.
+                refuse = true
+                onNode(hasTestTag("journal_delete_e-prune"), useUnmergedTree = true).performClick()
+                onNodeWithText(if (ru) "Удалить" else "Delete").performClick()
+                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_message")).isNotEmpty() }
+                assertEquals(
+                    listOf(
+                        if (ru) "Эту запись пока нельзя удалить: сервер ещё не обновлён. Повторите позже."
+                        else "This entry can’t be deleted yet: the server is not updated. Try again later.",
+                    ),
+                    texts(one("journal_message")),
+                    "$where old server message",
+                )
             }
         }
     }

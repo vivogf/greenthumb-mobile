@@ -23,6 +23,9 @@ public object MutationType {
     public const val ADD: String = "add"
     public const val UPDATE: String = "update"
     public const val DELETE: String = "delete"
+
+    /** A care journal entry; payload [DeleteEventPayload], snapshot the plant. */
+    public const val DELETE_EVENT: String = "delete_event"
 }
 
 /** Тело досылки `water`: PATCH той же даты, что уже записана локально. */

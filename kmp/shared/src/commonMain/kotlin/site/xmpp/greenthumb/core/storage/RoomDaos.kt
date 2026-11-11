@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
+import site.xmpp.greenthumb.data.deletedEventIdOf
 
 /**
  * Наблюдение списка — [observeAll]. Пишет репозиторий (следующая фича);
@@ -190,8 +191,29 @@ public interface PlantStoreDao {
     public suspend fun dropPending(pendingId: String) {
         deletePending(pendingId)
     }
-}
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public suspend fun upsertCareEvent(entity: CareEventEntity)
+
+    @Query("DELETE FROM care_events WHERE id = :id")
+    public suspend fun deleteCareEvent(id: String)
+
+    /** Optimistic care entry delete: the row goes, the plant takes its recomputed date, the journal row is added. */
+    @Transaction
+    public suspend fun deleteEventWithPending(plant: PlantEntity, eventId: String, pending: PendingMutationEntity) {
+        deleteCareEvent(eventId)
+        upsertPlant(plant)
+        insertPending(pending)
+    }
+
+    /** Rollback of a care entry delete: the entry and the plant snapshot come back, the journal row goes. */
+    @Transaction
+    public suspend fun restorePlantAndEventDropPending(plant: PlantEntity, event: CareEventEntity, pendingId: String) {
+        upsertPlant(plant)
+        upsertCareEvent(event)
+        deletePending(pendingId)
+    }
+}
 /**
  * Journal cache of one plant. Order matches the server list: newest day
  * first, then newest write, then id.
@@ -224,12 +246,24 @@ public interface CareEventDao {
     @Query("DELETE FROM care_events WHERE photo_id = :photoId")
     public suspend fun deleteByPhotoId(photoId: String)
 
-    /** Successful refresh: the server list replaces this plant's rows in one commit. */
+    @Query("SELECT * FROM care_events WHERE plant_id = :plantId")
+    public suspend fun listForPlant(plantId: String): List<CareEventEntity>
+
+    /** Payloads of queued care entry deletes ([site.xmpp.greenthumb.data.MutationType.DELETE_EVENT]) of a plant. */
+    @Query("SELECT payload FROM pending_mutations WHERE type = 'delete_event' AND plant_id = :plantId")
+    public suspend fun pendingDeletePayloads(plantId: String): List<String>
+
+    /**
+     * Successful refresh: the server list replaces this plant's rows in one commit. Entries whose delete still
+     * waits in the offline journal stay hidden: the server lists them until the DELETE arrives.
+     */
     @Transaction
     public suspend fun replaceForPlant(plantId: String, events: List<CareEventEntity>) {
+        val hidden = pendingDeletePayloads(plantId).mapNotNull { deletedEventIdOf(it) }.toSet()
         deleteForPlant(plantId)
-        if (events.isNotEmpty()) {
-            upsertAll(events)
+        val kept = events.filter { it.id !in hidden }
+        if (kept.isNotEmpty()) {
+            upsertAll(kept)
         }
     }
 }
