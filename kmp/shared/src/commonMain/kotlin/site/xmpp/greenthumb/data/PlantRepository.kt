@@ -342,7 +342,7 @@ public class PlantRepository(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {
-            val liveId = renamedIds[plantId] ?: plantId
+            val liveId = gate.withLock { renamedIds[plantId] } ?: plantId
             val queued = keepForReplay(error) &&
                 db.pendingMutations().listOldestFirst().any { it.plantId == liveId }
             if (!queued) throw error
@@ -505,18 +505,17 @@ public class PlantRepository(
     ): T = gate.withLock {
         val written = write()
         effectSink.tryEmit(effect)
-        when (val older = drainBefore(written.id)) {
-            is DrainStep.Held -> throw older.cause
-            else -> {}
-        }
-        // The drain may have replayed this plant's offline add: the row now names the server id.
+        val older = drainBefore(written.id)
+        // The drain may have replayed this plant's offline add (even when a later row is held): the row now
+        // names the server id.
         val entry = db.pendingMutations().getById(written.id) ?: written
         val oldId = written.plantId
         val liveId = entry.plantId
         if (oldId != null && liveId != null && oldId != liveId) renamedIds[oldId] = liveId
+        if (older is DrainStep.Held) throw older.cause
         val stamp = session.current()
         val result = try {
-            request(liveId.orEmpty())
+            request(requireNotNull(liveId) { "runOptimistic needs a plant row" })
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {

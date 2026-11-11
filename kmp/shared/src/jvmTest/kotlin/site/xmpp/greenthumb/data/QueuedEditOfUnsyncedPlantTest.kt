@@ -35,12 +35,20 @@ class QueuedEditOfUnsyncedPlantTest {
         var refusePatch = false
         var listDown = false
         var patchOffline = false
+        val patchOfflineIds = mutableSetOf<String>()
+        var waterAllOffline = false
+        val waterAllCalls = mutableListOf<String>()
 
         val handler: MockRequestHandler = { request ->
             when {
                 request.method == HttpMethod.Get && listDown -> throw IOException("list down")
                 request.method == HttpMethod.Get -> ok(plantsJson(plants))
                 !online -> throw IOException("offline")
+                request.method == HttpMethod.Post && request.url.encodedPath.endsWith("/water-all") -> {
+                    if (waterAllOffline) throw IOException("offline")
+                    waterAllCalls += request.url.encodedPath
+                    ok("""{"success":true,"count":1}""")
+                }
                 request.method == HttpMethod.Post -> {
                     val body = ApiClient.json.decodeFromString<InsertPlantDto>(requireNotNull(requestBody(request.body)))
                     val created = plant("server-1", body.lastWateredDate, name = body.name)
@@ -48,6 +56,8 @@ class QueuedEditOfUnsyncedPlantTest {
                     ok(plantJson(created))
                 }
                 request.method == HttpMethod.Patch && patchOffline -> throw IOException("offline")
+                request.method == HttpMethod.Patch && request.url.encodedPath.substringAfterLast('/') in patchOfflineIds ->
+                    throw IOException("offline")
                 request.method == HttpMethod.Patch -> {
                     val id = request.url.encodedPath.substringAfterLast('/')
                     patchedIds += id
@@ -148,6 +158,51 @@ class QueuedEditOfUnsyncedPlantTest {
             box.repo.replayPending()
             assertEquals("Big fern", server.plants.single().name)
             assertEquals(listOf("server-1" to "Big fern"), box.repo.currentPlants().map { it.id to it.name })
+        }
+    }
+
+    /** The add replays, then an older row of another plant meets no network: the edit still reports Queued. */
+    @Test
+    fun editAfterQueuedAdd_heldOnAnOlderRow_isQueuedUnderTheServerId() = runBlocking<Unit> {
+        val server = FakeServer()
+        server.plants += plant("p-x", "2026-09-20", name = "Ivy")
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern()))
+            assertIs<SaveOutcome.Queued>(box.repo.updateOrQueue("p-x", PatchPlantDto(name = Patch.Value("Big ivy"))))
+
+            server.online = true
+            server.patchOfflineIds += "p-x"
+            val outcome = box.repo.updateOrQueue(localId, PatchPlantDto(name = Patch.Value("Big fern")))
+
+            assertEquals(SaveOutcome.Queued("server-1"), outcome)
+            assertEquals(listOf("p-x", "server-1"), box.repo.pendingJournal().map { it.plantId })
+        }
+    }
+
+    /** A water-all queued after the offline add names the server id once the add is replayed. */
+    @Test
+    fun waterAllAfterQueuedAdd_namesTheServerIdAfterTheAddReplay() = runBlocking<Unit> {
+        val server = FakeServer()
+        openHarness(ids = ArrayDeque(listOf(localId)), handler = server.handler).use { box ->
+            box.repo.refresh()
+            assertIs<SaveOutcome.Queued>(box.repo.addOrQueue(insertFern().copy(lastWateredDate = "2026-09-01")))
+            runCatching { box.repo.waterAll() }
+            assertTrue(box.repo.pendingJournal().last().payload.contains(localId))
+
+            server.online = true
+            server.waterAllOffline = true
+            box.repo.replayPending()
+
+            val waterAll = box.repo.pendingJournal().single()
+            assertEquals(MutationType.WATER_ALL, waterAll.type)
+            assertTrue(waterAll.payload.contains("\"server-1\"") && !waterAll.payload.contains(localId), waterAll.payload)
+            assertEquals(listOf("server-1"), box.repo.currentPlants().map { it.id })
+
+            server.waterAllOffline = false
+            box.repo.replayPending()
+            assertEquals(1, server.waterAllCalls.size)
+            assertTrue(box.repo.pendingJournal().isEmpty())
         }
     }
 
