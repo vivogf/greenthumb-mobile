@@ -350,8 +350,10 @@ public class PlantRepository(
             // The local id is the add's idempotency key: the replay below sends the same one.
             request = { api.addPlant(plant, idempotencyKey = localId) },
             onSuccess = { entry, server ->
-                db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
+                // The rename goes first: the screen maps rows through the map, and a row swap the map does not
+                // know yet would read as «plant not found» for one frame.
                 recordRename(localId, server.id)
+                db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
             },
         )
     }
@@ -686,8 +688,9 @@ public class PlantRepository(
                     val localId = requireNotNull(entry.plantId)
                     val server = api.addPlant(body, idempotencyKey = localId)
                     ensureCurrent(stamp)
-                    db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
+                    // Same order as the queued add: the map learns the new id before the row moves under it.
                     recordRename(localId, server.id)
+                    db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
                 }
                 MutationType.UPDATE -> {
                     val patch = json.decodeFromString<PatchPlantDto>(entry.payload)

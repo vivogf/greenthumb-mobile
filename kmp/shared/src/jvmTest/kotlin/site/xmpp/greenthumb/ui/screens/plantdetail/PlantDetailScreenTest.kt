@@ -1455,7 +1455,12 @@ class PlantDetailScreenTest {
     // 0.8.2: «Отменить» after a care card mark (care journal item (в))
     // ------------------------------------------------------------------
 
-    private fun ComposeUiTest.showDetail(graph: Harness, locale: String, fontScale: Float = 1f) {
+    private fun ComposeUiTest.showDetail(
+        graph: Harness,
+        locale: String,
+        fontScale: Float = 1f,
+        screenReaderOn: () -> Boolean = { false },
+    ) {
         setContent {
             val base = androidx.compose.ui.platform.LocalDensity.current
             androidx.compose.runtime.CompositionLocalProvider(
@@ -1471,6 +1476,7 @@ class PlantDetailScreenTest {
                                 onBack = {},
                                 onDeleted = {},
                                 deleteErrorState = PlantDeleteErrorState(),
+                                screenReaderOn = screenReaderOn,
                             )
                         }
                     }
@@ -1555,6 +1561,34 @@ class PlantDetailScreenTest {
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
             waitForIdle()
             assertTrue(onAllNodes(undo).fetchSemanticsNodes().isEmpty(), "no undo after watering")
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /**
+     * With a screen reader on the bar has no timer: it is still there a minute later, and «Undo» then works.
+     * Nobody who needs a screen reader loses the offer while the message is still being read.
+     */
+    @Test
+    fun undoBar_waitsForTheUser_whenAScreenReaderIsOn() {
+        val graph = newHarness()
+        runBlocking { graph.opener.open("73").refresh() }
+        runDesktopComposeUiTest {
+            showDetail(graph, "en", screenReaderOn = { true })
+            val card = hasClickAction() and hasText("Fertilizing", substring = true)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
+            onNode(card).performClick()
+            val undo = hasClickAction() and hasText("Undo")
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
+            mainClock.advanceTimeBy(60_000)
+            waitForIdle()
+            assertTrue(
+                onAllNodes(undo).fetchSemanticsNodes().isNotEmpty(),
+                "no timer with a screen reader: the offer does not vanish on its own",
+            )
+            onNode(undo).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
+            assertTrue(onAllNodes(undo).fetchSemanticsNodes().isEmpty(), "the bar goes once the user acts")
             runOnIdle { graph.close() }
         }
     }

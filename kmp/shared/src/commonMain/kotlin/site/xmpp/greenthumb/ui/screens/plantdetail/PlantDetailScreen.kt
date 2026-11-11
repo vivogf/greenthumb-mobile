@@ -271,6 +271,11 @@ public fun PlantDetailScreen(
     onOpenDiagnosis: (() -> Unit)? = null,
     /** «Проверить на болезни» in the photo sheet: diagnosis of the current cover; null hides the row. */
     onCheckPhoto: (() -> Unit)? = null,
+    /**
+     * Whether a screen reader is on: the «Отменить» bar then waits for the user instead of closing by itself.
+     * A parameter, not a direct [ScreenReader] read, so the harness can test both paths.
+     */
+    screenReaderOn: () -> Boolean = ScreenReader::isOn,
 ) {
     val repo = remember(userId) { opener.open(userId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
@@ -460,13 +465,25 @@ public fun PlantDetailScreen(
                 careUndo.job?.cancel()
                 careUndo.care = care
                 careUndo.previous = previous
+                val timeout = careUndoTimeoutMillis(screenReaderOn())
                 careUndo.job = scope.launch {
-                    val result = withTimeoutOrNull(careUndoMillis(ScreenReader.isOn())) {
+                    val result = if (timeout == null) {
+                        // TalkBack on: the bar waits for the user and carries a close button, so a screen reader
+                        // has time to read the mark and reach «Отменить» or dismiss it.
                         careSnackbar.showSnackbar(
                             message = careMarkedText.getValue(care),
                             actionLabel = careUndoLabel,
+                            withDismissAction = true,
                             duration = SnackbarDuration.Indefinite,
                         )
+                    } else {
+                        withTimeoutOrNull(timeout) {
+                            careSnackbar.showSnackbar(
+                                message = careMarkedText.getValue(care),
+                                actionLabel = careUndoLabel,
+                                duration = SnackbarDuration.Indefinite,
+                            )
+                        }
                     }
                     careUndo.care = null
                     careUndo.previous = null
@@ -1191,17 +1208,14 @@ private fun lastCareDate(plant: PlantDto, care: AdvancedCare): String? = when (c
 }
 
 /**
- * How long the «Отменить» bar stays: 10 s, which the owner's tester still missed at 5 s, and 30 s with a screen
- * reader on — a spoken message plus an action takes longer to reach than a glance. The bar always closes by
- * itself: an indefinite one has no close button and would hold the bottom of the screen forever.
+ * How long the «Отменить» bar may stay before it closes by itself, or null when it waits for the user. 10 s by
+ * day (the owner's tester missed 5 s); with a screen reader on there is no timer at all — the bar gains a close
+ * button and stays until the user acts, because reading a spoken message and reaching the button takes longer than
+ * a glance.
  */
 internal const val CARE_UNDO_MILLIS: Long = 10_000L
 
-/** The same offer with a screen reader on. */
-internal const val CARE_UNDO_SCREEN_READER_MILLIS: Long = 30_000L
-
-internal fun careUndoMillis(screenReaderOn: Boolean): Long =
-    if (screenReaderOn) CARE_UNDO_SCREEN_READER_MILLIS else CARE_UNDO_MILLIS
+internal fun careUndoTimeoutMillis(screenReaderOn: Boolean): Long? = if (screenReaderOn) null else CARE_UNDO_MILLIS
 
 /**
  * The open «Отменить» offer. A second tap on the same card while the offer is open keeps the date from
