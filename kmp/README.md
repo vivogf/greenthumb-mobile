@@ -15,7 +15,7 @@ a table. M17 keeps grid names intact: shrink in 5% steps to 80%, then use single
 if a word still cannot fit; multi-word names can wrap at spaces onto two lines. The dashboard's
 existing bottom content padding (56 dp FAB + 20 dp bottom margin + 20 dp clearance) lets the last
 list/card/grid item scroll above the fixed buttons. No new animation was added.
-The app version is **0.8.1 (`versionCode 8`)**. The previous signed AAB, 0.8.0 (`versionCode 7`), was built
+The app version is **0.8.2 (`versionCode 9`)**; the previous release is 0.8.1 (`versionCode 8`). The first signed AAB, 0.8.0 (`versionCode 7`), was built
 on 2026-11-08 from `97c4400`; Google Play upload is an owner action.
 Android is the release target; JVM desktop is the development and test harness.
 
@@ -317,7 +317,8 @@ probes never reach the baseline.
 
 ## Release
 
-**Current state:** the build version is **0.8.1 / 8**; the previous signed AAB is 0.8.0 / 7 (2026-11-08).
+**Current state:** the build version is **0.8.2 / 9**; the previous release is 0.8.1 / 8, the first KMP AAB 0.8.0 / 7 (2026-11-08).
+0.8.2 needs the server with care-entry delete and journal correction (PWA `e2972db`) deployed first.
 Google Play upload and rollout remain owner actions.
 
 ### Release build

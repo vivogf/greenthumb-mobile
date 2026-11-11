@@ -14,9 +14,10 @@ path).
 | Expo (historical binaries) | 2, 3 | 1.0.0 | the .apk base before the handoff |
 | Expo handoff release (store, `allowBackup=false` manifest) | **5** | 1.0.0 | internal testing |
 | KMP build (`kmp/androidApp`) | **7** | 0.8.0 | first KMP AAB (2026-11-08) |
-| KMP build (`kmp/androidApp`) | **8** | 0.8.1 | internal track, then staged rollout |
+| KMP build (`kmp/androidApp`) | **8** | 0.8.1 | previous release |
+| KMP build (`kmp/androidApp`) | **9** | 0.8.2 | internal track, then staged rollout (server `e2972db` first) |
 
-`versionCode = 8` (`versionName = "0.8.1"`) is set in `kmp/androidApp/build.gradle.kts` and sits above
+`versionCode = 9` (`versionName = "0.8.2"`) is set in `kmp/androidApp/build.gradle.kts` and sits above
 all active Expo tracks (Stage 1 item 8 of the plan). Any fixed build after the
 rollout starts must have a `versionCode` greater than the previous one (see
 `incident-runbook.md`).
