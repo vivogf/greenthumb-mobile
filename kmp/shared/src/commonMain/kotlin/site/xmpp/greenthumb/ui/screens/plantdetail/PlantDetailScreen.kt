@@ -62,7 +62,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.pluralStringResource
@@ -273,22 +273,21 @@ public fun PlantDetailScreen(
     onCheckPhoto: (() -> Unit)? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
-    // Экран может быть открыт на локальном id растения, добавленного офлайн: когда очередь дошла и сервер выдал
-    // свой id, карточка следует за растением по карте переименований — иначе она станет «Растение не найдено».
-    val renames by remember(repo) { repo.renamedPlantIds }.collectAsState()
-    val liveId = remember(renames, plantId) { repo.liveId(plantId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
     // репозиторий, первый кадр — Loading (RN isLoading), пустой результат —
     // NotFound (RN error-ветка), ошибка живой базы — тоже NotFound-экран
     // (не краш; наблюдение закрытого репозитория тихо завершается —
     // защита в репозитории).
-    val state by remember(repo, liveId) {
-        repo.observePlants()
-            .map<List<PlantDto>, PlantState> { rows ->
-                rows.firstOrNull { it.id == liveId }
-                    ?.let { PlantState.Found(it) }
-                    ?: PlantState.NotFound
-            }
+    //
+    // Экран может быть открыт на локальном id растения, добавленного офлайн: когда очередь дошла и сервер выдал
+    // свой id, карточка следует за растением по карте переименований — иначе она станет «Растение не найдено».
+    // Потоки объединены, чтобы переименование не роняло состояние в Loading (полноэкранный спиннер).
+    val state by remember(repo, plantId) {
+        combine(repo.observePlants(), repo.renamedPlantIds) { rows, renames ->
+            rows.firstOrNull { it.id == repo.liveId(renames, plantId) }
+                ?.let { PlantState.Found(it) }
+                ?: PlantState.NotFound
+        }
             .catch { emit(PlantState.NotFound) }
     }.collectAsState(initial = PlantState.Loading)
 

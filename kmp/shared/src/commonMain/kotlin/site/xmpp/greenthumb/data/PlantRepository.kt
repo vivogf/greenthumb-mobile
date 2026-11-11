@@ -130,13 +130,11 @@ public class PlantRepository(
      */
     public fun liveId(plantId: String): String = liveId(renamedIds.value, plantId)
 
-    /** Records [localId] → [serverId]; the same pair twice is a no-op. Atomic: two replays may race. */
-    private fun recordRename(localId: String, serverId: String) {
-        if (localId == serverId) return
-        renamedIds.update { renames -> renames + (localId to serverId) }
-    }
-
-    private fun liveId(renames: Map<String, String>, plantId: String): String {
+    /**
+     * The same lookup against a rename map a caller already has — a screen combines the map with the plants, so
+     * the id and the rows come from one emission and a rename never shows a frame of the wrong plant.
+     */
+    public fun liveId(renames: Map<String, String>, plantId: String): String {
         var current = plantId
         repeat(8) {
             val next = renames[current] ?: return current
@@ -144,6 +142,12 @@ public class PlantRepository(
             current = next
         }
         return current
+    }
+
+    /** Records [localId] → [serverId]; the same pair twice is a no-op. Atomic: two replays may race. */
+    private fun recordRename(localId: String, serverId: String) {
+        if (localId == serverId) return
+        renamedIds.update { renames -> renames + (localId to serverId) }
     }
 
     public fun observePending(): Flow<List<PendingMutationEntity>> =
