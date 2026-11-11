@@ -4,6 +4,7 @@ package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyDescendant
@@ -1446,11 +1447,108 @@ class PlantDetailScreenTest {
         }
     }
 
+    // ------------------------------------------------------------------
+    // 0.8.2: «Отменить» after a care card mark (care journal item (в))
+    // ------------------------------------------------------------------
+
+    private fun ComposeUiTest.showDetail(graph: Harness, locale: String, fontScale: Float = 1f) {
+        setContent {
+            val base = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density, fontScale),
+            ) {
+                site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = locale) {
+                    site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
+                        androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.width(360.dp)) {
+                            PlantDetailScreen(
+                                userId = "73",
+                                plantId = "det-1",
+                                opener = graph.opener,
+                                onBack = {},
+                                onDeleted = {},
+                                deleteErrorState = PlantDeleteErrorState(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** A dated card: tap marks today, «Отменить» sends the previous date back; ru at font 1.3. */
+    @Test
+    fun careCardTap_offersUndo_thatRestoresThePreviousDate() {
+        val graph = newHarness()
+        val today = site.xmpp.greenthumb.ui.components.pickerToday()
+        runBlocking { graph.opener.open("73").refresh() }
+        runDesktopComposeUiTest {
+            showDetail(graph, "ru", fontScale = 1.3f)
+            val card = hasClickAction() and hasText("Удобрение", substring = true)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
+            onNode(card).performClick()
+            val undo = hasClickAction() and hasText("Отменить")
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
+            assertEquals("""{"last_fertilized_date":"$today"}""", graph.server.lastPatchBody)
+            assertTrue(onAllNodes(hasText("Отмечено: Удобрение", substring = true)).fetchSemanticsNodes().isNotEmpty(), "snackbar names the care")
+            onNode(undo).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
+            assertEquals("""{"last_fertilized_date":"2026-08-01"}""", graph.server.lastPatchBody)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isEmpty() }
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /** A card without a date: the picked date can be undone too, back to no date (PATCH null). */
+    @Test
+    fun careDatePick_offersUndo_thatClearsTheDateAgain() {
+        val graph = newHarness()
+        graph.server.lastFertilizedDate = null
+        val today = site.xmpp.greenthumb.ui.components.pickerToday()
+        runBlocking { graph.opener.open("73").refresh() }
+        runDesktopComposeUiTest {
+            showDetail(graph, "en")
+            val card = hasClickAction() and hasText("Fertilizing", substring = true) and hasText("Set the date", substring = true)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
+            onNode(card).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(hasText("When was it last done?")).fetchSemanticsNodes().isNotEmpty() }
+            onNode(hasClickAction() and hasText("Done")).performClick()
+            val undo = hasClickAction() and hasText("Undo")
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
+            assertEquals("""{"last_fertilized_date":"$today"}""", graph.server.lastPatchBody)
+            onNode(undo).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
+            assertEquals("""{"last_fertilized_date":null}""", graph.server.lastPatchBody)
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /** Without a tap on «Undo» the bar goes away by itself and nothing more is sent; watering offers no undo. */
+    @Test
+    fun undoBar_closesByItself_andWateringHasNone() {
+        val graph = newHarness()
+        runBlocking { graph.opener.open("73").refresh() }
+        runDesktopComposeUiTest {
+            showDetail(graph, "en")
+            val card = hasClickAction() and hasText("Fertilizing", substring = true)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
+            onNode(card).performClick()
+            val undo = hasClickAction() and hasText("Undo")
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isNotEmpty() }
+            mainClock.advanceTimeBy(6_000)
+            waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(undo).fetchSemanticsNodes().isEmpty() }
+            assertEquals(1, graph.server.patchCount)
+            onNode(hasClickAction() and hasContentDescription("Water", substring = true)).performClick()
+            waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
+            waitForIdle()
+            assertTrue(onAllNodes(undo).fetchSemanticsNodes().isEmpty(), "no undo after watering")
+            runOnIdle { graph.close() }
+        }
+    }
+
     private companion object {
         const val TIMEOUT: Long = 10_000L
     }
 }
-
 private fun String?.jsonOrNull(): String = this?.let { "\"$it\"" } ?: "null"
 
 /** Фикстура растения с НАСТРОЕННЫМ продвинутым уходом (все карточки). */

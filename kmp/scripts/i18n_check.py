@@ -50,6 +50,9 @@ KMP_ONLY_KEYS = {
     # 0.8.1: a fertilize/repot/prune card with a frequency but no last date asks for the date.
     "plantDetails.careSetDate",
     "plantDetails.careLastDoneTitle",
+    # 0.8.2: «Отменить» after a care card mark (care journal (c)).
+    "plantDetails.careMarked",
+    "plantDetails.careUndo",
     # M11 owner fixes: short dashboard filter label, reminders time row in the same card.
     "dashboard.waterFilter",
     "profile.notificationEveryDay",

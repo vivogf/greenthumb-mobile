@@ -292,6 +292,8 @@
     <string name="plantDetails_careNotSet">Не настроено</string>
     <string name="plantDetails_careSetDate">Укажите дату</string>
     <string name="plantDetails_careLastDoneTitle">Когда это делали последний раз?</string>
+    <string name="plantDetails_careMarked">Отмечено: %1$s</string>
+    <string name="plantDetails_careUndo">Отменить</string>
     <string name="plantDetails_lastTime">Последний раз</string>
     <string name="plantDetails_notSpecified">Не указано</string>
     <string name="profile_title">Мой профиль</string>

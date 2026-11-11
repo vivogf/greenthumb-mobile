@@ -276,6 +276,8 @@
     <string name="plantDetails_careNotSet">Not configured</string>
     <string name="plantDetails_careSetDate">Set the date</string>
     <string name="plantDetails_careLastDoneTitle">When was it last done?</string>
+    <string name="plantDetails_careMarked">Marked: %1$s</string>
+    <string name="plantDetails_careUndo">Undo</string>
     <string name="plantDetails_lastTime">Last time</string>
     <string name="plantDetails_notSpecified">Not specified</string>
     <string name="profile_title">My Profile</string>

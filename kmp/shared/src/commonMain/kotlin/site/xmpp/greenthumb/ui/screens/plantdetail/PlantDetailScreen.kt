@@ -26,6 +26,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +64,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import site.xmpp.greenthumb.core.network.Patch
@@ -118,7 +124,9 @@ import site.xmpp.greenthumb.ui.res.plant_delete
 import site.xmpp.greenthumb.ui.res.plant_overdue
 import site.xmpp.greenthumb.ui.res.plantDetails_advancedCare
 import site.xmpp.greenthumb.ui.res.plantDetails_careLastDoneTitle
+import site.xmpp.greenthumb.ui.res.plantDetails_careMarked
 import site.xmpp.greenthumb.ui.res.plantDetails_careSetDate
+import site.xmpp.greenthumb.ui.res.plantDetails_careUndo
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedBody
 import site.xmpp.greenthumb.ui.res.plantDetails_careQueuedTitle
 import site.xmpp.greenthumb.ui.res.plantDetails_careSettings
@@ -330,6 +338,7 @@ public fun PlantDetailScreen(
     val pruneAction = stringResource(Res.string.plantDetails_prune)
     val doneText = stringResource(Res.string.common_done)
     val careLastDoneTitle = stringResource(Res.string.plantDetails_careLastDoneTitle)
+    val careUndoLabel = stringResource(Res.string.plantDetails_careUndo)
     val namePlaceTitle = stringResource(Res.string.plantDetails_namePlaceTitle)
     val placeLabels = listOf(
         stringResource(Res.string.plantDetails_placeLiving),
@@ -365,6 +374,8 @@ public fun PlantDetailScreen(
     var speciesPickerOpen by remember { mutableStateOf(false) }
     // Care whose last date is being picked (card without a date); null when the picker is closed.
     var careDatePick by remember { mutableStateOf<AdvancedCare?>(null) }
+    val careSnackbar = remember { SnackbarHostState() }
+    val careUndo = remember { CareUndoSlot() }
     val catalog = rememberSpeciesCatalog()
 
     when (val current = state) {
@@ -431,6 +442,33 @@ public fun PlantDetailScreen(
             }
 
             val today = pickerToday()
+            val careMarkedText = mapOf(
+                AdvancedCare.Fertilize to stringResource(Res.string.plantDetails_careMarked, fertilizingLabel),
+                AdvancedCare.Repot to stringResource(Res.string.plantDetails_careMarked, repottingLabel),
+                AdvancedCare.Prune to stringResource(Res.string.plantDetails_careMarked, pruningLabel),
+            )
+
+            // A mis-tap on a care card writes a journal entry; «Отменить» sends the previous date back and
+            // the server drops the entry. Watering has no undo: the server keeps water entries on a move back.
+            fun markCare(care: AdvancedCare, date: String) {
+                val previous = careUndo.previousFor(care) ?: CareUndoSlot.Previous(lastCareDate(plant, care))
+                update(carePatch(care, date))
+                careUndo.job?.cancel()
+                careUndo.care = care
+                careUndo.previous = previous
+                careUndo.job = scope.launch {
+                    val result = withTimeoutOrNull(CARE_UNDO_MILLIS) {
+                        careSnackbar.showSnackbar(
+                            message = careMarkedText.getValue(care),
+                            actionLabel = careUndoLabel,
+                            duration = SnackbarDuration.Indefinite,
+                        )
+                    }
+                    careUndo.care = null
+                    careUndo.previous = null
+                    if (result == SnackbarResult.ActionPerformed) update(carePatch(care, previous.date))
+                }
+            }
 
             // Полив с детали (RN waterMutation через WaterButtonWithParticles):
             // pending только water-патча (RN isPending && 'last_watered_date'
@@ -654,7 +692,7 @@ public fun PlantDetailScreen(
                                             focusManager.clearFocus()
                                             careDatePick = card.care
                                         } else {
-                                            update(carePatch(card.care, today.toString()))
+                                            markCare(card.care, today.toString())
                                         }
                                     }
                                     when (card.care) {
@@ -702,7 +740,7 @@ public fun PlantDetailScreen(
                                 initialDate = null,
                                 onConfirm = { date ->
                                     careDatePick = null
-                                    update(carePatch(care, date))
+                                    markCare(care, date)
                                 },
                                 onDismiss = { careDatePick = null },
                                 confirmLabel = doneText,
@@ -856,6 +894,13 @@ public fun PlantDetailScreen(
                 // Пикер фото поверх экрана (Stage 8 п.1).
                 PhotoPickerHost(photoPicker)
                 PhotoPickerHost(timelinePicker)
+                SnackbarHost(
+                    hostState = careSnackbar,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(Spacing.lg),
+                )
             }
 
             // ── Подтверждение удаления (RN confirmDelete showAlert) ──
@@ -1120,11 +1165,36 @@ private fun Modifier.touchTextLink(onClick: () -> Unit): Modifier =
         .padding(horizontal = Spacing.xs)
 
 
-/** PATCH that sets the last date of [care]. */
-private fun carePatch(care: AdvancedCare, date: String): PatchPlantDto = when (care) {
-    AdvancedCare.Fertilize -> PatchPlantDto(lastFertilizedDate = Patch.Value(date))
-    AdvancedCare.Repot -> PatchPlantDto(lastRepottedDate = Patch.Value(date))
-    AdvancedCare.Prune -> PatchPlantDto(lastPrunedDate = Patch.Value(date))
+/** PATCH that sets the last date of [care]; null clears it. */
+private fun carePatch(care: AdvancedCare, date: String?): PatchPlantDto {
+    val value: Patch<String> = if (date == null) Patch.Null else Patch.Value(date)
+    return when (care) {
+        AdvancedCare.Fertilize -> PatchPlantDto(lastFertilizedDate = value)
+        AdvancedCare.Repot -> PatchPlantDto(lastRepottedDate = value)
+        AdvancedCare.Prune -> PatchPlantDto(lastPrunedDate = value)
+    }
+}
+
+private fun lastCareDate(plant: PlantDto, care: AdvancedCare): String? = when (care) {
+    AdvancedCare.Fertilize -> plant.lastFertilizedDate
+    AdvancedCare.Repot -> plant.lastRepottedDate
+    AdvancedCare.Prune -> plant.lastPrunedDate
+}
+
+private const val CARE_UNDO_MILLIS: Long = 5_000L
+
+/**
+ * The open «Отменить» offer. A second tap on the same card while the offer is open keeps the date from
+ * before the first tap, so one undo returns to where the user started.
+ */
+private class CareUndoSlot {
+    class Previous(val date: String?)
+
+    var care: AdvancedCare? = null
+    var previous: Previous? = null
+    var job: Job? = null
+
+    fun previousFor(care: AdvancedCare): Previous? = if (this.care == care) previous else null
 }
 
 /** Данные карточки действия ухода. */
