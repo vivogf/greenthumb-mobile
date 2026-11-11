@@ -289,7 +289,9 @@ public fun PlantDetailScreen(
     // Потоки объединены, чтобы переименование не роняло состояние в Loading (полноэкранный спиннер).
     val state by remember(repo, plantId) {
         combine(repo.observePlants(), repo.renamedPlantIds) { rows, renames ->
-            rows.firstOrNull { it.id == repo.liveId(renames, plantId) }
+            // Both sides go through the map, so the lookup holds whichever lands first: the rename or the row swap.
+            val wanted = repo.liveId(renames, plantId)
+            rows.firstOrNull { repo.liveId(renames, it.id) == wanted }
                 ?.let { PlantState.Found(it) }
                 ?: PlantState.NotFound
         }

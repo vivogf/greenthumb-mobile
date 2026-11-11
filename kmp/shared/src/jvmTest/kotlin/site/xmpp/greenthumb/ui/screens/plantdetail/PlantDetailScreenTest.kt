@@ -1586,6 +1586,10 @@ class PlantDetailScreenTest {
                 onAllNodes(undo).fetchSemanticsNodes().isNotEmpty(),
                 "no timer with a screen reader: the offer does not vanish on its own",
             )
+            assertTrue(
+                onAllNodes(hasContentDescription("Dismiss")).fetchSemanticsNodes().isNotEmpty(),
+                "the bar has a close button, so it can be dismissed without a timer",
+            )
             onNode(undo).performClick()
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.patchCount == 2 }
             assertTrue(onAllNodes(undo).fetchSemanticsNodes().isEmpty(), "the bar goes once the user acts")
