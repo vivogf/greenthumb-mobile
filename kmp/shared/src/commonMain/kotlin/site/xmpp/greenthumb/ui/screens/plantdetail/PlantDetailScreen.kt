@@ -72,6 +72,7 @@ import site.xmpp.greenthumb.core.network.PatchPlantDto
 import site.xmpp.greenthumb.core.network.PlantDto
 import site.xmpp.greenthumb.core.platform.LocalAppLocale
 import site.xmpp.greenthumb.core.platform.PickSource
+import site.xmpp.greenthumb.core.platform.ScreenReader
 import site.xmpp.greenthumb.core.platform.photoDataUri
 import site.xmpp.greenthumb.data.PlantRepositoryOpener
 import site.xmpp.greenthumb.data.SaveOutcome
@@ -272,15 +273,19 @@ public fun PlantDetailScreen(
     onCheckPhoto: (() -> Unit)? = null,
 ) {
     val repo = remember(userId) { opener.open(userId) }
+    // Экран может быть открыт на локальном id растения, добавленного офлайн: когда очередь дошла и сервер выдал
+    // свой id, карточка следует за растением по карте переименований — иначе она станет «Растение не найдено».
+    val renames by remember(repo) { repo.renamedPlantIds }.collectAsState()
+    val liveId = remember(renames, plantId) { repo.liveId(plantId) }
     // Наблюдение из кэша списка — pattern DashboardScreen: Flow один раз на
     // репозиторий, первый кадр — Loading (RN isLoading), пустой результат —
     // NotFound (RN error-ветка), ошибка живой базы — тоже NotFound-экран
     // (не краш; наблюдение закрытого репозитория тихо завершается —
     // защита в репозитории).
-    val state by remember(repo) {
+    val state by remember(repo, liveId) {
         repo.observePlants()
             .map<List<PlantDto>, PlantState> { rows ->
-                rows.firstOrNull { it.id == plantId }
+                rows.firstOrNull { it.id == liveId }
                     ?.let { PlantState.Found(it) }
                     ?: PlantState.NotFound
             }
@@ -457,7 +462,7 @@ public fun PlantDetailScreen(
                 careUndo.care = care
                 careUndo.previous = previous
                 careUndo.job = scope.launch {
-                    val result = withTimeoutOrNull(CARE_UNDO_MILLIS) {
+                    val result = withTimeoutOrNull(careUndoMillis(ScreenReader.isOn())) {
                         careSnackbar.showSnackbar(
                             message = careMarkedText.getValue(care),
                             actionLabel = careUndoLabel,
@@ -1186,7 +1191,18 @@ private fun lastCareDate(plant: PlantDto, care: AdvancedCare): String? = when (c
     AdvancedCare.Prune -> plant.lastPrunedDate
 }
 
-private const val CARE_UNDO_MILLIS: Long = 5_000L
+/**
+ * How long the «Отменить» bar stays: 10 s, which the owner's tester still missed at 5 s, and 30 s with a screen
+ * reader on — a spoken message plus an action takes longer to reach than a glance. The bar always closes by
+ * itself: an indefinite one has no close button and would hold the bottom of the screen forever.
+ */
+internal const val CARE_UNDO_MILLIS: Long = 10_000L
+
+/** The same offer with a screen reader on. */
+internal const val CARE_UNDO_SCREEN_READER_MILLIS: Long = 30_000L
+
+internal fun careUndoMillis(screenReaderOn: Boolean): Long =
+    if (screenReaderOn) CARE_UNDO_SCREEN_READER_MILLIS else CARE_UNDO_MILLIS
 
 /**
  * The open «Отменить» offer. A second tap on the same card while the offer is open keeps the date from

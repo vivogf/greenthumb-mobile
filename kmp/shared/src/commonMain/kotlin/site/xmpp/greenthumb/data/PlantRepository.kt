@@ -3,12 +3,16 @@ package site.xmpp.greenthumb.data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Instant
@@ -82,8 +86,15 @@ public class PlantRepository(
     private val gate = Mutex()
     private val plantQueues = PlantMutationQueue()
 
-    /** Local id → server id, learned when an add replay inside [runOptimistic] renamed the plant. */
-    private val renamedIds = mutableMapOf<String, String>()
+    /**
+     * Local id → server id, learned when an add (queued or not) was renamed by the server or by an add replay
+     * inside [runOptimistic]. A screen that was opened on the local id follows the plant through this map, so
+     * the card does not turn into «Plant not found» when the replay lands (owner's smoke of 0.8.2).
+     */
+    private val renamedIds = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /** The rename map above, for screens: collect it, then ask [liveId]. */
+    public val renamedPlantIds: StateFlow<Map<String, String>> = renamedIds.asStateFlow()
     private val json = ApiClient.json
 
     private val effectSink = MutableSharedFlow<PlantEffect>(
@@ -112,6 +123,28 @@ public class PlantRepository(
 
     public fun observePlants(): Flow<List<PlantDto>> =
         observeWhileOpen { db.plants().observeAll().map { rows -> rows.map { it.toDto() } } }
+
+    /**
+     * The id the plant lives under now: the server id once the queued add was replayed, otherwise [plantId].
+     * Chain-safe (a rename of a rename resolves) and free of locks, so a screen may call it from composition.
+     */
+    public fun liveId(plantId: String): String = liveId(renamedIds.value, plantId)
+
+    /** Records [localId] → [serverId]; the same pair twice is a no-op. Atomic: two replays may race. */
+    private fun recordRename(localId: String, serverId: String) {
+        if (localId == serverId) return
+        renamedIds.update { renames -> renames + (localId to serverId) }
+    }
+
+    private fun liveId(renames: Map<String, String>, plantId: String): String {
+        var current = plantId
+        repeat(8) {
+            val next = renames[current] ?: return current
+            if (next == current) return current
+            current = next
+        }
+        return current
+    }
 
     public fun observePending(): Flow<List<PendingMutationEntity>> =
         observeWhileOpen { db.pendingMutations().observeAll() }
@@ -314,6 +347,7 @@ public class PlantRepository(
             request = { api.addPlant(plant, idempotencyKey = localId) },
             onSuccess = { entry, server ->
                 db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
+                recordRename(localId, server.id)
             },
         )
     }
@@ -342,11 +376,11 @@ public class PlantRepository(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Throwable) {
-            val liveId = gate.withLock { renamedIds[plantId] } ?: plantId
+            val currentId = liveId(renamedIds.value, plantId)
             val queued = keepForReplay(error) &&
-                db.pendingMutations().listOldestFirst().any { it.plantId == liveId }
+                db.pendingMutations().listOldestFirst().any { it.plantId == currentId }
             if (!queued) throw error
-            SaveOutcome.Queued(liveId)
+            SaveOutcome.Queued(currentId)
         }
 
     public suspend fun update(plantId: String, patch: PatchPlantDto): PlantDto {
@@ -511,7 +545,7 @@ public class PlantRepository(
         val entry = db.pendingMutations().getById(written.id) ?: written
         val oldId = written.plantId
         val liveId = entry.plantId
-        if (oldId != null && liveId != null && oldId != liveId) renamedIds[oldId] = liveId
+        if (oldId != null && liveId != null) recordRename(oldId, liveId)
         if (older is DrainStep.Held) throw older.cause
         val stamp = session.current()
         val result = try {
@@ -649,6 +683,7 @@ public class PlantRepository(
                     val server = api.addPlant(body, idempotencyKey = localId)
                     ensureCurrent(stamp)
                     db.store().replacePlantDropPending(localId, server.toEntity(), entry.id)
+                    recordRename(localId, server.id)
                 }
                 MutationType.UPDATE -> {
                     val patch = json.decodeFromString<PatchPlantDto>(entry.payload)
