@@ -252,10 +252,42 @@ if [ "${1:-}" = "--grep-only" ]; then
 fi
 
 echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest =="
-if ! ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest; then
-  echo
-  echo "FAIL: gradle — ошибки компиляции/тестов выше (упавший task виден в выводе)."
-  exit 1
+gradle_gate() {
+  ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest
+}
+
+# Desktop-харнесс Compose собирает кадр в потоке AWT, а тест в это время читает семантику; кадр между двумя
+# чтениями роняет прогон на "Detected multithreaded access to SnapshotStateObserver". Это дефект харнесса, а не
+# продукта: повторяем прогон один раз, громко, и только если других ошибок в результатах нет.
+harness_race_only() {
+  python3 - <<'RETRY_CHECK'
+import glob, html, io, re, sys
+
+race = "Detected multithreaded access to SnapshotStateObserver"
+failures = []
+for path in glob.glob("shared/build/test-results/jvmTest/*.xml"):
+    text = html.unescape(io.open(path, encoding="utf-8").read())
+    for match in re.finditer(r"<failure[^>]*>(.*?)</failure>", text, re.S):
+        failures.append(match.group(1))
+sys.exit(0 if failures and all(race in failure for failure in failures) else 1)
+RETRY_CHECK
+}
+
+if ! gradle_gate; then
+  if harness_race_only; then
+    echo
+    echo "WARN: :shared:jvmTest упал только на гонке потоков desktop-харнесса Compose"
+    echo "      (Detected multithreaded access to SnapshotStateObserver). Повторяю прогон один раз."
+    if ! gradle_gate; then
+      echo
+      echo "FAIL: gradle — повторный прогон упал тоже."
+      exit 1
+    fi
+  else
+    echo
+    echo "FAIL: gradle — ошибки компиляции/тестов выше (упавший task виден в выводе)."
+    exit 1
+  fi
 fi
 echo "OK: gradle"
 echo

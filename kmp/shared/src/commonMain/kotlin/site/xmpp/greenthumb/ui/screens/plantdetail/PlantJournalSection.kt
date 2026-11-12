@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +22,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -32,6 +29,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
@@ -143,15 +142,19 @@ internal fun PlantJournalSection(
     refreshKey: Int,
     locale: String,
     modifier: Modifier = Modifier,
-    /** Height of the scroll viewport in px: how far the focused field is lifted. */
-    composerViewportHeightPx: Float = 0f,
     timeline: PlantTimeline? = null,
     deleteCareEntry: (suspend (eventId: String) -> SaveOutcome)? = null,
     /**
-     * Called when the note field gains or loses focus. While it holds, the screen keeps one viewport of empty tail
-     * under the journal, so the field can stand at the top of the page with the button and the keyboard below it.
+     * Called when the note field gains or loses focus. While the focus holds, the screen keeps one viewport of
+     * empty tail under the journal, because the journal is the last card on the page.
      */
     onComposerFocusChanged: ((focused: Boolean) -> Unit)? = null,
+    /**
+     * Called with the field's top in window coordinates (px) when the composer has to stand at the top of the page:
+     * on focus, so the field sits under the photo header with the save button and the message under it and the
+     * keyboard under them, and on every message, because the user may be scrolled down to the row they tapped.
+     */
+    onComposerLift: ((fieldTopInWindow: Float) -> Unit)? = null,
 ) {
     val entries by remember(journal, plantId) {
         journal.observe(plantId).catch { emit(emptyList()) }
@@ -166,21 +169,18 @@ internal fun PlantJournalSection(
     var pendingDelete by remember(plantId) { mutableStateOf<CareEventDto?>(null) }
     val scope = rememberCoroutineScope()
     var inputFocused by remember { mutableStateOf(false) }
-    // Focusing the field asks the page to lift it to the top: the rect starts at the field's top edge and is one
-    // viewport tall, so the minimal scroll that shows it puts the field exactly at the top.
-    val fieldScrollRequester = remember { BringIntoViewRequester() }
+    // Where the field sits in window coordinates: the page turns it into a scroll position, so the field stands at
+    // the top of the page. Kept outside the snapshot on purpose — the field is re-measured on every layout, and a
+    // state write there would recompose the card each time the field grows a line.
+    val composerTop = remember { MeasuredTop() }
     // The note field would keep focus behind the delete confirmation and get it back when it closes.
     val focusManager = LocalFocusManager.current
-    // A refused delete explains itself above the rows, while the user is scrolled down to the row they tapped:
-    // the message has to come into view on its own, because no focus change happens there.
-    val messageRequester = remember { BringIntoViewRequester() }
-    LaunchedEffect(message) {
-        if (message != null) messageRequester.bringIntoView()
-    }
-    LaunchedEffect(inputFocused) {
-        if (inputFocused) {
-            fieldScrollRequester.bringIntoView(Rect(0f, 0f, 1f, composerViewportHeightPx))
-        }
+    // A message explains itself under the field, and the user is usually scrolled away — down to the row whose
+    // delete was refused. The page lifts the composer for it exactly as it does for focus. The lift runs per event,
+    // not per value: a second refused delete sets the same message, and an unchanged state restarts nothing.
+    var messageTicket by remember(plantId) { mutableStateOf(0) }
+    LaunchedEffect(message, messageTicket) {
+        if (message != null) onComposerLift?.invoke(composerTop.value)
     }
 
     // At rest the card is just the field: no label, no button, no room kept for it. The button appears on focus,
@@ -207,10 +207,16 @@ internal fun PlantJournalSection(
         }
     }
 
+    // Every message counts as a new event for the scroll: the same text twice still has to reach the user.
+    fun explain(reason: NoteMessage) {
+        message = reason
+        messageTicket++
+    }
+
     fun submit() {
         if (saving || draft.isBlank()) return
         if (!online) {
-            message = NoteMessage.NetworkRequired
+            explain(NoteMessage.NetworkRequired)
             return
         }
         saving = true
@@ -218,15 +224,18 @@ internal fun PlantJournalSection(
         scope.launch {
             try {
                 journal.addNote(plantId, text)
-                if (draft == text) draft = ""
                 message = null
-                // The note is in the list now: fold the composer back to the bare field and close the keyboard.
-                composerCollapsed = true
-                focusManager.clearFocus()
+                // The note is in the list now. Fold the composer back to the bare field and close the keyboard only
+                // while the draft still holds the saved text: what was typed during the request is a new note.
+                if (draft == text) {
+                    draft = ""
+                    composerCollapsed = true
+                    focusManager.clearFocus()
+                }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
-                message = if (isHeldForReplay(error)) NoteMessage.NetworkRequired else NoteMessage.SaveFailed
+                explain(if (isHeldForReplay(error)) NoteMessage.NetworkRequired else NoteMessage.SaveFailed)
             } finally {
                 saving = false
             }
@@ -243,7 +252,7 @@ internal fun PlantJournalSection(
                 } catch (cancellation: CancellationException) {
                     throw cancellation
                 } catch (error: Throwable) {
-                    message = if (isOldServerRefusal(error)) NoteMessage.DeleteNeedsServer else NoteMessage.DeleteEntryFailed
+                    explain(if (isOldServerRefusal(error)) NoteMessage.DeleteNeedsServer else NoteMessage.DeleteEntryFailed)
                 }
             }
             return
@@ -255,7 +264,7 @@ internal fun PlantJournalSection(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
-                message = NoteMessage.DeleteFailed
+                explain(NoteMessage.DeleteFailed)
             }
         }
     }
@@ -296,11 +305,7 @@ internal fun PlantJournalSection(
                 )
             }
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // The message lives in this column and is often wider than one line: the requester sits on the
-                    // column because the message itself does not exist yet when the request is made.
-                    .bringIntoViewRequester(messageRequester),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 GtInputField(
@@ -312,12 +317,15 @@ internal fun PlantJournalSection(
                     placeholder = stringResource(Res.string.journal_notePlaceholder),
                     singleLine = false,
                     modifier = Modifier
-                        .bringIntoViewRequester(fieldScrollRequester)
+                        .onGloballyPositioned { coordinates ->
+                            composerTop.value = coordinates.positionInWindow().y
+                        }
                         .onFocusChanged { state ->
                             if (state.isFocused == inputFocused) return@onFocusChanged
                             inputFocused = state.isFocused
                             if (state.isFocused) composerCollapsed = false
                             onComposerFocusChanged?.invoke(state.isFocused)
+                            if (state.isFocused) onComposerLift?.invoke(composerTop.value)
                         }
                         .testTag("journal_noteInput"),
                 )
@@ -520,4 +528,9 @@ private fun JournalRow(
             }
         }
     }
+}
+
+/** The note field's top in window coordinates: measured on layout, read once when the field takes focus. */
+private class MeasuredTop {
+    var value: Float = 0f
 }

@@ -40,11 +40,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -402,17 +405,27 @@ public fun PlantDetailScreen(
             val scope = rememberCoroutineScope()
             val waterPlantA11yLabel = stringResource(Res.string.a11y_waterPlant, plant.name)
 
-            // The journal composer scrolls itself to the top of this column when its field takes focus, so the
-            // field stands under the photo header with the save button under it and the keyboard below.
-            // The journal composer asks the page to lift its field to the top of this column; the column keeps one
-            // viewport of empty tail while the composer holds, because the journal is the last card on the page.
+            // The journal composer asks the page to lift its field to the top of this column when it takes focus,
+            // so the field stands under the photo header with the save button under it and the keyboard below.
+            // The journal is the last card, so the column keeps one viewport of empty tail while the focus holds.
+            val detailScroll = rememberScrollState()
+            var viewportTop by remember { mutableStateOf(0f) }
             var composerFocused by remember { mutableStateOf(false) }
             val density = LocalDensity.current
-            val detailScroll = rememberScrollState()
             // The scroll state reports the viewport it laid out: the tail has to be exactly that tall so the field
             // can rise to the top of the page.
-            val composerViewportPx = detailScroll.viewportSize.toFloat()
             val composerViewport = with(density) { detailScroll.viewportSize.toDp() }
+            var scrollTarget by remember { mutableStateOf(0f) }
+            var scrollTicket by remember { mutableIntStateOf(0) }
+
+            // The tail grows in the same frame as the focus, so the scroll waits one frame for the layout that makes
+            // the field's top reachable: the scroll range is clamped, and a shorter page would leave the field below
+            // the top. One jump, not a glide — the user tapped the field and expects it there.
+            LaunchedEffect(scrollTicket) {
+                if (scrollTicket == 0) return@LaunchedEffect
+                withFrameNanos { }
+                detailScroll.scrollTo(scrollTarget.toInt().coerceIn(0, detailScroll.maxValue))
+            }
 
             fun update(patch: PatchPlantDto) {
                 scope.launch {
@@ -680,6 +693,9 @@ public fun PlantDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
+                            .onGloballyPositioned { coordinates ->
+                                viewportTop = coordinates.positionInWindow().y
+                            }
                             .verticalScroll(detailScroll)
                             .navigationBarsPadding()
                             .padding(Spacing.xl),
@@ -916,8 +932,12 @@ public fun PlantDetailScreen(
                                     if (it is SaveOutcome.Saved) journalRefreshKey++
                                 }
                             },
-                            composerViewportHeightPx = composerViewportPx,
                             onComposerFocusChanged = { focused -> composerFocused = focused },
+                            onComposerLift = { fieldTop ->
+                                // Where the field sits in the scroll content, measured before the page moves.
+                                scrollTarget = fieldTop - viewportTop + detailScroll.value
+                                scrollTicket++
+                            },
                         )
 
                         // ── Удаление ──

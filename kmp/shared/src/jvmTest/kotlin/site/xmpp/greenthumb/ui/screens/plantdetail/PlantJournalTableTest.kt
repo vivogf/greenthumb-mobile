@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -23,7 +30,6 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -51,6 +57,8 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import site.xmpp.greenthumb.core.network.AccountSession
@@ -76,11 +84,16 @@ import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 class PlantJournalTableTest {
     private var cleanup: (() -> Unit)? = null
 
+    /** When set, the note POST waits for it: a test types into the field while the save is in flight. */
+    private var noteGate: CompletableDeferred<Unit>? = null
+
     @get:Rule
     val imageLoader = PlainImageLoaderRule()
 
     @AfterTest
     fun tearDown() {
+        noteGate?.complete(Unit)
+        noteGate = null
         cleanup?.invoke()
         cleanup = null
     }
@@ -127,11 +140,16 @@ class PlantJournalTableTest {
                 HttpStatusCode.OK,
                 json,
             )
-            path == "/api/plants/p-1/events" -> respond(
+            path == "/api/plants/p-1/events" && request.method == HttpMethod.Get -> respond(
                 """{"events":[${events.joinToString(",") { (id, type, date) -> eventJson(id, type, date) }}],"nextCursor":null}""",
                 HttpStatusCode.OK,
                 json,
             )
+            path == "/api/plants/p-1/events" && request.method == HttpMethod.Post -> {
+                // A test can hold the save in flight to type into the field while the request is open.
+                noteGate?.await()
+                respond(eventJson("e-added", "note", "2026-10-20"), HttpStatusCode.Created, json)
+            }
             else -> respond("{}", HttpStatusCode.NotFound, json)
         }
     }
@@ -174,8 +192,18 @@ class PlantJournalTableTest {
                 val base = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
                     GreenThumbTheme(darkTheme = true) {
-                        // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding).
-                        Box(Modifier.width(widthDp.dp).testTag("journal_scroll").verticalScroll(rememberScrollState())) {
+                        // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding). The page
+                        // contract of PlantDetailScreen is repeated here: a lift request scrolls the field to the
+                        // top of the column. The real wiring is covered by PlantDetailScreenTest.
+                        val scroll = rememberScrollState()
+                        val scope = rememberCoroutineScope()
+                        var pageTop by remember { mutableStateOf(0f) }
+                        Box(
+                            Modifier.width(widthDp.dp)
+                                .testTag("journal_scroll")
+                                .onGloballyPositioned { pageTop = it.positionInWindow().y }
+                                .verticalScroll(scroll),
+                        ) {
                             Column {
                                 PlantJournalSection(
                                     journal = repo.journal,
@@ -185,6 +213,12 @@ class PlantJournalTableTest {
                                     refreshKey = 0,
                                     locale = locale,
                                     deleteCareEntry = deleteCareEntry,
+                                    onComposerLift = { fieldTop ->
+                                        scope.launch {
+                                            val target = fieldTop - pageTop + scroll.value
+                                            scroll.scrollTo(target.toInt().coerceIn(0, scroll.maxValue))
+                                        }
+                                    },
                                 )
                                 // A second field below the card: focusing it takes the note field out of focus.
                                 if (withFocusNeighbour) {
@@ -541,6 +575,60 @@ class PlantJournalTableTest {
             assertTrue(
                 nodes(hasTestTag("journal_addNote")).isEmpty(),
                 "a refused delete does not open the save bar",
+            )
+
+            // The same refusal again: the message has to come back on screen, not stay where the first one left it.
+            onNode(hasTestTag("journal_scroll"), useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 5000f) }
+            waitForIdle()
+            assertTrue(
+                one("journal_message").positionInRoot.y < 0f,
+                "the message is scrolled away before the second refusal",
+            )
+            onNode(hasTestTag("journal_delete_e-old"), useUnmergedTree = true).performClick()
+            waitUntilAtLeastOneExists(hasText("Удалить"), TIMEOUT)
+            onNodeWithText("Удалить").performClick()
+            waitUntil(timeoutMillis = TIMEOUT) {
+                val shown = nodes(hasTestTag("journal_message"))
+                shown.isNotEmpty() && shown.single().positionInRoot.y >= 0f
+            }
+        }
+    }
+
+    /**
+     * 0.8.2: what the user types while the save is in flight is a new note, so the composer must stay open with its
+     * bar instead of folding away and hiding the keyboard.
+     */
+    @Test
+    fun textTypedWhileTheSaveIsInFlight_keepsTheComposerOpen() {
+        noteGate = CompletableDeferred()
+        val repo = openRepo()
+        runDesktopComposeUiTest(width = 360, height = 700) {
+            show(repo, "ru", 1f)
+            fun focus(tag: String) = onNode(hasTestTag(tag)).performSemanticsAction(SemanticsActions.RequestFocus)
+
+            focus("journal_noteInput")
+            onNode(hasTestTag("journal_noteInput")).performTextInput("abc")
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty() }
+            onNode(hasTestTag("journal_addNote")).performClick()
+            // The save stands on the gate: the bar is disabled while the request is open.
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote") and isNotEnabled()).isNotEmpty() }
+
+            focus("journal_noteInput")
+            onNode(hasTestTag("journal_noteInput")).performTextInput("x")
+            noteGate?.complete(Unit)
+
+            // The save lands and releases the bar; the composer must stay open and keep the typed text.
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty() }
+            waitForIdle()
+            assertTrue(
+                nodes(hasTestTag("journal_message")).isEmpty(),
+                "the save went through: no refusal message",
+            )
+            assertEquals(
+                "abcx",
+                one("journal_noteInput").config[SemanticsProperties.EditableText].text,
+                "the typed text stays in the field",
             )
         }
     }
