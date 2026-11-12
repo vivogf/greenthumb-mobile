@@ -639,6 +639,15 @@ class PlantJournalTableTest {
                 // of None still spends a frame on the removal, so the bar would linger one frame too long.
                 onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
                 var framesToLeave = 0
+                if (!reduceMotion) {
+                    // The exit token is a floor too: half of it must still find the bar on screen. Without this
+                    // a None exit (2 frames) or a drastically shortened tween would pass the frame count below.
+                    mainClock.advanceTimeByFrame()
+                    framesToLeave++
+                    mainClock.advanceTimeBy(Motion.ScreenExitMs.toLong() / 2)
+                    waitForIdle()
+                    assertTrue(barExists(), "$where half the exit token still shows the bar")
+                }
                 while (barExists() && framesToLeave < 60) {
                     mainClock.advanceTimeByFrame()
                     framesToLeave++
@@ -652,7 +661,7 @@ class PlantJournalTableTest {
                     // within the token plus the frame that applies the empty draft and the one that settles it.
                     assertTrue(framesToLeave > 1, "$where the animated bar does not vanish at once: $framesToLeave")
                     assertTrue(
-                        framesToLeave <= Motion.ScreenExitMs / 16 + 3,
+                        framesToLeave <= Motion.ScreenExitMs / HARNESS_FRAME_MS + 3,
                         "$where the bar leaves within Motion.ScreenExitMs: $framesToLeave frames",
                     )
                 }
@@ -799,6 +808,14 @@ class PlantJournalTableTest {
 
     private companion object {
         const val TIMEOUT: Long = 10_000L
+
+        /**
+         * One virtual frame of the desktop test clock, not a design token: `MainTestClockImpl` is constructed
+         * with `frameDelayMillis = 16` by `SkikoComposeUiTest` (compose ui-test-desktop 1.12.0), and
+         * `advanceTimeByFrame()` steps exactly that. Used only to turn a [Motion] duration into a frame count;
+         * a Compose upgrade that changes the period must change this constant too.
+         */
+        const val HARNESS_FRAME_MS = 16
 
         /** Sum of channel differences: 0 for the same colour, ~3 for black against white. */
         fun colourDistance(a: Color, b: Color): Float =
