@@ -75,6 +75,7 @@ import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
 import site.xmpp.greenthumb.ui.theme.Motion
+import site.xmpp.greenthumb.ui.theme.Spacing
 
 /**
  * M15 journal table (VAL-CARD15-003): every row of every type has the same date column, a 48 dp
@@ -617,6 +618,17 @@ class PlantJournalTableTest {
                 assertTrue(settled > fieldHeight, "$where the open bar takes room under the field")
                 assertEquals(topAtRest, fieldTop(), 1f, "$where the field did not move while the bar grew")
 
+                // The token is the deadline, not just a step: one token past the start the bar must be fully open.
+                // A longer invented duration would still be growing here, and more time would change the height.
+                mainClock.advanceTimeBy(Motion.ScreenEnterMs.toLong())
+                waitForIdle()
+                assertEquals(
+                    settled,
+                    composerHeight(),
+                    1f,
+                    "$where the bar is finished by Motion.ScreenEnterMs, not still growing",
+                )
+
                 // And back: the draft empties, the bar shrinks, the field stays. One frame applies the new draft,
                 // then the exit runs its own duration, then one more frame settles the removal.
                 onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
@@ -686,6 +698,15 @@ class PlantJournalTableTest {
                 nodes(hasTestTag("journal_addNote")).isEmpty(),
                 "a refused delete does not open the save bar",
             )
+            // The composer column no longer spaces its children, so the message carries the gap itself. Without
+            // that padding the message would sit flush against the field.
+            val field = one("journal_noteInput")
+            assertEquals(
+                Spacing.sm.value,
+                dp(top - (field.positionInRoot.y + field.size.height)),
+                1f,
+                "the message keeps one Spacing.sm gap under the field",
+            )
 
             // The same refusal again: the message has to come back on screen, not stay where the first one left it.
             onNode(hasTestTag("journal_scroll"), useUnmergedTree = true)
@@ -707,7 +728,8 @@ class PlantJournalTableTest {
 
     /**
      * 0.8.2: what the user types while the save is in flight is a new note, so the composer must stay open with its
-     * bar instead of folding away and hiding the keyboard.
+     * bar instead of folding away and hiding the keyboard. Emptying the field mid-request keeps the bar too — that
+     * is the `|| saving` half of the visibility rule, and the only case where a visible bar is disabled.
      */
     @Test
     fun textTypedWhileTheSaveIsInFlight_keepsTheComposerOpen() {
@@ -724,6 +746,17 @@ class PlantJournalTableTest {
             // The save stands on the gate: the bar is disabled while the request is open.
             waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote") and isNotEnabled()).isNotEmpty() }
 
+            // The other half of the visibility rule: an emptied draft mid-request keeps the bar up, because the
+            // request is still open. Without `|| saving` the bar would vanish here and the user would lose the
+            // only sign that a save is running.
+            focus("journal_noteInput")
+            onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+            waitForIdle()
+            assertTrue(
+                nodes(hasTestTag("journal_addNote") and isNotEnabled()).isNotEmpty(),
+                "an open request keeps the bar visible and disabled even with an empty draft",
+            )
+
             focus("journal_noteInput")
             onNode(hasTestTag("journal_noteInput")).performTextInput("x")
             noteGate?.complete(Unit)
@@ -735,10 +768,12 @@ class PlantJournalTableTest {
                 nodes(hasTestTag("journal_message")).isEmpty(),
                 "the save went through: no refusal message",
             )
+            // The saved text was "abc"; the field was emptied and then given "x" during the request, so the save
+            // must not swallow it: what is in the field now is a new note, and its bar is live again.
             assertEquals(
-                "abcx",
+                "x",
                 one("journal_noteInput").config[SemanticsProperties.EditableText].text,
-                "the typed text stays in the field",
+                "the text typed during the request stays in the field",
             )
         }
     }
