@@ -1,11 +1,5 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -35,8 +32,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
@@ -148,14 +143,15 @@ internal fun PlantJournalSection(
     refreshKey: Int,
     locale: String,
     modifier: Modifier = Modifier,
+    /** Height of the scroll viewport in px: how far the focused field is lifted. */
+    composerViewportHeightPx: Float = 0f,
     timeline: PlantTimeline? = null,
     deleteCareEntry: (suspend (eventId: String) -> SaveOutcome)? = null,
     /**
-     * Called when the note field gains or loses focus, with the field's top in window coordinates (px) at that
-     * moment. The screen scrolls the detail so the field stands at the top of its viewport, with the save button
-     * and the message under it and above the keyboard.
+     * Called when the note field gains or loses focus. While it holds, the screen keeps one viewport of empty tail
+     * under the journal, so the field can stand at the top of the page with the button and the keyboard below it.
      */
-    onComposerFocusChanged: ((focused: Boolean, fieldTopInWindow: Float) -> Unit)? = null,
+    onComposerFocusChanged: ((focused: Boolean) -> Unit)? = null,
 ) {
     val entries by remember(journal, plantId) {
         journal.observe(plantId).catch { emit(emptyList()) }
@@ -170,14 +166,31 @@ internal fun PlantJournalSection(
     var pendingDelete by remember(plantId) { mutableStateOf<CareEventDto?>(null) }
     val scope = rememberCoroutineScope()
     var inputFocused by remember { mutableStateOf(false) }
-    var composerTopInWindow by remember { mutableStateOf(0f) }
+    // Focusing the field asks the page to lift it to the top: the rect starts at the field's top edge and is one
+    // viewport tall, so the minimal scroll that shows it puts the field exactly at the top.
+    val fieldScrollRequester = remember { BringIntoViewRequester() }
     // The note field would keep focus behind the delete confirmation and get it back when it closes.
     val focusManager = LocalFocusManager.current
+    // A refused delete explains itself above the rows, while the user is scrolled down to the row they tapped:
+    // the message has to come into view on its own, because no focus change happens there.
+    val messageRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(message) {
+        if (message != null) messageRequester.bringIntoView()
+    }
+    LaunchedEffect(inputFocused) {
+        if (inputFocused) {
+            fieldScrollRequester.bringIntoView(Rect(0f, 0f, 1f, composerViewportHeightPx))
+        }
+    }
 
     // At rest the card is just the field: no label, no button, no room kept for it. The button appears on focus,
     // not on the first character, so the layout does not jump while the user types, and it stays while there is
-    // something to save or to explain.
-    val composerExpanded = inputFocused || draft.isNotBlank() || message != null
+    // something to save or to explain. A saved note sets [composerCollapsed], so the card folds back even if the
+    // field keeps the focus. Messages about a refused row delete share the line above the rows but not the
+    // composer: they leave the bar closed, and a disabled bar next to them would read as an invitation.
+    var composerCollapsed by remember(plantId) { mutableStateOf(false) }
+    val noteProblem = message == NoteMessage.NetworkRequired || message == NoteMessage.SaveFailed
+    val composerExpanded = !composerCollapsed && (inputFocused || draft.isNotBlank() || noteProblem)
 
     LaunchedEffect(journal, plantId, refreshKey, online) {
         if (!online) {
@@ -208,6 +221,7 @@ internal fun PlantJournalSection(
                 if (draft == text) draft = ""
                 message = null
                 // The note is in the list now: fold the composer back to the bare field and close the keyboard.
+                composerCollapsed = true
                 focusManager.clearFocus()
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -283,22 +297,27 @@ internal fun PlantJournalSection(
             }
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    // The message lives in this column and is often wider than one line: the requester sits on the
+                    // column because the message itself does not exist yet when the request is made.
+                    .bringIntoViewRequester(messageRequester),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 GtInputField(
                     value = draft,
-                    onValueChange = { draft = it.take(CARE_NOTE_MAX_LENGTH) },
+                    onValueChange = {
+                        draft = it.take(CARE_NOTE_MAX_LENGTH)
+                        composerCollapsed = false
+                    },
                     placeholder = stringResource(Res.string.journal_notePlaceholder),
                     singleLine = false,
                     modifier = Modifier
-                        .onGloballyPositioned { coordinates ->
-                            composerTopInWindow = coordinates.positionInWindow().y
-                        }
+                        .bringIntoViewRequester(fieldScrollRequester)
                         .onFocusChanged { state ->
                             if (state.isFocused == inputFocused) return@onFocusChanged
                             inputFocused = state.isFocused
-                            onComposerFocusChanged?.invoke(state.isFocused, composerTopInWindow)
+                            if (state.isFocused) composerCollapsed = false
+                            onComposerFocusChanged?.invoke(state.isFocused)
                         }
                         .testTag("journal_noteInput"),
                 )
@@ -319,12 +338,8 @@ internal fun PlantJournalSection(
                     )
                 }
                 // The save button exists only while the composer is open: focused, carrying text, or explaining a
-                // refusal. A short expand keeps the jump small; at rest it takes no room at all.
-                AnimatedVisibility(
-                    visible = composerExpanded,
-                    enter = expandVertically(animationSpec = tween(140)) + fadeIn(animationSpec = tween(140)),
-                    exit = shrinkVertically(animationSpec = tween(140)) + fadeOut(animationSpec = tween(90)),
-                ) {
+                // refusal. At rest it takes no room at all.
+                if (composerExpanded) {
                     PrimaryButton(
                         text = stringResource(Res.string.journal_addNote),
                         onClick = ::submit,

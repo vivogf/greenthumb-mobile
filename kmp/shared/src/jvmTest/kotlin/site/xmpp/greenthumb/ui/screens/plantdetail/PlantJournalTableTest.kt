@@ -23,6 +23,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -32,6 +33,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
+import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -173,7 +175,7 @@ class PlantJournalTableTest {
                 CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
                     GreenThumbTheme(darkTheme = true) {
                         // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding).
-                        Box(Modifier.width(widthDp.dp).verticalScroll(rememberScrollState())) {
+                        Box(Modifier.width(widthDp.dp).testTag("journal_scroll").verticalScroll(rememberScrollState())) {
                             Column {
                                 PlantJournalSection(
                                     journal = repo.journal,
@@ -486,6 +488,59 @@ class PlantJournalTableTest {
             assertTrue(
                 nodes(hasTestTag("journal_addNote")).isNotEmpty(),
                 "a typed draft keeps the save bar after blur",
+            )
+        }
+    }
+
+    /**
+     * 0.8.2: a refused delete explains itself in the message under the field, and the user is usually scrolled
+     * down to the row they tapped — so the message must come into view by itself.
+     */
+    @Test
+    fun refusedDelete_bringsItsMessageIntoView_whenTheComposerIsScrolledAway() {
+        val repo = openRepo()
+        // A short window: the card with its rows is taller than this, so the composer can be scrolled away.
+        val windowHeight = 360
+        runDesktopComposeUiTest(width = 360, height = windowHeight) {
+            show(
+                repo,
+                "ru",
+                1f,
+                deleteCareEntry = { throw ApiError.Server(500, """{"error":"boom"}""") },
+            )
+            // Down to the oldest rows: the composer leaves the top of the window. The unmerged node is the column
+            // itself — the merged one offers the scroll action of the multi-line note field.
+            onNode(hasTestTag("journal_scroll"), useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 5000f) }
+            waitForIdle()
+            // positionInRoot, not boundsInRoot: a clipped node reports an empty rect at the clip edge.
+            val composerTop = nodes(hasTestTag("journal_noteInput")).single().positionInRoot.y
+            assertTrue(composerTop < 0f, "the composer is scrolled away before the delete: $composerTop")
+
+            // The oldest row ends the card, so it stands on screen after the scroll.
+            val trash = nodes(hasTestTag("journal_delete_e-old")).single()
+            val trashTop = trash.positionInRoot.y
+            assertTrue(
+                trashTop >= 0f && trashTop + trash.size.height <= windowHeight,
+                "the oldest row's trash is on screen: $trashTop",
+            )
+            onNode(hasTestTag("journal_delete_e-old"), useUnmergedTree = true).performClick()
+            waitUntilAtLeastOneExists(hasText("Удалить"), TIMEOUT)
+            onNodeWithText("Удалить").performClick()
+
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_message")).isNotEmpty() }
+            waitForIdle()
+            val message = one("journal_message")
+            val top = message.positionInRoot.y
+            val bottom = top + message.size.height
+            assertTrue(
+                top >= 0f && bottom <= windowHeight,
+                "the refusal message is on screen: $top..$bottom in 0..$windowHeight",
+            )
+            // A refused row delete is not a problem with the note: the save bar stays closed next to it.
+            assertTrue(
+                nodes(hasTestTag("journal_addNote")).isEmpty(),
+                "a refused delete does not open the save bar",
             )
         }
     }

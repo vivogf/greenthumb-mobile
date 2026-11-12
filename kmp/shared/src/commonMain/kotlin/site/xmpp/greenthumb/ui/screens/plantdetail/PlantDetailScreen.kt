@@ -40,14 +40,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -57,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -408,26 +404,15 @@ public fun PlantDetailScreen(
 
             // The journal composer scrolls itself to the top of this column when its field takes focus, so the
             // field stands under the photo header with the save button under it and the keyboard below.
-            val detailScroll = rememberScrollState()
-            var viewportTop by remember { mutableStateOf(0f) }
-            var viewportHeight by remember { mutableIntStateOf(0) }
+            // The journal composer asks the page to lift its field to the top of this column; the column keeps one
+            // viewport of empty tail while the composer holds, because the journal is the last card on the page.
             var composerFocused by remember { mutableStateOf(false) }
-            var scrollTarget by remember { mutableStateOf(0f) }
-            var scrollTicket by remember { mutableIntStateOf(0) }
             val density = LocalDensity.current
-
-            // The tail spacer grows in the same frame as the focus, so wait for the layout that makes the
-            // field's top reachable before scrolling to it (a short journal would clamp the scroll otherwise).
-            LaunchedEffect(scrollTicket) {
-                if (scrollTicket == 0) return@LaunchedEffect
-                val target = scrollTarget.toInt().coerceAtLeast(0)
-                var frames = 0
-                while (detailScroll.maxValue < target && frames < 8) {
-                    withFrameNanos { }
-                    frames++
-                }
-                detailScroll.animateScrollTo(target.coerceIn(0, detailScroll.maxValue))
-            }
+            val detailScroll = rememberScrollState()
+            // The scroll state reports the viewport it laid out: the tail has to be exactly that tall so the field
+            // can rise to the top of the page.
+            val composerViewportPx = detailScroll.viewportSize.toFloat()
+            val composerViewport = with(density) { detailScroll.viewportSize.toDp() }
 
             fun update(patch: PatchPlantDto) {
                 scope.launch {
@@ -695,10 +680,6 @@ public fun PlantDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .onGloballyPositioned { coordinates ->
-                                viewportTop = coordinates.positionInWindow().y
-                                viewportHeight = coordinates.size.height
-                            }
                             .verticalScroll(detailScroll)
                             .navigationBarsPadding()
                             .padding(Spacing.xl),
@@ -935,14 +916,8 @@ public fun PlantDetailScreen(
                                     if (it is SaveOutcome.Saved) journalRefreshKey++
                                 }
                             },
-                            onComposerFocusChanged = { focused, fieldTop ->
-                                composerFocused = focused
-                                if (focused) {
-                                    // Where the field sits in the scroll content, measured before we move it.
-                                    scrollTarget = fieldTop - viewportTop + detailScroll.value
-                                    scrollTicket++
-                                }
-                            },
+                            composerViewportHeightPx = composerViewportPx,
+                            onComposerFocusChanged = { focused -> composerFocused = focused },
                         )
 
                         // ── Удаление ──
@@ -960,11 +935,9 @@ public fun PlantDetailScreen(
 
                         // The journal sits at the end of the page: with little content below it the field cannot
                         // reach the top of the viewport, so while the composer is focused the page keeps one
-                        // viewport of empty tail. It appears and leaves at once: on the way out the page returns
-                        // to the scroll it had before the field was focused.
-                        if (composerFocused) {
-                            Spacer(Modifier.height(with(density) { viewportHeight.toDp() }))
-                        }
+                        // viewport of empty tail. The tail leaves with the focus, and the shorter content clamps
+                        // the scroll back to where the page ends.
+                        Spacer(Modifier.height(if (composerFocused) composerViewport else Spacing.none))
                     }
                 }
                 // Пикер фото поверх экрана (Stage 8 п.1).

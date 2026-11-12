@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
  * M10 (D§3.3): new code uses only 4/8/12/16/24 ([xxs], [xs], [sm], [lg], [xxl]) and [Sizes].
  */
 object Spacing {
+    /** No space: a node that stays in the tree but takes nothing. */
+    val none = 0.dp
     val xxs = 4.dp
     val xs = 8.dp
     val sm = 12.dp

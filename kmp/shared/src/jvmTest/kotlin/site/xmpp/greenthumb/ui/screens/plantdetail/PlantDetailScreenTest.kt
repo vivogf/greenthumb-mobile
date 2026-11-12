@@ -3,6 +3,9 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -14,6 +17,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -22,7 +26,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.runDesktopComposeUiTest
+import androidx.compose.ui.test.runSkikoComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import io.ktor.client.engine.mock.MockEngine
@@ -34,6 +38,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import java.io.File
 import kotlin.io.path.deleteRecursively
+import kotlin.math.abs
 import kotlin.io.path.toPath
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -70,6 +75,12 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
 /**
  * Stage 7 п.6 (фича screen-plant-detail) — desktop-ветка VAL-DETAIL-001/004/006:
  * полная поверхность App() (механика AddPlantScreenTest). Ключевые утверждения:
+ *
+ * Прогон идёт через `runSkikoComposeUiTest` (offscreen-поверхность), а не через окно
+ * `runDesktopComposeUiTest`: окно перерисовывается на потоке AWT, и пока тест читает семантику,
+ * кадр из фокуса/прокрутки журнала ронял класс `Detected multithreaded access to
+ * SnapshotStateObserver` примерно в четверти прогонов. На offscreen-поверхности кадры идут в
+ * потоке теста: 6 из 6 повторов зелёные.
  *
  * - VAL-DETAIL-001: шапка рисует имя/локацию/метки назад-камера; тап по имени
  *   → окно «Name and place» → правка → ✓ → PATCH /api/plants/:id с телом
@@ -517,7 +528,7 @@ class PlantDetailScreenTest {
     fun header_showsNameLocation_andNameEdit_sendsPatch() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -572,7 +583,7 @@ class PlantDetailScreenTest {
     fun delete_confirmed_sendsDelete_andReturnsToDashboard_instantly() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -610,7 +621,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         graph.server.deleteStatus = HttpStatusCode.InternalServerError
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -640,7 +651,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         graph.server.deleteThrows = IllegalStateException("Connection reset")
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -679,7 +690,7 @@ class PlantDetailScreenTest {
     fun careSettingsModal_prefilled_clearFertilize_saveSendsExplicitNull() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -713,7 +724,7 @@ class PlantDetailScreenTest {
     fun careSettingsModal_cancel_sendsNothing() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -737,7 +748,7 @@ class PlantDetailScreenTest {
     fun unknownId_showsNotFoundScreen_withoutCrash() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
                     site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
@@ -788,7 +799,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         seedAllEventTypes(graph.server)
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -817,7 +828,7 @@ class PlantDetailScreenTest {
         seedAllEventTypes(graph.server)
         val repo = graph.opener.open("73")
         runBlocking { repo.refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
                     site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
@@ -863,33 +874,32 @@ class PlantDetailScreenTest {
     fun journal_composer_scrollsTheFieldToTheTop_andTheSaveBarFollowsFocus() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest(width = 420, height = 900) {
+        runSkikoComposeUiTest(size = Size(420f, 900f)) {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
 
-            fun field(): androidx.compose.ui.semantics.SemanticsNode =
+            fun field(): SemanticsNode =
                 onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).fetchSemanticsNode()
 
-            val viewport = onNode(hasTestTag("plantDetail_headerPhoto"), useUnmergedTree = true)
-                .fetchSemanticsNode().boundsInRoot
-            println("M15 journal focus viewportTop=${viewport.bottom} fieldTop=${field().positionInRoot.y}")
+            // The photo header ends where the scroll viewport starts: a field at the top of the page sits there.
+            val viewportTop = onNode(hasTestTag("plantDetail_headerPhoto"), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot.bottom
             assertTrue(
-                field().positionInRoot.y > viewport.bottom + 40f,
-                "at rest the field is below the visible top: ${field().positionInRoot.y} vs ${viewport.bottom}",
+                field().positionInRoot.y > viewportTop + 40f,
+                "at rest the field is below the visible top: ${field().positionInRoot.y} vs $viewportTop",
             )
             assertTrue(
                 onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
                 "no save bar at rest",
             )
 
-            onNode(hasTestTag("journal_noteInput"))
-                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus)
+            onNode(hasTestTag("journal_noteInput")).performSemanticsAction(SemanticsActions.RequestFocus)
+            // The field is lifted to the top of the viewport: it lands right under the photo header.
             waitUntil(timeoutMillis = TIMEOUT) {
-                kotlin.math.abs(field().positionInRoot.y - viewport.bottom) <= 4f
+                abs(field().positionInRoot.y - viewportTop) <= 4f
             }
-            println("M15 journal focus fieldTop=${field().positionInRoot.y} viewportTop=${viewport.bottom}")
             waitUntil(timeoutMillis = TIMEOUT) {
                 onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             }
@@ -909,7 +919,7 @@ class PlantDetailScreenTest {
     fun note_add_survivesReopen_andDeleteNeedsConfirmation() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -924,6 +934,8 @@ class PlantDetailScreenTest {
             waitUntil(timeoutMillis = TIMEOUT) {
                 onAllNodes(hasText("Unique note 4711") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
             }
+            // The saved note folds the card back: the bar leaves, so the page keeps no empty tail under the journal.
+            waitUntilDoesNotExist(hasTestTag("journal_addNote"), TIMEOUT)
 
             // Leave and reopen: the note is still there, once.
             onAllNodes(hasContentDescription("Back"), useUnmergedTree = true)[0]
@@ -961,7 +973,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         graph.server.noteThrows = IllegalStateException("Connection reset")
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1005,7 +1017,7 @@ class PlantDetailScreenTest {
     fun plantNotes_andJournalEntry_haveDistinctLabels_andSeparateRequests() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1060,7 +1072,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         seedAllEventTypes(graph.server)
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1085,7 +1097,7 @@ class PlantDetailScreenTest {
     fun watering_online_addsOneWaterEntry() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1129,7 +1141,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         seedTimeline(graph.server)
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1171,7 +1183,7 @@ class PlantDetailScreenTest {
         seedTimeline(graph.server)
         val repo = graph.opener.open("73")
         runBlocking { repo.refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "ru") {
                     site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
@@ -1200,7 +1212,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         presetEnglishSignedOut()
         seedTimeline(graph.server)
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -1245,7 +1257,7 @@ class PlantDetailScreenTest {
         graph.server.photosThrows = IllegalStateException("Connection reset")
         graph.server.eventsThrows = IllegalStateException("Connection reset")
         val offline = MutableStateFlow(false)
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
                     site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = false) {
@@ -1324,7 +1336,7 @@ class PlantDetailScreenTest {
             kotlinx.datetime.LocalDate.fromEpochDays(today.toEpochDays() - wateredDaysAgo).toString()
         val repo = graph.opener.open("73")
         runBlocking { repo.refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 val base = androidx.compose.ui.platform.LocalDensity.current
                 androidx.compose.runtime.CompositionLocalProvider(
@@ -1398,7 +1410,7 @@ class PlantDetailScreenTest {
         val today = site.xmpp.greenthumb.ui.components.pickerToday()
         val repo = graph.opener.open("73")
         runBlocking { repo.refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 site.xmpp.greenthumb.core.platform.AppEnvironment(customAppLocale = "en") {
                     site.xmpp.greenthumb.ui.theme.GreenThumbTheme(darkTheme = true) {
@@ -1438,7 +1450,7 @@ class PlantDetailScreenTest {
         val today = site.xmpp.greenthumb.ui.components.pickerToday()
         val repo = graph.opener.open("73")
         runBlocking { repo.refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             setContent {
                 val base = androidx.compose.ui.platform.LocalDensity.current
                 androidx.compose.runtime.CompositionLocalProvider(
@@ -1562,7 +1574,7 @@ class PlantDetailScreenTest {
         val graph = newHarness()
         val today = site.xmpp.greenthumb.ui.components.pickerToday()
         runBlocking { graph.opener.open("73").refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             showDetail(graph, "ru", fontScale = 1.3f)
             val card = hasClickAction() and hasText("Удобрение", substring = true)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
@@ -1590,7 +1602,7 @@ class PlantDetailScreenTest {
         graph.server.lastFertilizedDate = null
         val today = site.xmpp.greenthumb.ui.components.pickerToday()
         runBlocking { graph.opener.open("73").refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             showDetail(graph, "en")
             val card = hasClickAction() and hasText("Fertilizing", substring = true) and hasText("Set the date", substring = true)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
@@ -1612,7 +1624,7 @@ class PlantDetailScreenTest {
     fun undoBar_closesByItself_andWateringHasNone() {
         val graph = newHarness()
         runBlocking { graph.opener.open("73").refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             showDetail(graph, "en")
             val card = hasClickAction() and hasText("Fertilizing", substring = true)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
@@ -1644,7 +1656,7 @@ class PlantDetailScreenTest {
     fun undoBar_waitsForTheUser_whenAScreenReaderIsOn() {
         val graph = newHarness()
         runBlocking { graph.opener.open("73").refresh() }
-        runDesktopComposeUiTest {
+        runSkikoComposeUiTest {
             showDetail(graph, "en", screenReaderOn = { true })
             val card = hasClickAction() and hasText("Fertilizing", substring = true)
             waitUntil(timeoutMillis = TIMEOUT) { onAllNodes(card).fetchSemanticsNodes().isNotEmpty() }
