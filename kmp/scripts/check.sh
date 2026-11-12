@@ -255,34 +255,42 @@ echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desk
 GRADLE_LOG="$(mktemp -t gt-gradle-gate)"
 trap 'rm -f "$GRADLE_LOG"' EXIT
 
+# --continue: with a failing :shared:jvmTest gradle would otherwise skip every task after it, and the gate would
+# report only about the tests it happened to reach (0.8.2 review, blocker: a race used to hide :androidApp tests).
 gradle_gate() {
   : > "$GRADLE_LOG"
-  ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest 2>&1 | tee "$GRADLE_LOG"
+  ./gradlew --console=plain --continue \
+    :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest \
+    2>&1 | tee "$GRADLE_LOG"
   return "${PIPESTATUS[0]}"
 }
 
-# Desktop-харнесс Compose собирает кадр в потоке AWT, а тест в это время читает семантику; кадр между двумя
-# чтениями роняет прогон на "Detected multithreaded access to SnapshotStateObserver". Это дефект харнесса, а не
-# продукта. Гонку ловит только PlantDetailScreenTest (класс с окном и живым вводом), поэтому повтор сужен до
-# этого класса, выполняется один раз и только если тесты действительно шли, а в XML класса нет других ошибок.
+# Харнесс Compose собирает кадр в потоке AWT, а тест в это время читает семантику; кадр между двумя чтениями
+# роняет прогон на "Detected multithreaded access to SnapshotStateObserver". Это дефект харнесса, а не продукта.
+# Гонка воспроизводится только в PlantDetailScreenTest (живой ввод и фокус), поэтому повтор сужен до имен упавших
+# тестов этого класса и выполняется один раз. Повтор разрешён, только если в этом прогоне упал ровно один таск
+# :shared:jvmTest, во всём каталоге результатов нет ни <error>, ни других падений, а все падения — эта гонка.
 race_class_retry() {
   grep -q "> Task :shared:jvmTest FAILED" "$GRADLE_LOG" || return 1
+  [ "$(grep -c "> Task .* FAILED" "$GRADLE_LOG")" = "1" ] || return 1
   RETRY_TESTS="$(python3 - <<'RETRY_CHECK'
 import glob, html, io, re, sys
 
 race = "Detected multithreaded access to SnapshotStateObserver"
-files = glob.glob("shared/build/test-results/jvmTest/TEST-*PlantDetailScreenTest.xml")
+class_name = "PlantDetailScreenTest"
+files = glob.glob("shared/build/test-results/jvmTest/TEST-*.xml")
 if not files:
     sys.exit(1)
 failed = []
-texts = []
 for path in files:
     text = html.unescape(io.open(path, encoding="utf-8").read())
-    texts.append(text)
-    for match in re.finditer(r'<testcase name="([^"]+)"[^>]*>\s*<failure[^>]*>(.*?)</failure>', text, re.S):
-        if race not in match.group(2):
+    if "<error" in text:
+        sys.exit(1)
+    for match in re.finditer(r'<testcase name="([^"]+)" classname="([^"]+)"[^>]*>\s*<failure[^>]*>(.*?)</failure>', text, re.S):
+        name, owner, body = match.group(1), match.group(2), match.group(3)
+        if race not in body or not owner.endswith(class_name):
             sys.exit(1)
-        failed.append(match.group(1).replace("[jvm]", ""))
+        failed.append(name.replace("[jvm]", ""))
 if not failed:
     sys.exit(1)
 print("\n".join(sorted(set(failed))))

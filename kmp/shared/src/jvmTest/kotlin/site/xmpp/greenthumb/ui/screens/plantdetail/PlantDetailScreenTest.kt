@@ -75,10 +75,11 @@ import site.xmpp.greenthumb.data.PlantRepositoryOpener
  * Stage 7 п.6 (фича screen-plant-detail) — desktop-ветка VAL-DETAIL-001/004/006:
  * полная поверхность App() (механика AddPlantScreenTest). Ключевые утверждения:
  *
- * Прогон идёт через `runSkikoComposeUiTest` (offscreen-поверхность), а не через окно
- * `runDesktopComposeUiTest`: окно перерисовывается на потоке AWT, и кадр между двумя чтениями семантики роняет
- * прогон на `Detected multithreaded access to SnapshotStateObserver`. На offscreen-поверхности кадры идут в
- * потоке теста, и подъём композера (`withFrameNanos` + `scrollTo`) проверяется там же.
+ * Прогон идёт через `runSkikoComposeUiTest` (offscreen-поверхность): окно перерисовывается на потоке AWT чаще,
+ * и кадр между двумя чтениями семантики роняет прогон на `Detected multithreaded access to SnapshotStateObserver`.
+ * Offscreen снижает частоту (по замерам: окно — 5 падений из 12, offscreen — 3 из 10, с вводом целым текстом —
+ * 2 из 10), но не убирает гонку: кадр всё равно приходит с AWT-потока. Остаток закрывает повтор в
+ * `kmp/scripts/check.sh` — только для упавших тестов этого класса.
  *
  * - VAL-DETAIL-001: шапка рисует имя/локацию/метки назад-камера; тап по имени
  *   → окно «Name and place» → правка → ✓ → PATCH /api/plants/:id с телом
@@ -872,7 +873,7 @@ class PlantDetailScreenTest {
     fun journal_composer_scrollsTheFieldToTheTop_andTheSaveBarFollowsFocus() {
         val graph = newHarness()
         presetEnglishSignedOut()
-        runSkikoComposeUiTest {
+        runSkikoComposeUiTest(size = Size(420f, 900f)) {
             setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
             openDashboard()
             openPlantDetail()
@@ -924,7 +925,7 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             onNode(hasTestTag("journal_noteInput")).performTextReplacement("Unique note 4711")
-            // The composer scrolls on focus: let the move settle before tapping the bar.
+            // The bar is up because the draft has text: the whole-text input takes no focus on this path.
             waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
@@ -978,7 +979,7 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             onNode(hasTestTag("journal_noteInput")).performTextReplacement("Offline 99")
-            // The composer scrolls on focus: let the move settle before tapping the bar.
+            // The bar is up because the draft has text: the whole-text input takes no focus on this path.
             waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntilAtLeastOneExists(hasSubText("Network connection required"), TIMEOUT)
@@ -997,7 +998,7 @@ class PlantDetailScreenTest {
             waitForIdle()
             assertEquals(1, graph.server.notePosts)
 
-            // The composer scrolls on focus: let the move settle before tapping the bar.
+            // The bar is up because the draft has text: the whole-text input takes no focus on this path.
             waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 2 }
@@ -1050,7 +1051,7 @@ class PlantDetailScreenTest {
 
             // A journal entry is one POST to the events endpoint; the plant notes stay as saved.
             onNode(hasTestTag("journal_noteInput")).performTextReplacement("Entry 512")
-            // The composer scrolls on focus: let the move settle before tapping the bar.
+            // The bar is up because the draft has text: the whole-text input takes no focus on this path.
             waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
