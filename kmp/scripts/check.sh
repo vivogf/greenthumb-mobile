@@ -255,12 +255,17 @@ echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desk
 GRADLE_LOG="$(mktemp -t gt-gradle-gate)"
 trap 'rm -f "$GRADLE_LOG"' EXIT
 
-# --continue: with a failing :shared:jvmTest gradle would otherwise skip every task after it, and the gate would
-# report only about the tests it happened to reach (0.8.2 review, blocker: a race used to hide :androidApp tests).
+# --continue: с падающим :shared:jvmTest gradle иначе пропускает задачи после него, и гейт отчитывался бы только о
+# тех тестах, до которых дошёл (0.8.2, блокер: гонка скрывала :androidApp). --rerun у двух тестовых задач: иначе
+# повторный прогон печатает OK по кэшу, не выполнив ни одного теста.
+GATE_START=$(date +%s)
+export GATE_START GRADLE_LOG
+
 gradle_gate() {
   : > "$GRADLE_LOG"
   ./gradlew --console=plain --continue \
-    :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest \
+    :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin \
+    :androidApp:testDebugUnitTest --rerun :shared:jvmTest --rerun \
     2>&1 | tee "$GRADLE_LOG"
   return "${PIPESTATUS[0]}"
 }
@@ -269,20 +274,25 @@ gradle_gate() {
 # роняет прогон на "Detected multithreaded access to SnapshotStateObserver". Это дефект харнесса, а не продукта.
 # Гонка воспроизводится только в PlantDetailScreenTest (живой ввод и фокус), поэтому повтор сужен до имен упавших
 # тестов этого класса и выполняется один раз. Повтор разрешён, только если в этом прогоне упал ровно один таск
-# :shared:jvmTest, во всём каталоге результатов нет ни <error>, ни других падений, а все падения — эта гонка.
+# :shared:jvmTest, файлы результатов моложе начала прогона, во всём каталоге результатов нет ни <error>, ни других
+# падений, число упавших совпадает с итогом gradle, и все падения — эта гонка.
 race_class_retry() {
   grep -q "> Task :shared:jvmTest FAILED" "$GRADLE_LOG" || return 1
   [ "$(grep -c "> Task .* FAILED" "$GRADLE_LOG")" = "1" ] || return 1
   RETRY_TESTS="$(python3 - <<'RETRY_CHECK'
-import glob, html, io, re, sys
+import glob, html, io, os, re, sys
 
 race = "Detected multithreaded access to SnapshotStateObserver"
 class_name = "PlantDetailScreenTest"
+start = int(os.environ["GATE_START"]) - 5
 files = glob.glob("shared/build/test-results/jvmTest/TEST-*.xml")
 if not files:
     sys.exit(1)
 failed = []
 for path in files:
+    # Результаты старше этого прогона: тесты не писали его, судить по чужому файлу нельзя.
+    if int(os.path.getmtime(path)) < start:
+        sys.exit(1)
     text = html.unescape(io.open(path, encoding="utf-8").read())
     if "<error" in text:
         sys.exit(1)
@@ -292,6 +302,10 @@ for path in files:
             sys.exit(1)
         failed.append(name.replace("[jvm]", ""))
 if not failed:
+    sys.exit(1)
+# Сверка с итогом gradle: сколько тестов он сам назвал упавшими.
+counts = re.findall(r"(\d+) tests completed, (\d+) failed", io.open(os.environ["GRADLE_LOG"], encoding="utf-8", errors="replace").read())
+if not counts or int(counts[-1][1]) != len(failed):
     sys.exit(1)
 print("\n".join(sorted(set(failed))))
 RETRY_CHECK
