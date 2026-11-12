@@ -645,6 +645,9 @@ class PlantJournalTableTest {
                     mainClock.advanceTimeByFrame()
                     framesToLeave++
                     mainClock.advanceTimeBy(Motion.ScreenExitMs.toLong() / 2)
+                    // advanceTimeBy rounds up to whole frames, so this probe spends real frames too. Count them,
+                    // or the deadline below would silently grow by the probe's length.
+                    framesToLeave += (Motion.ScreenExitMs / 2) / HARNESS_FRAME_MS
                     waitForIdle()
                     assertTrue(barExists(), "$where half the exit token still shows the bar")
                 }
@@ -658,7 +661,9 @@ class PlantJournalTableTest {
                     assertEquals(1, framesToLeave, "$where reduce motion hides the bar in one frame")
                 } else {
                     // The exit runs its own token: it must not vanish on the first frame, and it must be gone
-                    // within the token plus the frame that applies the empty draft and the one that settles it.
+                    // within the token plus three frames — the one that applies the empty draft, the one that
+                    // settles the removal, and one spare. The probe's frames are counted above, so this budget
+                    // is the whole exit, not just the part after the probe.
                     assertTrue(framesToLeave > 1, "$where the animated bar does not vanish at once: $framesToLeave")
                     assertTrue(
                         framesToLeave <= Motion.ScreenExitMs / HARNESS_FRAME_MS + 3,
