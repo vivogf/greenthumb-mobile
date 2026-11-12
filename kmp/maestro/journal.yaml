@@ -65,7 +65,7 @@ name: GreenThumb journal (${STEP})
       - scrollUntilVisible:
           element: "Add a note…|Добавить заметку…"
           direction: DOWN
-      # At rest the composer is the bare field: the save bar waits for focus (0.8.2 variant C).
+      # At rest the composer is the bare field: the save bar waits for the first character (0.8.2 variant C).
       - assertNotVisible: "^Add note$|^Сохранить заметку$"
 
 - runFlow:
@@ -90,9 +90,12 @@ name: GreenThumb journal (${STEP})
     commands:
       # Keyboard stays open: the message must show up on screen without scrolling.
       - tapOn: "Add a note…"
-      # Focus alone brings the full-width save bar; the field stands at the top of the page.
-      - assertVisible: "^Add note$|^Сохранить заметку$"
+      # Focus lifts the field to the top of the page but brings no bar while the field is empty.
+      - assertNotVisible: "^Add note$|^Сохранить заметку$"
       - inputText: ${NOTE}
+      # The typed text brings the full-width save bar; it grows down over a short animation.
+      - waitForAnimationToEnd
+      - assertVisible: "^Add note$|^Сохранить заметку$"
       - tapOn: "Add note"
       - extendedWaitUntil:
           visible: "Network connection required.*"
@@ -106,13 +109,18 @@ name: GreenThumb journal (${STEP})
       true: ${STEP == 'add-note'}
     commands:
       - tapOn: "Add a note…"
-      - assertVisible: "^Add note$|^Сохранить заметку$"
+      - assertNotVisible: "^Add note$|^Сохранить заметку$"
       - inputText: ${NOTE}
+      - waitForAnimationToEnd
+      - assertVisible: "^Add note$|^Сохранить заметку$"
       - hideKeyboard
       - tapOn: "Add note"
       - extendedWaitUntil:
           visible: "Add a note…"
           timeout: 15000
+      # The save emptied the field, so the bar shrank away with the text.
+      - waitForAnimationToEnd
+      - assertNotVisible: "^Add note$|^Сохранить заметку$"
       - scrollUntilVisible:
           element: ${NOTE}
           direction: DOWN

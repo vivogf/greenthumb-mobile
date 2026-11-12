@@ -38,6 +38,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.text.TextLayoutResult
@@ -73,6 +74,7 @@ import site.xmpp.greenthumb.data.PlantRepository
 import site.xmpp.greenthumb.data.SaveOutcome
 import site.xmpp.greenthumb.ui.PlainImageLoaderRule
 import site.xmpp.greenthumb.ui.theme.GreenThumbTheme
+import site.xmpp.greenthumb.ui.theme.Motion
 
 /**
  * M15 journal table (VAL-CARD15-003): every row of every type has the same date column, a 48 dp
@@ -185,13 +187,14 @@ class PlantJournalTableTest {
         fontScale: Float,
         widthDp: Int = 360,
         withFocusNeighbour: Boolean = false,
+        reduceMotion: Boolean = false,
         deleteCareEntry: (suspend (String) -> SaveOutcome)? = null,
     ) {
         setContent {
             AppEnvironment(customAppLocale = locale) {
                 val base = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
-                    GreenThumbTheme(darkTheme = true) {
+                    GreenThumbTheme(darkTheme = true, reduceMotion = reduceMotion) {
                         // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding). The page
                         // contract of PlantDetailScreen is repeated here: a lift request scrolls the field to the
                         // top of the column. The real wiring is covered by PlantDetailScreenTest.
@@ -419,11 +422,12 @@ class PlantJournalTableTest {
 
     /**
      * 0.8.2: at rest the composer is the bare field — no label, hint on the left, and no save button taking
-     * room. The «Сохранить заметку» bar on the card's full width appears with focus (empty draft — disabled),
-     * and the trash of a row has no square.
+     * room. Focus alone changes nothing; the «Сохранить заметку» bar on the card's full width comes with the
+     * first non-blank character, enabled, without moving the field, and leaves when the draft is empty or
+     * blank. The trash of a row has no square.
      */
     @Test
-    fun composer_appearsOnFocus_atFullWidth_and_the_trash_is_bare() {
+    fun composer_followsTheDraft_atFullWidth_and_the_trash_is_bare() {
         val repo = openRepo()
         // Narrow phone (300 dp column, ~320 dp screen) at the largest font: the worst case for a full-width bar.
         for ((locale, fontScale, widthDp) in listOf(
@@ -446,26 +450,36 @@ class PlantJournalTableTest {
                 assertTrue(nodes(hasTestTag("journal_entryLabel")).isEmpty(), "$where no composer label at rest")
                 assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "$where no save button at rest")
 
-                // Focus alone brings the bar, before a single character is typed, and it is disabled while empty.
+                // Focus alone changes nothing: an empty field keeps the card bare.
                 onNode(hasTestTag("journal_noteInput")).performSemanticsAction(SemanticsActions.RequestFocus)
-                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isNotEmpty() }
-                val empty = one("journal_addNote")
-                assertEquals(
-                    field.size.width.toFloat(),
-                    empty.size.width.toFloat(),
-                    2f,
-                    "$where the bar spans the field: full card width",
-                )
+                waitForIdle()
                 assertTrue(
-                    nodes(hasTestTag("journal_addNote") and isNotEnabled()).isNotEmpty(),
-                    "$where the bar is disabled while the draft is empty",
+                    nodes(hasTestTag("journal_addNote")).isEmpty(),
+                    "$where focus on an empty field brings no bar",
                 )
 
-                // Typing keeps it, and it becomes the live action.
+                fun fieldTop() = nodes(hasTestTag("journal_noteInput")).single().positionInRoot.y
+                val topBeforeTyping = fieldTop()
+                // A closed bar keeps no room under the field: the composer ends with the field itself.
+                assertEquals(
+                    field.size.height.toFloat(),
+                    one("journal_composer").size.height.toFloat(),
+                    1f,
+                    "$where at rest the composer is only the field",
+                )
+
+                // The first character brings the bar, enabled, and the field above it stays where it was.
                 onNode(hasTestTag("journal_noteInput")).performTextInput(if (locale == "ru") "Первая строка" else "First line")
                 waitUntil(timeoutMillis = TIMEOUT) {
                     nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty()
                 }
+                waitForIdle()
+                assertEquals(
+                    topBeforeTyping,
+                    fieldTop(),
+                    1f,
+                    "$where the bar grows downwards: the field does not move",
+                )
                 val button = one("journal_addNote")
                 assertEquals(
                     field.size.width.toFloat(),
@@ -473,11 +487,32 @@ class PlantJournalTableTest {
                     2f,
                     "$where the live bar spans the field",
                 )
+                assertTrue(
+                    nodes(hasTestTag("journal_addNote") and isNotEnabled()).isEmpty(),
+                    "$where a visible bar is never grey: it is the live action",
+                )
                 val labelText = if (locale == "ru") "Сохранить заметку" else "Add note"
                 val label = layout(
                     nodes(hasAnyAncestor(hasTestTag("journal_addNote")) and hasText(labelText)).single(),
                 )
                 assertEquals(1, label.lineCount, "$where the button label stays on one line")
+
+                // Only spaces left: nothing to save, so the bar leaves — and so does an empty draft.
+                onNode(hasTestTag("journal_noteInput")).performTextReplacement("   ")
+                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isEmpty() }
+                onNode(hasTestTag("journal_noteInput")).performTextInput("x")
+                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isNotEmpty() }
+                onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isEmpty() }
+                waitForIdle()
+                // The bar shrinks away completely: the field is the whole composer again, and it never moved.
+                assertEquals(
+                    field.size.height.toFloat(),
+                    one("journal_composer").size.height.toFloat(),
+                    1f,
+                    "$where a closed bar leaves no room behind",
+                )
+                assertEquals(topBeforeTyping, fieldTop(), 1f, "$where the field stayed put through both animations")
 
                 // The trash is an icon, not a framed button: no hairline runs along the top edge of its box.
                 // (A framed GtIconButton draws outline at y = 0..1 and surface below, so the column would split.)
@@ -493,11 +528,11 @@ class PlantJournalTableTest {
     }
 
     /**
-     * 0.8.2: the save bar follows focus. Blur with an empty draft folds it away; a typed draft keeps it, so a
-     * half-written note is never hidden behind a missing button.
+     * 0.8.2: the save bar reads the draft, never the focus. A focused empty field shows no bar, a typed draft
+     * keeps the bar after the focus leaves, and emptying the draft without focus takes it away.
      */
     @Test
-    fun composer_bar_foldsAway_onBlurWithAnEmptyDraft_andStaysWithText() {
+    fun composer_bar_ignoresFocus_andFollowsTheDraftOnly() {
         val repo = openRepo()
         runDesktopComposeUiTest {
             show(repo, "ru", 1f, withFocusNeighbour = true)
@@ -505,14 +540,11 @@ class PlantJournalTableTest {
             fun focus(tag: String) = onNode(hasTestTag(tag)).performSemanticsAction(SemanticsActions.RequestFocus)
 
             focus("journal_noteInput")
-            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isNotEmpty() }
-            // Empty draft + focus gone: the bar leaves and the field is still on screen.
-            focus("focusElsewhere")
-            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isEmpty() }
+            waitForIdle()
+            assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "focus alone brings no bar")
             onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).assertExists()
 
-            // A draft keeps the bar after the field loses focus.
-            focus("journal_noteInput")
+            // A draft keeps the bar after the field loses focus: a half-written note is never hidden.
             onNode(hasTestTag("journal_noteInput")).performTextInput("половина")
             waitUntil(timeoutMillis = TIMEOUT) {
                 nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty()
@@ -520,9 +552,87 @@ class PlantJournalTableTest {
             focus("focusElsewhere")
             waitForIdle()
             assertTrue(
-                nodes(hasTestTag("journal_addNote")).isNotEmpty(),
+                nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty(),
                 "a typed draft keeps the save bar after blur",
             )
+
+            // Emptied while the focus is elsewhere: the bar leaves with the text.
+            onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isEmpty() }
+        }
+    }
+
+    /**
+     * 0.8.2: the bar grows down from under the field on the screen-change pair of durations, and reduce motion
+     * shows it in one frame. The clock is paused, so every frame below is asked for by hand: the bar is measured
+     * mid-animation, and the field's top is compared at each step. An animated page scroll would fail this.
+     */
+    @Test
+    fun composer_bar_growsDownwards_overMotionTokens_andShowsAtOnceUnderReduceMotion() {
+        val repo = openRepo()
+        for (reduceMotion in listOf(false, true)) {
+            val where = if (reduceMotion) "[reduce motion]" else "[animated]"
+            runDesktopComposeUiTest {
+                // The card loads on the running clock; only the bar's animation is stepped by hand below.
+                show(repo, "ru", 1f, reduceMotion = reduceMotion)
+                mainClock.autoAdvance = false
+                waitForIdle()
+
+                fun fieldTop() = one("journal_noteInput").positionInRoot.y
+                // The animation clips the bar, so the button node keeps its own height while it opens. What grows
+                // is the room the composer takes under the field: that is the height measured here.
+                fun composerHeight() = one("journal_composer").size.height.toFloat()
+                fun barExists() = nodes(hasTestTag("journal_addNote")).isNotEmpty()
+                val fieldHeight = one("journal_noteInput").size.height.toFloat()
+                val topAtRest = fieldTop()
+                assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "$where no bar at rest")
+                assertEquals(fieldHeight, composerHeight(), 1f, "$where at rest the composer is the field alone")
+
+                onNode(hasTestTag("journal_noteInput")).performTextInput("заметка")
+                // One frame in: the bar is on screen, and its room starts to open under the field.
+                mainClock.advanceTimeBy(1)
+                waitForIdle()
+                assertTrue(barExists(), "$where the bar is on screen from the first frame")
+                val firstFrame = composerHeight()
+                assertEquals(topAtRest, fieldTop(), 1f, "$where the field does not move on the first frame")
+
+                if (!reduceMotion) {
+                    // Mid-animation the room is wider open than on the first frame, and the field still holds.
+                    mainClock.advanceTimeBy(Motion.ScreenEnterMs.toLong() / 2)
+                    waitForIdle()
+                    val middle = composerHeight()
+                    assertTrue(middle > firstFrame, "$where the bar grows downwards: $firstFrame -> $middle")
+                    assertEquals(topAtRest, fieldTop(), 1f, "$where the field does not move mid-animation")
+                }
+
+                mainClock.advanceTimeBy(Motion.ScreenEnterMs.toLong() + 1)
+                waitForIdle()
+                val settled = composerHeight()
+                assertTrue(barExists(), "$where the bar is up after the animation")
+                if (reduceMotion) {
+                    assertEquals(firstFrame, settled, 1f, "$where reduce motion opens the whole bar in one frame")
+                } else {
+                    assertTrue(settled > firstFrame, "$where the bar grew to its full height: $firstFrame -> $settled")
+                }
+                assertTrue(settled > fieldHeight, "$where the open bar takes room under the field")
+                assertEquals(topAtRest, fieldTop(), 1f, "$where the field did not move while the bar grew")
+
+                // And back: the draft empties, the bar shrinks, the field stays. One frame applies the new draft,
+                // then the exit runs its own duration, then one more frame settles the removal.
+                onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+                mainClock.advanceTimeByFrame()
+                mainClock.advanceTimeBy(Motion.ScreenExitMs.toLong())
+                mainClock.advanceTimeByFrame()
+                waitForIdle()
+                assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "$where the bar is gone after the exit")
+                assertEquals(topAtRest, fieldTop(), 1f, "$where the field did not move while the bar left")
+                assertEquals(
+                    fieldHeight,
+                    one("journal_composer").size.height.toFloat(),
+                    1f,
+                    "$where the composer is the field alone again",
+                )
+            }
         }
     }
 

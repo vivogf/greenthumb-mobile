@@ -17,6 +17,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -851,7 +852,7 @@ class PlantDetailScreenTest {
             )
             assertTrue(
                 onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
-                "no save bar before the field takes focus",
+                "no save bar while the draft is empty",
             )
             assertTrue(onAllNodes(hasText("Заметки"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
             listOf("Полили", "Подкормили", "Пересадили", "Обрезали", "Заметка", "Фото").forEach { label ->
@@ -865,12 +866,13 @@ class PlantDetailScreenTest {
     }
 
     /**
-     * 0.8.2 variant C: at rest the journal card is the bare field, with no label and no save bar. Focus brings
-     * the full-width bar under the field and scrolls the page so the field stands at the top of the scroll
-     * viewport, right under the photo header — even though the journal is the last card on the page.
+     * 0.8.2 variant C: at rest the journal card is the bare field, with no label and no save bar. Focus scrolls
+     * the page so the field stands at the top of the scroll viewport, right under the photo header — even though
+     * the journal is the last card on the page — and brings no bar by itself. The first character brings the
+     * full-width bar under the field, enabled, without moving the field; an emptied draft takes it away.
      */
     @Test
-    fun journal_composer_scrollsTheFieldToTheTop_andTheSaveBarFollowsFocus() {
+    fun journal_composer_scrollsTheFieldToTheTop_andTheSaveBarFollowsTheDraft() {
         val graph = newHarness()
         presetEnglishSignedOut()
         runSkikoComposeUiTest(size = Size(420f, 900f)) {
@@ -899,16 +901,87 @@ class PlantDetailScreenTest {
             waitUntil(timeoutMillis = TIMEOUT) {
                 abs(field().positionInRoot.y - viewportTop) <= 4f
             }
+            waitForIdle()
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "focus on an empty field brings no bar",
+            )
+
+            // The first character brings the bar; the lifted field keeps its place, the bar grows under it.
+            val liftedTop = field().positionInRoot.y
+            onNode(hasTestTag("journal_noteInput")).performTextInput("a")
             waitUntil(timeoutMillis = TIMEOUT) {
-                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+                onAllNodes(hasTestTag("journal_addNote") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
             }
+            waitForIdle()
+            assertEquals(liftedTop, field().positionInRoot.y, 1f, "the field does not move when the bar appears")
             val bar = onNode(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNode()
             assertEquals(field().size.width.toFloat(), bar.size.width.toFloat(), 2f, "the bar spans the card")
             assertTrue(bar.positionInRoot.y > field().positionInRoot.y, "the bar sits under the field")
             assertTrue(
-                onAllNodes(hasTestTag("journal_addNote") and isNotEnabled()).fetchSemanticsNodes().isNotEmpty(),
-                "the bar is disabled while the draft is empty",
+                onAllNodes(hasTestTag("journal_addNote") and isNotEnabled()).fetchSemanticsNodes().isEmpty(),
+                "a visible bar is the live action, never grey",
             )
+
+            // Emptied again: nothing to save, so the bar leaves.
+            onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+            waitUntilDoesNotExist(hasTestTag("journal_addNote"), TIMEOUT)
+
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /**
+     * 0.8.2: the same lift with a journal long enough to scroll. A short page leaves nothing to scroll, so the
+     * field stands at the top by itself and a lift that never ran looks like a lift that worked. The phone showed
+     * the difference: the field stopped a header's height below the top, and the bar's first character then pushed
+     * it down by that height. The lift has to finish before the first character, and the bar must not move the page.
+     */
+    @Test
+    fun journal_composer_liftReachesTheTop_onALongJournal_andTheBarDoesNotMoveThePage() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        // Older than the fixture's care marks, so the rows fill the page below the composer.
+        synchronized(graph.server.events) {
+            graph.server.events += (1..12).map { index ->
+                FakeServer.FakeEvent("old-$index", "note", "2026-08-${(10 + index).toString().padStart(2, '0')}", "Old note $index")
+            }
+        }
+        runSkikoComposeUiTest(size = Size(420f, 900f)) {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+            waitUntilAtLeastOneExists(hasText("Old note 1"), TIMEOUT)
+
+            fun field(): SemanticsNode =
+                onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).fetchSemanticsNode()
+
+            val viewportTop = onNode(hasTestTag("plantDetail_headerPhoto"), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot.bottom
+            assertTrue(
+                field().positionInRoot.y > viewportTop + 40f,
+                "at rest the field is below the visible top: ${field().positionInRoot.y} vs $viewportTop",
+            )
+
+            onNode(hasTestTag("journal_noteInput")).performSemanticsAction(SemanticsActions.RequestFocus)
+            waitUntil(timeoutMillis = TIMEOUT) { abs(field().positionInRoot.y - viewportTop) <= 4f }
+            waitForIdle()
+            val liftedTop = field().positionInRoot.y
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "focus on an empty field brings no bar",
+            )
+
+            onNode(hasTestTag("journal_noteInput")).performTextInput("a")
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasTestTag("journal_addNote") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            }
+            waitForIdle()
+            assertEquals(liftedTop, field().positionInRoot.y, 1f, "the bar grows downwards: the field keeps its place")
+
+            onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
+            waitUntilDoesNotExist(hasTestTag("journal_addNote"), TIMEOUT)
+            assertEquals(liftedTop, field().positionInRoot.y, 1f, "nor does the page move when the bar leaves")
 
             runOnIdle { graph.close() }
         }
@@ -933,7 +1006,7 @@ class PlantDetailScreenTest {
             waitUntil(timeoutMillis = TIMEOUT) {
                 onAllNodes(hasText("Unique note 4711") and !hasSetTextAction()).fetchSemanticsNodes().size == 1
             }
-            // The saved note folds the card back: the bar leaves, so the page keeps no empty tail under the journal.
+            // The saved note empties the field, and the bar follows the draft: it leaves with the text.
             waitUntilDoesNotExist(hasTestTag("journal_addNote"), TIMEOUT)
 
             // Leave and reopen: the note is still there, once.
@@ -1023,14 +1096,14 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             assertEquals(1, onAllNodes(hasTestTag("plantDetail_notesTitle") and hasText("About the plant"), useUnmergedTree = true).fetchSemanticsNodes().size)
-            // The journal composer no longer carries a label, and its save bar waits for focus.
+            // The journal composer no longer carries a label, and its save bar waits for the first character.
             assertTrue(
                 onAllNodes(hasTestTag("journal_entryLabel"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
                 "no composer label in the journal",
             )
             assertTrue(
                 onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
-                "no save bar before the field takes focus",
+                "no save bar while the draft is empty",
             )
             assertTrue(onAllNodes(hasText("Notes"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
 

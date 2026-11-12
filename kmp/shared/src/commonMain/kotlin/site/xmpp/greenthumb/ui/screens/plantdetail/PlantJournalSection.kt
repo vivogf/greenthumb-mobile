@@ -1,11 +1,20 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,6 +105,8 @@ import site.xmpp.greenthumb.ui.res.journal_typeRepot
 import site.xmpp.greenthumb.ui.res.journal_typeWater
 import site.xmpp.greenthumb.ui.res.plantDetails_cancel
 import site.xmpp.greenthumb.ui.res.plantDetails_delete
+import site.xmpp.greenthumb.ui.theme.LocalReduceMotion
+import site.xmpp.greenthumb.ui.theme.Motion
 import site.xmpp.greenthumb.ui.theme.Radii
 import site.xmpp.greenthumb.ui.theme.Sizes
 import site.xmpp.greenthumb.ui.theme.Spacing
@@ -151,8 +162,9 @@ internal fun PlantJournalSection(
     onComposerFocusChanged: ((focused: Boolean) -> Unit)? = null,
     /**
      * Called with the field's top in window coordinates (px) when the composer has to stand at the top of the page:
-     * on focus, so the field sits under the photo header with the message and the save button under it and the
-     * keyboard under them, and on every message, because the user may be scrolled down to the row they tapped.
+     * on focus, so the field sits under the photo header with room under it for the message, the save button the
+     * first character brings and the keyboard; and on every message, because the user may be scrolled down to the
+     * row they tapped.
      */
     onComposerLift: ((fieldTopInWindow: Float) -> Unit)? = null,
 ) {
@@ -183,14 +195,13 @@ internal fun PlantJournalSection(
         if (message != null) onComposerLift?.invoke(composerTop.value)
     }
 
-    // At rest the card is just the field: no label, no button, no room kept for it. The button appears on focus,
-    // not on the first character, so the layout does not jump while the user types, and it stays while there is
-    // something to save or to explain. A saved note sets [composerCollapsed], so the card folds back even if the
-    // field keeps the focus. Messages about a refused row delete share the line above the rows but not the
-    // composer: they leave the bar closed, and a disabled bar next to them would read as an invitation.
-    var composerCollapsed by remember(plantId) { mutableStateOf(false) }
-    val noteProblem = message == NoteMessage.NetworkRequired || message == NoteMessage.SaveFailed
-    val composerExpanded = !composerCollapsed && (inputFocused || draft.isNotBlank() || noteProblem)
+    // At rest the card is just the field: no label, no button, no room kept for it. The bar follows the draft and
+    // nothing else — the first non-blank character brings it, an emptied or blank-only draft takes it away, and a
+    // focused empty field keeps the card bare. The bar grows downwards, so the field above it does not move.
+    // While [saving] holds it stays on screen but disabled, so one note cannot be sent twice even if the user
+    // empties the field during the request. A message keeps its own line and does not open the bar: a refused row
+    // delete leaves the draft empty, and a refused note still holds the text that keeps the bar up by itself.
+    val composerExpanded = draft.isNotBlank() || saving
 
     LaunchedEffect(journal, plantId, refreshKey, online) {
         if (!online) {
@@ -225,11 +236,10 @@ internal fun PlantJournalSection(
             try {
                 journal.addNote(plantId, text)
                 message = null
-                // The note is in the list now. Fold the composer back to the bare field and close the keyboard only
-                // while the draft still holds the saved text: what was typed during the request is a new note.
+                // The note is in the list now. Empty the field and close the keyboard only while the draft still
+                // holds the saved text: what was typed during the request is a new note, and it keeps the bar up.
                 if (draft == text) {
                     draft = ""
-                    composerCollapsed = true
                     focusManager.clearFocus()
                 }
             } catch (cancellation: CancellationException) {
@@ -270,6 +280,7 @@ internal fun PlantJournalSection(
     }
 
     val scheme = MaterialTheme.colorScheme
+    val reduceMotion = LocalReduceMotion.current
     val rows = entries.orEmpty()
     val today = remember { pickerToday() }
     val dateStyle = MaterialTheme.typography.labelMedium
@@ -304,16 +315,13 @@ internal fun PlantJournalSection(
                     modifier = Modifier.testTag("journal_offline"),
                 )
             }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
+            // No arrangement spacing here: the animated bar is a child even while it is closed, and a spaced
+            // column would keep one gap under the field for it at rest. Each part below carries its own top
+            // spacing instead, inside the animation, so a closed bar takes no room at all.
+            Column(modifier = Modifier.fillMaxWidth().testTag("journal_composer")) {
                 GtInputField(
                     value = draft,
-                    onValueChange = {
-                        draft = it.take(CARE_NOTE_MAX_LENGTH)
-                        composerCollapsed = false
-                    },
+                    onValueChange = { draft = it.take(CARE_NOTE_MAX_LENGTH) },
                     placeholder = stringResource(Res.string.journal_notePlaceholder),
                     singleLine = false,
                     modifier = Modifier
@@ -323,7 +331,6 @@ internal fun PlantJournalSection(
                         .onFocusChanged { state ->
                             if (state.isFocused == inputFocused) return@onFocusChanged
                             inputFocused = state.isFocused
-                            if (state.isFocused) composerCollapsed = false
                             onComposerFocusChanged?.invoke(state.isFocused)
                             if (state.isFocused) onComposerLift?.invoke(composerTop.value)
                         }
@@ -342,17 +349,45 @@ internal fun PlantJournalSection(
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.error,
-                        modifier = Modifier.testTag("journal_message"),
+                        modifier = Modifier
+                            .padding(top = Spacing.sm)
+                            .testTag("journal_message"),
                     )
                 }
-                // The save button exists only while the composer is open: focused, carrying text, or explaining a
-                // refusal. At rest it takes no room at all.
-                if (composerExpanded) {
+                // The save button exists only while there is something to save. It is never a grey invitation:
+                // either it is absent, or it is the live action — only an open request disables it.
+                //
+                // It grows down from under the field and fades in on the same short pair the screen changes use
+                // ([Motion.ScreenEnterMs] / [Motion.ScreenExitMs]), and reduce motion shows it in one frame. Only
+                // the bar animates: the field above it keeps its place, and an animated page scroll here would
+                // fight the lift that put the field at the top.
+                AnimatedVisibility(
+                    visible = composerExpanded,
+                    enter = if (reduceMotion) {
+                        EnterTransition.None
+                    } else {
+                        expandVertically(
+                            animationSpec = tween(Motion.ScreenEnterMs),
+                            expandFrom = Alignment.Top,
+                        ) + fadeIn(animationSpec = tween(Motion.ScreenEnterMs))
+                    },
+                    exit = if (reduceMotion) {
+                        ExitTransition.None
+                    } else {
+                        shrinkVertically(
+                            animationSpec = tween(Motion.ScreenExitMs),
+                            shrinkTowards = Alignment.Top,
+                        ) + fadeOut(animationSpec = tween(Motion.ScreenExitMs))
+                    },
+                ) {
                     PrimaryButton(
                         text = stringResource(Res.string.journal_addNote),
                         onClick = ::submit,
-                        enabled = draft.isNotBlank() && !saving,
+                        enabled = !saving,
                         modifier = Modifier
+                            // Inside the animation: the gap grows and shrinks with the bar, so a closed bar leaves
+                            // the field as the last thing in the card.
+                            .padding(top = Spacing.sm)
                             .gtButtonWidth()
                             .testTag("journal_addNote"),
                     )
