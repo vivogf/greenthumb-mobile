@@ -1,8 +1,6 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -358,39 +356,29 @@ internal fun PlantJournalSection(
                 // either it is absent, or it is the live action — only an open request disables it.
                 //
                 // It grows down from under the field and fades in on the same short pair the screen changes use
-                // ([Motion.ScreenEnterMs] / [Motion.ScreenExitMs]), and reduce motion shows it in one frame. Only
-                // the bar animates: the field above it keeps its place, and an animated page scroll here would
-                // fight the lift that put the field at the top.
-                AnimatedVisibility(
-                    visible = composerExpanded,
-                    enter = if (reduceMotion) {
-                        EnterTransition.None
-                    } else {
-                        expandVertically(
+                // ([Motion.ScreenEnterMs] / [Motion.ScreenExitMs]), and reduce motion shows and hides it in one
+                // frame. Only the bar animates: the field above it keeps its place, and an animated page scroll
+                // here would fight the lift that put the field at the top.
+                if (reduceMotion) {
+                    // A plain condition, not AnimatedVisibility with a None transition: the latter still spends a
+                    // frame on the removal, so the bar would linger one frame after the draft went empty.
+                    if (composerExpanded) {
+                        JournalSaveBar(saving = saving, onClick = ::submit)
+                    }
+                } else {
+                    AnimatedVisibility(
+                        visible = composerExpanded,
+                        enter = expandVertically(
                             animationSpec = tween(Motion.ScreenEnterMs),
                             expandFrom = Alignment.Top,
-                        ) + fadeIn(animationSpec = tween(Motion.ScreenEnterMs))
-                    },
-                    exit = if (reduceMotion) {
-                        ExitTransition.None
-                    } else {
-                        shrinkVertically(
+                        ) + fadeIn(animationSpec = tween(Motion.ScreenEnterMs)),
+                        exit = shrinkVertically(
                             animationSpec = tween(Motion.ScreenExitMs),
                             shrinkTowards = Alignment.Top,
-                        ) + fadeOut(animationSpec = tween(Motion.ScreenExitMs))
-                    },
-                ) {
-                    PrimaryButton(
-                        text = stringResource(Res.string.journal_addNote),
-                        onClick = ::submit,
-                        enabled = !saving,
-                        modifier = Modifier
-                            // Inside the animation: the gap grows and shrinks with the bar, so a closed bar leaves
-                            // the field as the last thing in the card.
-                            .padding(top = Spacing.sm)
-                            .gtButtonWidth()
-                            .testTag("journal_addNote"),
-                    )
+                        ) + fadeOut(animationSpec = tween(Motion.ScreenExitMs)),
+                    ) {
+                        JournalSaveBar(saving = saving, onClick = ::submit)
+                    }
                 }
             }
             if (entries != null && rows.isEmpty()) {
@@ -444,6 +432,24 @@ internal fun PlantJournalSection(
             onDismissRequest = { pendingDelete = null },
         )
     }
+}
+
+/**
+ * The save bar itself, shared by the animated and the reduce-motion branch so the two cannot drift apart.
+ * The top gap belongs to the bar, not to the composer column: it grows and shrinks with it, so a closed bar
+ * leaves the field as the last thing in the card.
+ */
+@Composable
+private fun JournalSaveBar(saving: Boolean, onClick: () -> Unit) {
+    PrimaryButton(
+        text = stringResource(Res.string.journal_addNote),
+        onClick = onClick,
+        enabled = !saving,
+        modifier = Modifier
+            .padding(top = Spacing.sm)
+            .gtButtonWidth()
+            .testTag("journal_addNote"),
+    )
 }
 
 /** Icon of a non-photo entry type in the journal's leading slot. */

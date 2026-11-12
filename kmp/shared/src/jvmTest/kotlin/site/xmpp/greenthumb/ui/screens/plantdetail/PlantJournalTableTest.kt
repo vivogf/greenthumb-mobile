@@ -597,11 +597,13 @@ class PlantJournalTableTest {
                 val firstFrame = composerHeight()
                 assertEquals(topAtRest, fieldTop(), 1f, "$where the field does not move on the first frame")
 
+                // Kept for the lower bound below: half the token must still be short of the full height.
+                var middle = firstFrame
                 if (!reduceMotion) {
                     // Mid-animation the room is wider open than on the first frame, and the field still holds.
                     mainClock.advanceTimeBy(Motion.ScreenEnterMs.toLong() / 2)
                     waitForIdle()
-                    val middle = composerHeight()
+                    middle = composerHeight()
                     assertTrue(middle > firstFrame, "$where the bar grows downwards: $firstFrame -> $middle")
                     assertEquals(topAtRest, fieldTop(), 1f, "$where the field does not move mid-animation")
                 }
@@ -614,6 +616,9 @@ class PlantJournalTableTest {
                     assertEquals(firstFrame, settled, 1f, "$where reduce motion opens the whole bar in one frame")
                 } else {
                     assertTrue(settled > firstFrame, "$where the bar grew to its full height: $firstFrame -> $settled")
+                    // The token is a floor as well as a deadline: a shorter invented duration would already be
+                    // fully open at the midpoint, so the middle read would equal the settled one.
+                    assertTrue(middle < settled, "$where half the token is still mid-animation: $middle -> $settled")
                 }
                 assertTrue(settled > fieldHeight, "$where the open bar takes room under the field")
                 assertEquals(topAtRest, fieldTop(), 1f, "$where the field did not move while the bar grew")
@@ -629,14 +634,28 @@ class PlantJournalTableTest {
                     "$where the bar is finished by Motion.ScreenEnterMs, not still growing",
                 )
 
-                // And back: the draft empties, the bar shrinks, the field stays. One frame applies the new draft,
-                // then the exit runs its own duration, then one more frame settles the removal.
+                // And back: the draft empties, the bar leaves, the field stays. Count the frames it takes, because
+                // reduce motion has to hide the bar in the same single frame it showed it in — an exit transition
+                // of None still spends a frame on the removal, so the bar would linger one frame too long.
                 onNode(hasTestTag("journal_noteInput")).performTextReplacement("")
-                mainClock.advanceTimeByFrame()
-                mainClock.advanceTimeBy(Motion.ScreenExitMs.toLong())
-                mainClock.advanceTimeByFrame()
+                var framesToLeave = 0
+                while (barExists() && framesToLeave < 60) {
+                    mainClock.advanceTimeByFrame()
+                    framesToLeave++
+                }
                 waitForIdle()
                 assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "$where the bar is gone after the exit")
+                if (reduceMotion) {
+                    assertEquals(1, framesToLeave, "$where reduce motion hides the bar in one frame")
+                } else {
+                    // The exit runs its own token: it must not vanish on the first frame, and it must be gone
+                    // within the token plus the frame that applies the empty draft and the one that settles it.
+                    assertTrue(framesToLeave > 1, "$where the animated bar does not vanish at once: $framesToLeave")
+                    assertTrue(
+                        framesToLeave <= Motion.ScreenExitMs / 16 + 3,
+                        "$where the bar leaves within Motion.ScreenExitMs: $framesToLeave frames",
+                    )
+                }
                 assertEquals(topAtRest, fieldTop(), 1f, "$where the field did not move while the bar left")
                 assertEquals(
                     fieldHeight,
