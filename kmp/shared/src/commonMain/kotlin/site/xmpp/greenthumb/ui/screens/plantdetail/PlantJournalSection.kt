@@ -151,7 +151,7 @@ internal fun PlantJournalSection(
     onComposerFocusChanged: ((focused: Boolean) -> Unit)? = null,
     /**
      * Called with the field's top in window coordinates (px) when the composer has to stand at the top of the page:
-     * on focus, so the field sits under the photo header with the save button and the message under it and the
+     * on focus, so the field sits under the photo header with the message and the save button under it and the
      * keyboard under them, and on every message, because the user may be scrolled down to the row they tapped.
      */
     onComposerLift: ((fieldTopInWindow: Float) -> Unit)? = null,
@@ -530,7 +530,7 @@ private fun JournalRow(
     }
 }
 
-/** The note field's top in window coordinates: measured on layout, read once when the field takes focus. */
+/** The note field's top in window coordinates: measured on layout, read on focus and on every message. */
 private class MeasuredTop {
     var value: Float = 0f
 }

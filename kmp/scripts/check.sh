@@ -252,35 +252,58 @@ if [ "${1:-}" = "--grep-only" ]; then
 fi
 
 echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest =="
+GRADLE_LOG="$(mktemp -t gt-gradle-gate)"
+trap 'rm -f "$GRADLE_LOG"' EXIT
+
 gradle_gate() {
-  ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest
+  : > "$GRADLE_LOG"
+  ./gradlew --console=plain :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest 2>&1 | tee "$GRADLE_LOG"
+  return "${PIPESTATUS[0]}"
 }
 
 # Desktop-харнесс Compose собирает кадр в потоке AWT, а тест в это время читает семантику; кадр между двумя
 # чтениями роняет прогон на "Detected multithreaded access to SnapshotStateObserver". Это дефект харнесса, а не
-# продукта: повторяем прогон один раз, громко, и только если других ошибок в результатах нет.
-harness_race_only() {
-  python3 - <<'RETRY_CHECK'
+# продукта. Гонку ловит только PlantDetailScreenTest (класс с окном и живым вводом), поэтому повтор сужен до
+# этого класса, выполняется один раз и только если тесты действительно шли, а в XML класса нет других ошибок.
+race_class_retry() {
+  grep -q "> Task :shared:jvmTest FAILED" "$GRADLE_LOG" || return 1
+  RETRY_TESTS="$(python3 - <<'RETRY_CHECK'
 import glob, html, io, re, sys
 
 race = "Detected multithreaded access to SnapshotStateObserver"
-failures = []
-for path in glob.glob("shared/build/test-results/jvmTest/*.xml"):
+files = glob.glob("shared/build/test-results/jvmTest/TEST-*PlantDetailScreenTest.xml")
+if not files:
+    sys.exit(1)
+failed = []
+texts = []
+for path in files:
     text = html.unescape(io.open(path, encoding="utf-8").read())
-    for match in re.finditer(r"<failure[^>]*>(.*?)</failure>", text, re.S):
-        failures.append(match.group(1))
-sys.exit(0 if failures and all(race in failure for failure in failures) else 1)
+    texts.append(text)
+    for match in re.finditer(r'<testcase name="([^"]+)"[^>]*>\s*<failure[^>]*>(.*?)</failure>', text, re.S):
+        if race not in match.group(2):
+            sys.exit(1)
+        failed.append(match.group(1).replace("[jvm]", ""))
+if not failed:
+    sys.exit(1)
+print("\n".join(sorted(set(failed))))
 RETRY_CHECK
+)" || return 1
+  [ -n "$RETRY_TESTS" ] || return 1
 }
 
 if ! gradle_gate; then
-  if harness_race_only; then
+  if race_class_retry; then
     echo
-    echo "WARN: :shared:jvmTest упал только на гонке потоков desktop-харнесса Compose"
-    echo "      (Detected multithreaded access to SnapshotStateObserver). Повторяю прогон один раз."
-    if ! gradle_gate; then
+    echo "WARN: PlantDetailScreenTest упал только на гонке потоков desktop-харнесса Compose"
+    echo "      (Detected multithreaded access to SnapshotStateObserver). Повторяю упавшие тесты один раз:"
+    echo "$RETRY_TESTS" | sed 's/^/      /'
+    retry_filters=()
+    while IFS= read -r test_name; do
+      [ -n "$test_name" ] && retry_filters+=("--tests" "*PlantDetailScreenTest.$test_name")
+    done <<< "$RETRY_TESTS"
+    if ! ./gradlew --console=plain :shared:jvmTest "${retry_filters[@]}"; then
       echo
-      echo "FAIL: gradle — повторный прогон упал тоже."
+      echo "FAIL: gradle — повтор упавших тестов PlantDetailScreenTest упал тоже."
       exit 1
     fi
   else
