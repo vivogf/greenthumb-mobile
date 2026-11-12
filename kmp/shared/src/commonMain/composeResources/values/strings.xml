@@ -481,7 +481,6 @@
     <string name="journal_empty">No entries yet</string>
     <string name="journal_notePlaceholder">Add a note…</string>
     <string name="journal_addNote">Add note</string>
-    <string name="journal_entryLabel">Journal entry</string>
     <string name="journal_networkRequired">Network connection required. The note is not saved; your text is kept. Try again when you are online.</string>
     <string name="journal_saveFailed">Couldn’t save the note</string>
     <string name="journal_deleteNote">Delete note</string>

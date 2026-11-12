@@ -3,12 +3,14 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -23,8 +25,11 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
@@ -36,6 +41,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import site.xmpp.greenthumb.ui.components.GtInputField
 import java.io.File
 import kotlin.io.path.deleteRecursively
 import kotlin.math.abs
@@ -158,6 +164,7 @@ class PlantJournalTableTest {
         locale: String,
         fontScale: Float,
         widthDp: Int = 360,
+        withFocusNeighbour: Boolean = false,
         deleteCareEntry: (suspend (String) -> SaveOutcome)? = null,
     ) {
         setContent {
@@ -167,15 +174,26 @@ class PlantJournalTableTest {
                     GreenThumbTheme(darkTheme = true) {
                         // A phone-wide column (Samsung is 384 dp; 360 dp leaves room for screen padding).
                         Box(Modifier.width(widthDp.dp).verticalScroll(rememberScrollState())) {
-                            PlantJournalSection(
-                                journal = repo.journal,
-                                timeline = repo.timeline,
-                                plantId = "p-1",
-                                online = true,
-                                refreshKey = 0,
-                                locale = locale,
-                                deleteCareEntry = deleteCareEntry,
-                            )
+                            Column {
+                                PlantJournalSection(
+                                    journal = repo.journal,
+                                    timeline = repo.timeline,
+                                    plantId = "p-1",
+                                    online = true,
+                                    refreshKey = 0,
+                                    locale = locale,
+                                    deleteCareEntry = deleteCareEntry,
+                                )
+                                // A second field below the card: focusing it takes the note field out of focus.
+                                if (withFocusNeighbour) {
+                                    GtInputField(
+                                        value = "",
+                                        onValueChange = {},
+                                        placeholder = "Elsewhere",
+                                        modifier = Modifier.testTag("focusElsewhere"),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -364,11 +382,12 @@ class PlantJournalTableTest {
     }
 
     /**
-     * 0.8.2: the composer is centred as one block — the hint sits in the middle of the field, the «Сохранить
-     * заметку» button of its own width stands under the field's centre, and the trash of a row has no square.
+     * 0.8.2: at rest the composer is the bare field — no label, hint on the left, and no save button taking
+     * room. The «Сохранить заметку» bar on the card's full width appears with focus (empty draft — disabled),
+     * and the trash of a row has no square.
      */
     @Test
-    fun composer_hint_and_button_are_centred_and_the_trash_is_bare() {
+    fun composer_appearsOnFocus_atFullWidth_and_the_trash_is_bare() {
         val repo = openRepo()
         // Narrow phone (300 dp column, ~320 dp screen) at the largest font: the worst case for a full-width bar.
         for ((locale, fontScale, widthDp) in listOf(
@@ -380,35 +399,50 @@ class PlantJournalTableTest {
             runDesktopComposeUiTest {
                 show(repo, locale, fontScale, widthDp = widthDp)
                 val field = one("journal_noteInput")
-                val fieldCentre = field.positionInRoot.x + field.size.width / 2f
                 val hint = nodes(hasText(if (locale == "ru") "Добавить заметку…" else "Add a note…", substring = true)).single()
                 val result = layout(hint)
-                val hintCentre = result.getLineLeft(0) + result.getLineRight(0)
-                println("M15 composer $where fieldCentre=$fieldCentre hintInk=${result.getLineLeft(0)}..${result.getLineRight(0)} width=${result.size.width}")
+                println("M15 composer $where idle hintInk=${result.getLineLeft(0)}..${result.getLineRight(0)} width=${result.size.width}")
+                // At rest: the hint starts at the left edge, the label is gone, and there is no button at all.
                 assertTrue(
-                    abs(hintCentre / 2f - result.size.width / 2f) <= 2f,
-                    "$where the hint is centred in the field: ink ${result.getLineLeft(0)}..${result.getLineRight(0)} of ${result.size.width}",
+                    result.getLineLeft(0) < result.size.width * 0.1f,
+                    "$where the hint is left-aligned: ink starts at ${result.getLineLeft(0)} of ${result.size.width}",
                 )
-                // The typed note itself stays on the left, like the same note in the journal row below.
+                assertTrue(nodes(hasTestTag("journal_entryLabel")).isEmpty(), "$where no composer label at rest")
+                assertTrue(nodes(hasTestTag("journal_addNote")).isEmpty(), "$where no save button at rest")
+
+                // Focus alone brings the bar, before a single character is typed, and it is disabled while empty.
+                onNode(hasTestTag("journal_noteInput")).performSemanticsAction(SemanticsActions.RequestFocus)
+                waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isNotEmpty() }
+                val empty = one("journal_addNote")
+                assertEquals(
+                    field.size.width.toFloat(),
+                    empty.size.width.toFloat(),
+                    2f,
+                    "$where the bar spans the field: full card width",
+                )
+                assertTrue(
+                    nodes(hasTestTag("journal_addNote") and isNotEnabled()).isNotEmpty(),
+                    "$where the bar is disabled while the draft is empty",
+                )
+
+                // Typing keeps it, and it becomes the live action.
                 onNode(hasTestTag("journal_noteInput")).performTextInput(if (locale == "ru") "Первая строка" else "First line")
-                val typed = layout(onNode(hasTestTag("journal_noteInput")).fetchSemanticsNode())
-                assertTrue(
-                    typed.getLineLeft(0) < result.size.width * 0.1f,
-                    "$where the typed note starts at the left edge: ${typed.getLineLeft(0)} px of ${result.size.width}",
-                )
+                waitUntil(timeoutMillis = TIMEOUT) {
+                    nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty()
+                }
                 val button = one("journal_addNote")
-                val buttonCentre = button.positionInRoot.x + button.size.width / 2f
-                assertEquals(fieldCentre, buttonCentre, 2f, "$where the save button stands under the field's centre")
-                // A stretched button (the old gtButtonWidth) fills the field exactly; this one stops at its label.
-                assertTrue(
-                    button.size.width < field.size.width - 8f,
-                    "$where the button keeps its own width (${button.size.width} px of ${field.size.width} px), not a bar",
+                assertEquals(
+                    field.size.width.toFloat(),
+                    button.size.width.toFloat(),
+                    2f,
+                    "$where the live bar spans the field",
                 )
                 val labelText = if (locale == "ru") "Сохранить заметку" else "Add note"
                 val label = layout(
                     nodes(hasAnyAncestor(hasTestTag("journal_addNote")) and hasText(labelText)).single(),
                 )
                 assertEquals(1, label.lineCount, "$where the button label stays on one line")
+
                 // The trash is an icon, not a framed button: no hairline runs along the top edge of its box.
                 // (A framed GtIconButton draws outline at y = 0..1 and surface below, so the column would split.)
                 val delete = one("journal_delete_e-note")
@@ -419,6 +453,40 @@ class PlantJournalTableTest {
                 println("M15 composer $where delete=${delete.size.width}x${delete.size.height} column=$column")
                 assertTrue(spread < 0.02f, "$where the delete has no square frame: top edge $column")
             }
+        }
+    }
+
+    /**
+     * 0.8.2: the save bar follows focus. Blur with an empty draft folds it away; a typed draft keeps it, so a
+     * half-written note is never hidden behind a missing button.
+     */
+    @Test
+    fun composer_bar_foldsAway_onBlurWithAnEmptyDraft_andStaysWithText() {
+        val repo = openRepo()
+        runDesktopComposeUiTest {
+            show(repo, "ru", 1f, withFocusNeighbour = true)
+
+            fun focus(tag: String) = onNode(hasTestTag(tag)).performSemanticsAction(SemanticsActions.RequestFocus)
+
+            focus("journal_noteInput")
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isNotEmpty() }
+            // Empty draft + focus gone: the bar leaves and the field is still on screen.
+            focus("focusElsewhere")
+            waitUntil(timeoutMillis = TIMEOUT) { nodes(hasTestTag("journal_addNote")).isEmpty() }
+            onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).assertExists()
+
+            // A draft keeps the bar after the field loses focus.
+            focus("journal_noteInput")
+            onNode(hasTestTag("journal_noteInput")).performTextInput("половина")
+            waitUntil(timeoutMillis = TIMEOUT) {
+                nodes(hasTestTag("journal_addNote") and isEnabled()).isNotEmpty()
+            }
+            focus("focusElsewhere")
+            waitForIdle()
+            assertTrue(
+                nodes(hasTestTag("journal_addNote")).isNotEmpty(),
+                "a typed draft keeps the save bar after blur",
+            )
         }
     }
 

@@ -69,8 +69,7 @@ KMP_ONLY_KEYS = {
     "journal.empty",
     "journal.notePlaceholder",
     "journal.addNote",
-    # M12a UX5: the dated journal composer and the persistent plant notes get distinct labels.
-    "journal.entryLabel",
+    # M12a UX5: the persistent plant notes got their own label.
     "plantDetails.aboutPlant",
     "journal.networkRequired",
     "journal.saveFailed",

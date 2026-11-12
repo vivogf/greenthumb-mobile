@@ -1,5 +1,11 @@
 package site.xmpp.greenthumb.ui.screens.plantdetail
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,8 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,11 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
@@ -70,6 +73,7 @@ import site.xmpp.greenthumb.ui.components.GtScissorsMark
 import site.xmpp.greenthumb.ui.components.GtTrashMark
 import site.xmpp.greenthumb.ui.components.GtWaterDropMark
 import site.xmpp.greenthumb.ui.components.PrimaryButton
+import site.xmpp.greenthumb.ui.components.gtButtonWidth
 import site.xmpp.greenthumb.ui.components.pickerToday
 import site.xmpp.greenthumb.ui.res.Res
 import site.xmpp.greenthumb.ui.res.dashboard_refreshFailed
@@ -85,7 +89,6 @@ import site.xmpp.greenthumb.ui.res.journal_deleteMessage
 import site.xmpp.greenthumb.ui.res.journal_deleteNote
 import site.xmpp.greenthumb.ui.res.journal_deleteTitle
 import site.xmpp.greenthumb.ui.res.journal_empty
-import site.xmpp.greenthumb.ui.res.journal_entryLabel
 import site.xmpp.greenthumb.ui.res.journal_networkRequired
 import site.xmpp.greenthumb.ui.res.journal_notePlaceholder
 import site.xmpp.greenthumb.ui.res.journal_saveFailed
@@ -147,6 +150,12 @@ internal fun PlantJournalSection(
     modifier: Modifier = Modifier,
     timeline: PlantTimeline? = null,
     deleteCareEntry: (suspend (eventId: String) -> SaveOutcome)? = null,
+    /**
+     * Called when the note field gains or loses focus, with the field's top in window coordinates (px) at that
+     * moment. The screen scrolls the detail so the field stands at the top of its viewport, with the save button
+     * and the message under it and above the keyboard.
+     */
+    onComposerFocusChanged: ((focused: Boolean, fieldTopInWindow: Float) -> Unit)? = null,
 ) {
     val entries by remember(journal, plantId) {
         journal.observe(plantId).catch { emit(emptyList()) }
@@ -160,18 +169,15 @@ internal fun PlantJournalSection(
     var message by remember(plantId) { mutableStateOf<NoteMessage?>(null) }
     var pendingDelete by remember(plantId) { mutableStateOf<CareEventDto?>(null) }
     val scope = rememberCoroutineScope()
-    val composerRequester = remember { BringIntoViewRequester() }
     var inputFocused by remember { mutableStateOf(false) }
-    var composerClipped by remember { mutableStateOf(false) }
+    var composerTopInWindow by remember { mutableStateOf(0f) }
     // The note field would keep focus behind the delete confirmation and get it back when it closes.
     val focusManager = LocalFocusManager.current
 
-    // Focus alone scrolls only the field above the keyboard; keep the whole composer (field, message,
-    // "Add note") on screen so the user sees the button and why a note was not sent. Clipping is the
-    // signal because the keyboard shrinks the scroll viewport after focus, not at the same time.
-    LaunchedEffect(message, inputFocused, composerClipped) {
-        if (message != null || (inputFocused && composerClipped)) composerRequester.bringIntoView()
-    }
+    // At rest the card is just the field: no label, no button, no room kept for it. The button appears on focus,
+    // not on the first character, so the layout does not jump while the user types, and it stays while there is
+    // something to save or to explain.
+    val composerExpanded = inputFocused || draft.isNotBlank() || message != null
 
     LaunchedEffect(journal, plantId, refreshKey, online) {
         if (!online) {
@@ -201,6 +207,8 @@ internal fun PlantJournalSection(
                 journal.addNote(plantId, text)
                 if (draft == text) draft = ""
                 message = null
+                // The note is in the list now: fold the composer back to the bare field and close the keyboard.
+                focusManager.clearFocus()
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Throwable) {
@@ -275,28 +283,23 @@ internal fun PlantJournalSection(
             }
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .bringIntoViewRequester(composerRequester)
-                    .onGloballyPositioned { coordinates ->
-                        composerClipped = coordinates.boundsInWindow().height < coordinates.size.height - 1
-                    },
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Text(
-                    text = stringResource(Res.string.journal_entryLabel),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("journal_entryLabel"),
-                )
                 GtInputField(
                     value = draft,
                     onValueChange = { draft = it.take(CARE_NOTE_MAX_LENGTH) },
                     placeholder = stringResource(Res.string.journal_notePlaceholder),
                     singleLine = false,
-                    // Centred hint, as the owner asked; the typed note stays left-aligned, like the note row below.
-                    placeholderTextAlign = TextAlign.Center,
                     modifier = Modifier
-                        .onFocusChanged { inputFocused = it.isFocused }
+                        .onGloballyPositioned { coordinates ->
+                            composerTopInWindow = coordinates.positionInWindow().y
+                        }
+                        .onFocusChanged { state ->
+                            if (state.isFocused == inputFocused) return@onFocusChanged
+                            inputFocused = state.isFocused
+                            onComposerFocusChanged?.invoke(state.isFocused, composerTopInWindow)
+                        }
                         .testTag("journal_noteInput"),
                 )
                 message?.let { current ->
@@ -315,13 +318,22 @@ internal fun PlantJournalSection(
                         modifier = Modifier.testTag("journal_message"),
                     )
                 }
-                PrimaryButton(
-                    text = stringResource(Res.string.journal_addNote),
-                    onClick = ::submit,
-                    enabled = draft.isNotBlank() && !saving,
-                    // Its own width, centred under the field (the owner asked for the centred composer, not a full-width bar).
-                    modifier = Modifier.align(Alignment.CenterHorizontally).testTag("journal_addNote"),
-                )
+                // The save button exists only while the composer is open: focused, carrying text, or explaining a
+                // refusal. A short expand keeps the jump small; at rest it takes no room at all.
+                AnimatedVisibility(
+                    visible = composerExpanded,
+                    enter = expandVertically(animationSpec = tween(140)) + fadeIn(animationSpec = tween(140)),
+                    exit = shrinkVertically(animationSpec = tween(140)) + fadeOut(animationSpec = tween(90)),
+                ) {
+                    PrimaryButton(
+                        text = stringResource(Res.string.journal_addNote),
+                        onClick = ::submit,
+                        enabled = draft.isNotBlank() && !saving,
+                        modifier = Modifier
+                            .gtButtonWidth()
+                            .testTag("journal_addNote"),
+                    )
+                }
             }
             if (entries != null && rows.isEmpty()) {
                 Text(

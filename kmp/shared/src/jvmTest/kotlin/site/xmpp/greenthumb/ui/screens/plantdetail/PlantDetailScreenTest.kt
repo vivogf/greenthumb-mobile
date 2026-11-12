@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEditable
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -833,7 +834,15 @@ class PlantDetailScreenTest {
             }
             waitUntilAtLeastOneExists(hasText("Журнал"), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("О растении"), TIMEOUT)
-            assertEquals(1, onAllNodes(hasTestTag("journal_entryLabel") and hasText("Запись в журнал"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            // No composer label and no save bar at rest: the journal card is just the field.
+            assertTrue(
+                onAllNodes(hasTestTag("journal_entryLabel"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "no composer label in the journal",
+            )
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "no save bar before the field takes focus",
+            )
             assertTrue(onAllNodes(hasText("Заметки"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
             listOf("Полили", "Подкормили", "Пересадили", "Обрезали", "Заметка", "Фото").forEach { label ->
                 waitUntilAtLeastOneExists(hasText(label), TIMEOUT)
@@ -841,6 +850,57 @@ class PlantDetailScreenTest {
             waitUntilAtLeastOneExists(hasText("22 сент."), TIMEOUT)
             waitUntilAtLeastOneExists(hasText("10 янв."), TIMEOUT)
             assertTrue(onAllNodes(hasText("Sep 22"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+            runOnIdle { graph.close() }
+        }
+    }
+
+    /**
+     * 0.8.2 variant C: at rest the journal card is the bare field, with no label and no save bar. Focus brings
+     * the full-width bar under the field and scrolls the page so the field stands at the top of the scroll
+     * viewport, right under the photo header — even though the journal is the last card on the page.
+     */
+    @Test
+    fun journal_composer_scrollsTheFieldToTheTop_andTheSaveBarFollowsFocus() {
+        val graph = newHarness()
+        presetEnglishSignedOut()
+        runDesktopComposeUiTest(width = 420, height = 900) {
+            setContent { App(graph.session, graph.connectivity, graph.opener, graph.settings, graph.push) }
+            openDashboard()
+            openPlantDetail()
+            waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
+
+            fun field(): androidx.compose.ui.semantics.SemanticsNode =
+                onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).fetchSemanticsNode()
+
+            val viewport = onNode(hasTestTag("plantDetail_headerPhoto"), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            println("M15 journal focus viewportTop=${viewport.bottom} fieldTop=${field().positionInRoot.y}")
+            assertTrue(
+                field().positionInRoot.y > viewport.bottom + 40f,
+                "at rest the field is below the visible top: ${field().positionInRoot.y} vs ${viewport.bottom}",
+            )
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "no save bar at rest",
+            )
+
+            onNode(hasTestTag("journal_noteInput"))
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus)
+            waitUntil(timeoutMillis = TIMEOUT) {
+                kotlin.math.abs(field().positionInRoot.y - viewport.bottom) <= 4f
+            }
+            println("M15 journal focus fieldTop=${field().positionInRoot.y} viewportTop=${viewport.bottom}")
+            waitUntil(timeoutMillis = TIMEOUT) {
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            val bar = onNode(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNode()
+            assertEquals(field().size.width.toFloat(), bar.size.width.toFloat(), 2f, "the bar spans the card")
+            assertTrue(bar.positionInRoot.y > field().positionInRoot.y, "the bar sits under the field")
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote") and isNotEnabled()).fetchSemanticsNodes().isNotEmpty(),
+                "the bar is disabled while the draft is empty",
+            )
+
             runOnIdle { graph.close() }
         }
     }
@@ -856,6 +916,8 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             onNode(hasTestTag("journal_noteInput")).performTextInput("Unique note 4711")
+            // The composer scrolls on focus: let the move settle before tapping the bar.
+            waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
             assertEquals("""{"type":"note","note":"Unique note 4711"}""", graph.server.lastNoteBody)
@@ -906,6 +968,8 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             onNode(hasTestTag("journal_noteInput")).performTextInput("Offline 99")
+            // The composer scrolls on focus: let the move settle before tapping the bar.
+            waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntilAtLeastOneExists(hasSubText("Network connection required"), TIMEOUT)
             // The message sits next to the field, above the button, so it is on screen after the tap.
@@ -923,6 +987,8 @@ class PlantDetailScreenTest {
             waitForIdle()
             assertEquals(1, graph.server.notePosts)
 
+            // The composer scrolls on focus: let the move settle before tapping the bar.
+            waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 2 }
             waitUntilDoesNotExist(hasSubText("Network connection required"), TIMEOUT)
@@ -946,13 +1012,16 @@ class PlantDetailScreenTest {
 
             waitUntilAtLeastOneExists(hasText("No entries yet"), TIMEOUT)
             assertEquals(1, onAllNodes(hasTestTag("plantDetail_notesTitle") and hasText("About the plant"), useUnmergedTree = true).fetchSemanticsNodes().size)
-            assertEquals(1, onAllNodes(hasTestTag("journal_entryLabel") and hasText("Journal entry"), useUnmergedTree = true).fetchSemanticsNodes().size)
+            // The journal composer no longer carries a label, and its save bar waits for focus.
+            assertTrue(
+                onAllNodes(hasTestTag("journal_entryLabel"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "no composer label in the journal",
+            )
+            assertTrue(
+                onAllNodes(hasTestTag("journal_addNote"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+                "no save bar before the field takes focus",
+            )
             assertTrue(onAllNodes(hasText("Notes"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-            val title = onNode(hasTestTag("plantDetail_notesTitle"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
-            val label = onNode(hasTestTag("journal_entryLabel"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
-            val input = onNode(hasTestTag("journal_noteInput"), useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
-            assertTrue(label < input, "journal label $label above its field $input")
-            assertTrue(title != label)
 
             // Editing the plant notes is one PATCH of notes only; no dated journal entry is created.
             onNode(hasTestTag("plantDetail_notesEdit"), useUnmergedTree = true)
@@ -971,6 +1040,8 @@ class PlantDetailScreenTest {
 
             // A journal entry is one POST to the events endpoint; the plant notes stay as saved.
             onNode(hasTestTag("journal_noteInput")).performTextInput("Entry 512")
+            // The composer scrolls on focus: let the move settle before tapping the bar.
+            waitForIdle()
             clickAt(hasClickAction() and hasText("Add note"))
             waitUntil(timeoutMillis = TIMEOUT) { graph.server.notePosts == 1 }
             assertEquals("""{"type":"note","note":"Entry 512"}""", graph.server.lastNoteBody)

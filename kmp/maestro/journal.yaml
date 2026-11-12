@@ -65,6 +65,8 @@ name: GreenThumb journal (${STEP})
       - scrollUntilVisible:
           element: "Add a note…|Добавить заметку…"
           direction: DOWN
+      # At rest the composer is the bare field: the save bar waits for focus (0.8.2 variant C).
+      - assertNotVisible: "^Add note$|^Сохранить заметку$"
 
 - runFlow:
     when:
@@ -88,6 +90,8 @@ name: GreenThumb journal (${STEP})
     commands:
       # Keyboard stays open: the message must show up on screen without scrolling.
       - tapOn: "Add a note…"
+      # Focus alone brings the full-width save bar; the field stands at the top of the page.
+      - assertVisible: "^Add note$|^Сохранить заметку$"
       - inputText: ${NOTE}
       - tapOn: "Add note"
       - extendedWaitUntil:
@@ -102,6 +106,7 @@ name: GreenThumb journal (${STEP})
       true: ${STEP == 'add-note'}
     commands:
       - tapOn: "Add a note…"
+      - assertVisible: "^Add note$|^Сохранить заметку$"
       - inputText: ${NOTE}
       - hideKeyboard
       - tapOn: "Add note"
