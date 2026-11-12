@@ -251,7 +251,11 @@ if [ "${1:-}" = "--grep-only" ]; then
   exit $?
 fi
 
-echo "== [1/4] gradle: :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin :shared:jvmTest :androidApp:testDebugUnitTest =="
+GRADLE_TASKS=(
+  :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin
+  :androidApp:testDebugUnitTest --rerun :shared:jvmTest --rerun
+)
+echo "== [1/4] gradle: ${GRADLE_TASKS[*]} =="
 GRADLE_LOG="$(mktemp -t gt-gradle-gate)"
 trap 'rm -f "$GRADLE_LOG"' EXIT
 
@@ -263,11 +267,11 @@ export GATE_START GRADLE_LOG
 
 gradle_gate() {
   : > "$GRADLE_LOG"
-  ./gradlew --console=plain --continue \
-    :shared:compileAndroidMain :shared:compileKotlinJvm :desktopApp:compileKotlin \
-    :androidApp:testDebugUnitTest --rerun :shared:jvmTest --rerun \
-    2>&1 | tee "$GRADLE_LOG"
-  return "${PIPESTATUS[0]}"
+  ./gradlew --console=plain --continue "${GRADLE_TASKS[@]}" 2>&1 | tee "$GRADLE_LOG"
+  local rc="${PIPESTATUS[0]}"
+  GATE_END=$(date +%s)
+  export GATE_END
+  return "$rc"
 }
 
 # Харнесс Compose собирает кадр в потоке AWT, а тест в это время читает семантику; кадр между двумя чтениями
@@ -284,14 +288,15 @@ import glob, html, io, os, re, sys
 
 race = "Detected multithreaded access to SnapshotStateObserver"
 class_name = "PlantDetailScreenTest"
-start = int(os.environ["GATE_START"]) - 5
+start = int(os.environ["GATE_START"]) - 1
+end = int(os.environ["GATE_END"]) + 1
 files = glob.glob("shared/build/test-results/jvmTest/TEST-*.xml")
 if not files:
     sys.exit(1)
 failed = []
 for path in files:
-    # Результаты старше этого прогона: тесты не писали его, судить по чужому файлу нельзя.
-    if int(os.path.getmtime(path)) < start:
+    # Файл должен быть записан внутри этого прогона: и старый, и «из будущего» — не наши улики.
+    if not start <= int(os.path.getmtime(path)) <= end:
         sys.exit(1)
     text = html.unescape(io.open(path, encoding="utf-8").read())
     if "<error" in text:
@@ -304,7 +309,7 @@ for path in files:
 if not failed:
     sys.exit(1)
 # Сверка с итогом gradle: сколько тестов он сам назвал упавшими.
-counts = re.findall(r"(\d+) tests completed, (\d+) failed", io.open(os.environ["GRADLE_LOG"], encoding="utf-8", errors="replace").read())
+counts = re.findall(r"(\d+) tests? completed, (\d+) failed", io.open(os.environ["GRADLE_LOG"], encoding="utf-8", errors="replace").read())
 if not counts or int(counts[-1][1]) != len(failed):
     sys.exit(1)
 print("\n".join(sorted(set(failed))))

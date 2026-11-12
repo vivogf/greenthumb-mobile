@@ -748,6 +748,8 @@ class DashboardScreenTest {
                 listOf("List view", "Card view", "Grid view")
             }
             for ((modeIndex, toggle) in toggles.withIndex()) {
+                // Смена языка перерисовывает шапку: подпись переключателя появляется не в том же кадре.
+                waitUntilAtLeastOneExists(hasClickAction() and hasContentDescription(toggle), TIMEOUT)
                 clickAt(hasClickAction() and hasContentDescription(toggle))
                 waitForIdle()
                 waitUntilAtLeastOneExists(hasTestTag("dashboard_plants"), TIMEOUT)
